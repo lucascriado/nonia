@@ -3,6 +3,7 @@
 import {
   CalendarDays,
   ChevronLeft,
+  Church,
   CircleHelp,
   LayoutDashboard,
   ListChecks,
@@ -11,6 +12,7 @@ import {
   Puzzle,
   UserPlus,
   Users,
+  Wallet,
 } from "lucide-react";
 import type { Ref } from "react";
 import Link from "next/link";
@@ -22,6 +24,7 @@ const primaryLinks = [
   { label: "Visitantes", icon: UserPlus, href: "/visitantes" },
   { label: "Calendário", icon: CalendarDays, href: "/calendario" },
   { label: "Atividades", icon: ListChecks, href: "/atividades" },
+  { label: "Financeiro", icon: Wallet, href: "/financeiro" },
   { label: "Células", icon: Network, href: "/celulas" },
   { label: "Ministérios", icon: Puzzle, href: "/ministerios" },
 ];
@@ -33,11 +36,7 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
     <aside className="sidebar" ref={sidebarRef}>
       <div className="brand">
         <Link className="brand-link" href="/" aria-label="Ir para a dashboard" title="Dashboard">
-          <span className="brand-icon" aria-hidden>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 18V6l10 12V6" />
-            </svg>
-          </span>
+          <span className="brand-icon" aria-hidden><Church /></span>
           <span className="brand-text"><strong>Nonia</strong><small>Gestão ministerial</small></span>
         </Link>
         <label className="sidebar-collapse-button" htmlFor="sidebar-collapse" aria-label="Recolher menu" title="Recolher menu">

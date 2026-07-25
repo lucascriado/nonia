@@ -1,7 +1,7 @@
 # Nonia
 
 Plataforma de gestão ministerial: membros, visitantes, células, ministérios,
-agenda e histórico de atividades.
+agenda, financeiro e histórico de atividades.
 
 - **Stack**: Next.js 16 (App Router), React 19, TypeScript, Sequelize v6 e PostgreSQL.
 - **Frontend**: CSS global com design tokens (sem Tailwind), Lucide e Sonner.

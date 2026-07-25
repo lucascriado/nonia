@@ -7,6 +7,8 @@ PostgreSQL (13+) e são a fonte de verdade do schema.
 
 - `migrations/001_initial_schema.sql`: tabelas, constraints, índices e triggers.
 - `migrations/002_directory_views.sql`: views `member_directory` e `visitor_directory`.
+- `migrations/003_financial_transactions.sql`: tabela `financial_transactions`
+  e extensão da categoria `financial` em `activities`.
 - `seeds/dev_seed.sql`: dados de demonstração (apenas para desenvolvimento).
 - `migrate.mjs`: executor de migrations multiplataforma (Node).
 
@@ -55,3 +57,5 @@ Depois aponte `DATABASE_URL` para `127.0.0.1:15432`.
 | `following_up` | Em Acompanhamento |
 | `integrated` | Integrado |
 | `visited` / `contacted` / `home_visit` / `baptism` / `member` | Etapas da jornada do visitante |
+| `income` / `expense` | Entrada / Saída |
+| `paid` / `pending` | Pago / Pendente |

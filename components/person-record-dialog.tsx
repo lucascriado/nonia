@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Camera, Check, Church, LoaderCircle, MapPin, Save, Trash2, TriangleAlert, UserRound, X } from "lucide-react";
 
 export type PersonKind = "member" | "visitor";
-export type DeleteRecordKind = PersonKind | "cell" | "ministry" | "event";
+export type DeleteRecordKind = PersonKind | "cell" | "ministry" | "event" | "financial";
 
 export type PersonRecordValues = {
   name: string;
@@ -391,6 +391,7 @@ export function DeleteRecordDialog({
     cell: "a célula",
     ministry: "o ministério",
     event: "o evento",
+    financial: "o lançamento",
   };
   const relationByKind: Record<DeleteRecordKind, string> = {
     member: "ministeriais",
@@ -398,6 +399,7 @@ export function DeleteRecordDialog({
     cell: "dos membros vinculados",
     ministry: "ministeriais e chamadas vinculadas",
     event: "do calendário",
+    financial: "financeiros",
   };
 
   async function confirm() {

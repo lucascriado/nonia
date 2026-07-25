@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Baby, BookOpenCheck, CalendarCheck, Edit3, Eye, HeartHandshake, LoaderCircle, Music, Plus, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
+import { Baby, BookOpenCheck, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, Music, Plus, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
@@ -34,10 +34,8 @@ export default function MinistriesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [leader, setLeader] = useState("all");
-  const [color, setColor] = useState("all");
   const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null);
   const [selectedMinistry, setSelectedMinistry] = useState<Ministry | null>(null);
-  const [attendanceMinistry, setAttendanceMinistry] = useState<Ministry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Ministry | null>(null);
 
   async function loadData() {
@@ -63,20 +61,19 @@ export default function MinistriesPage() {
   useEffect(() => { void loadData(); }, []);
 
   const leaders = useMemo(() => [...new Set(ministries.map((ministry) => ministry.leaderName).filter(Boolean))] as string[], [ministries]);
+  const averageVolunteers = ministries.length ? Math.round(summary.totalVolunteers / ministries.length) : 0;
   const filteredMinistries = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     return ministries.filter((ministry) => {
       const matchesSearch = !term || `${ministry.name} ${ministry.description ?? ""} ${ministry.leaderName ?? ""}`.toLocaleLowerCase("pt-BR").includes(term);
       return matchesSearch
-        && (leader === "all" || ministry.leaderName === leader)
-        && (color === "all" || ministry.color === color);
+        && (leader === "all" || ministry.leaderName === leader);
     });
-  }, [color, leader, ministries, search]);
+  }, [leader, ministries, search]);
 
   function clearFilters() {
     setSearch("");
     setLeader("all");
-    setColor("all");
   }
 
   async function saveMinistry(values: MinistryFormValues) {
@@ -134,21 +131,16 @@ export default function MinistriesPage() {
           <MinistryForm mode={mode} ministry={selectedMinistry} members={members} onClose={closeForm} onSubmit={saveMinistry} />
         ) : (
           <>
-            <section className="resource-stats ministry-summary">
+            <section className="resource-stats">
               <article><span><Users /></span><small>Total voluntários</small><strong>{loading ? <NumberSkeleton /> : <><AnimatedNumber value={summary.totalVolunteers} /> pessoas</>}</strong></article>
               <article><span><HeartHandshake /></span><small>Ministérios ativos</small><strong>{loading ? <NumberSkeleton /> : <><AnimatedNumber value={summary.activeMinistries} /> grupos</>}</strong></article>
-              <article><span><CalendarCheck /></span><small>Chamadas criadas</small><strong>Domingos</strong></article>
-              <article><span><BookOpenCheck /></span><small>Escola bíblica</small><strong>Por ministério</strong></article>
+              <article><span><Layers /></span><small>Média por ministério</small><strong>{loading ? <NumberSkeleton /> : <><AnimatedNumber value={averageVolunteers} /> pessoas</>}</strong></article>
             </section>
 
             <div className="member-filters resource-filters">
               <select aria-label="Filtrar por líder" value={leader} onChange={(event) => setLeader(event.target.value)}>
                 <option value="all">Líder: Todos</option>
                 {leaders.map((item) => <option key={item}>{item}</option>)}
-              </select>
-              <select aria-label="Filtrar por cor" value={color} onChange={(event) => setColor(event.target.value)}>
-                <option value="all">Cor: Todas</option>
-                {(Object.keys(colorLabels) as Ministry["color"][]).map((item) => <option value={item} key={item}>{colorLabels[item]}</option>)}
               </select>
               <label className="member-filter-search"><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filtrar ministério..." /></label>
               <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
@@ -166,9 +158,8 @@ export default function MinistriesPage() {
                   <p>{ministry.description || "Sem descrição cadastrada para este ministério."}</p>
                   <small>Líder: {ministry.leaderName || "não definido"}</small>
                   <footer>
-                    <button onClick={() => openForm("view", ministry)}><Eye />Ver</button>
+                    <button onClick={() => openForm("view", ministry)}><Eye />Visualizar</button>
                     <button onClick={() => openForm("edit", ministry)}><Edit3 />Editar</button>
-                    <button onClick={() => setAttendanceMinistry(ministry)}><BookOpenCheck />Chamada</button>
                     <button className="danger" onClick={() => setDeleteTarget(ministry)}><Trash2 />Excluir</button>
                   </footer>
                 </article>
@@ -179,7 +170,6 @@ export default function MinistriesPage() {
           </>
         )}
       </main>
-      <AttendanceDialog ministry={attendanceMinistry} onClose={() => setAttendanceMinistry(null)} />
       <DeleteRecordDialog open={deleteTarget !== null} name={deleteTarget?.name ?? ""} kind="ministry" onClose={() => setDeleteTarget(null)} onConfirm={confirmDeleteMinistry} />
     </DashboardShell>
   );

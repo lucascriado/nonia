@@ -142,3 +142,22 @@ WHERE NOT EXISTS (
   WHERE a.category = data.category AND a.actor = data.actor AND a.action = data.action
     AND a.subject IS NOT DISTINCT FROM data.subject
 );
+
+INSERT INTO financial_transactions (type, description, category, counterparty, amount, status, transaction_date, payment_method, attachment_url, attachment_name, notes)
+SELECT data.type, data.description, data.category, data.counterparty, data.amount, data.status, data.transaction_date, data.payment_method, data.attachment_url, data.attachment_name, data.notes
+FROM (
+  VALUES
+    ('income', 'Dízimos do mês', 'Dízimos', 'Congregação', 18500.00, 'paid', CURRENT_DATE - 2, 'Pix', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'comprovante-dizimos.png', NULL),
+    ('income', 'Oferta especial - Culto de Celebração', 'Ofertas', 'Congregação', 4230.50, 'paid', CURRENT_DATE - 5, 'Dinheiro', NULL, NULL, NULL),
+    ('income', 'Doação para reforma do templo', 'Doações', 'Família Andrade', 3000.00, 'paid', CURRENT_DATE - 9, 'Transferência', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'comprovante-doacao.png', NULL),
+    ('income', 'Inscrições do acampamento de jovens', 'Eventos', 'Ministério de Jovens', 2150.00, 'pending', CURRENT_DATE + 4, 'Pix', NULL, NULL, 'Aguardando repasse das últimas inscrições.'),
+    ('expense', 'Aluguel do salão principal', 'Aluguel', 'Imobiliária Central', 3800.00, 'paid', CURRENT_DATE - 3, 'Boleto', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'boleto-aluguel.png', NULL),
+    ('expense', 'Conta de energia elétrica', 'Contas e Utilidades', 'Companhia Elétrica', 612.40, 'paid', CURRENT_DATE - 6, 'Boleto', NULL, NULL, NULL),
+    ('expense', 'Manutenção do sistema de som', 'Manutenção', 'Áudio & Som Ltda', 950.00, 'pending', CURRENT_DATE + 2, 'Transferência', NULL, NULL, 'Aguardando nota fiscal do fornecedor.'),
+    ('expense', 'Apoio ao missionário no campo', 'Missões', 'Missão Fronteiras', 1200.00, 'paid', CURRENT_DATE - 12, 'Transferência', NULL, NULL, NULL),
+    ('expense', 'Material gráfico para o culto infantil', 'Materiais', 'Gráfica Nova Vida', 340.00, 'pending', CURRENT_DATE + 1, 'Dinheiro', NULL, NULL, NULL)
+) AS data(type, description, category, counterparty, amount, status, transaction_date, payment_method, attachment_url, attachment_name, notes)
+WHERE NOT EXISTS (
+  SELECT 1 FROM financial_transactions f
+  WHERE f.description = data.description AND f.transaction_date = data.transaction_date
+);

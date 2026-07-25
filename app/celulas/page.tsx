@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { CalendarClock, Clock, Edit3, LoaderCircle, MapPin, Network, Plus, Search, Trash2, Users, X } from "lucide-react";
+import { CalendarClock, Clock, Edit3, Eye, LoaderCircle, MapPin, Network, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
@@ -185,9 +185,9 @@ export default function CellsPage() {
                   <p><Clock />{cell.meetingDay}, {cell.meetingTime}</p>
                   <div className="avatar-row">{cell.members.slice(0, 3).map((member) => <span key={member.id}>{initials(member.name)}</span>)}{cell.memberCount > 3 && <span>+{cell.memberCount - 3}</span>}</div>
                   <footer>
-                    <button onClick={() => openForm("view", cell)}>Visualizar</button>
+                    <button onClick={() => openForm("view", cell)}><Eye />Visualizar</button>
                     <button onClick={() => openForm("edit", cell)}><Edit3 />Editar</button>
-                    <button aria-label={`Excluir ${cell.name}`} onClick={() => setDeleteTarget(cell)}><Trash2 /></button>
+                    <button className="danger" onClick={() => setDeleteTarget(cell)}><Trash2 />Excluir</button>
                   </footer>
                 </article>
               ))}

@@ -1,7 +1,7 @@
 import type { Transaction } from "sequelize";
 import { db } from "@/lib/db";
 
-export async function addActivity(transaction: Transaction, category: "members" | "visitors" | "calendar" | "system", action: string, subject?: string, details?: string) {
+export async function addActivity(transaction: Transaction, category: "members" | "visitors" | "calendar" | "system" | "financial", action: string, subject?: string, details?: string) {
   await db.query(`
     INSERT INTO activities (category, actor, action, subject, details)
     VALUES ($1, $2, $3, $4, $5)

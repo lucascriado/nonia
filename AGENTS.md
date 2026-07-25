@@ -119,8 +119,27 @@ git diff --check
 - Gestao de membros com busca, filtros, paginacao, celulas e CRUD.
 - Gestao de visitantes com busca, filtros, abas, paginacao e CRUD.
 - Historico de atividades com busca, periodo, categorias e paginacao.
+- Financeiro (`/financeiro`) com saldo disponivel, entradas, saidas,
+  pendencias, filtros (tipo, status, categoria, comprovante, busca),
+  paginacao e CRUD de lancamentos com comprovante/anexo (PNG, JPG ou PDF).
 - Sidebar responsiva, recolhivel e persistente entre navegacoes.
 - Sonner para notificacoes e skeletons para carregamento remoto.
+
+## Financeiro
+
+- Tabela `financial_transactions`: `type` (`income`/`expense`), `category`
+  (lista fixa por tipo, ver `lib/finance-records.ts`), `counterparty`
+  (origem da entrada ou destino da saida), `amount`, `status`
+  (`paid`/`pending`), `transaction_date`, `payment_method`, `attachment_url`/
+  `attachment_name` e `notes`.
+- Comprovantes seguem o mesmo padrao de `avatar_url`: base64 inline com
+  CHECK de formato (`image/png`, `image/jpeg` ou `application/pdf`) e
+  limite de tamanho (`ATTACHMENT_MAX_BYTES` em `lib/finance-records.ts`).
+- Categorias sao uma lista fixa por tipo (nao ha tabela de categorias);
+  para adicionar uma categoria, atualize `lib/finance-records.ts` e a
+  CHECK constraint `financial_transactions_category_check` em uma nova
+  migration.
+- Toda escrita registra atividade com `addActivity(transaction, "financial", ...)`.
 
 ## Implementacao a partir do Figma
 

@@ -111,3 +111,33 @@ Activity.init({
   details: DataTypes.TEXT,
   occurredAt: { type: DataTypes.DATE, allowNull: false, field: "occurred_at" },
 }, { sequelize: db, tableName: "activities", createdAt: "created_at", updatedAt: false });
+
+export class FinancialTransaction extends Model<InferAttributes<FinancialTransaction>, InferCreationAttributes<FinancialTransaction>> {
+  declare id: CreationOptional<string>;
+  declare type: string;
+  declare description: string;
+  declare category: string;
+  declare counterparty: string | null;
+  declare amount: string;
+  declare status: string;
+  declare transactionDate: CreationOptional<string>;
+  declare paymentMethod: string | null;
+  declare attachmentUrl: string | null;
+  declare attachmentName: string | null;
+  declare notes: string | null;
+}
+
+FinancialTransaction.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  type: { type: DataTypes.STRING(10), allowNull: false },
+  description: { type: DataTypes.STRING(160), allowNull: false },
+  category: { type: DataTypes.STRING(60), allowNull: false },
+  counterparty: DataTypes.STRING(160),
+  amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+  status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "paid" },
+  transactionDate: { type: DataTypes.DATEONLY, allowNull: false, field: "transaction_date", defaultValue: () => new Date().toISOString().slice(0, 10) },
+  paymentMethod: { type: DataTypes.STRING(40), field: "payment_method" },
+  attachmentUrl: { type: DataTypes.TEXT, field: "attachment_url" },
+  attachmentName: { type: DataTypes.STRING(160), field: "attachment_name" },
+  notes: DataTypes.TEXT,
+}, { sequelize: db, tableName: "financial_transactions", createdAt: "created_at", updatedAt: "updated_at" });

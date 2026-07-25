@@ -221,12 +221,6 @@ export default function VisitorsPage() {
 
         <section className="visitor-followup">
           <article className="integration-guide"><h3>Próximos Passos na Integração</h3><p>Lembre-se que o primeiro contato deve ser feito em até 48h após a visita para garantir uma maior taxa de retenção.</p><button><ClipboardList />Ver Manual de Integração</button></article>
-          <article className="reminders-card">
-            <h3>Lembretes</h3>
-            {visitors.filter((visitor) => visitor.membershipStage === "Visitou a igreja").slice(0, 2).map((visitor, index) => <Reminder key={visitor.id} urgent={index === 0} title={`Entrar em contato com ${visitor.name}`} detail={`Visitou em ${visitor.date}`} />)}
-            {!visitors.some((visitor) => visitor.membershipStage === "Visitou a igreja") && <p className="data-empty">Nenhum contato pendente.</p>}
-            <button>Ver todos os lembretes</button>
-          </article>
         </section>
       </main>
       <PersonRecordDialog open={dialogMode !== null} mode={dialogMode ?? "create"} kind="visitor" initialValues={selectedVisitor ? visitorValues(selectedVisitor) : { membershipStage: "Visitou a igreja" }} onClose={() => { setDialogMode(null); setSelectedVisitor(null); }} onSubmit={saveVisitor} />
@@ -268,8 +262,4 @@ function MembershipProgress({ stage }: { stage: Visitor["membershipStage"] }) {
       <div>{membershipStages.map((item, index) => <i className={index <= currentIndex ? "reached" : undefined} key={item} />)}</div>
     </div>
   );
-}
-
-function Reminder({ title, detail, urgent }: { title: string; detail: string; urgent?: boolean }) {
-  return <div className="visitor-reminder"><i className={urgent ? "urgent" : undefined} /><span><strong>{title}</strong><small>{detail}</small></span></div>;
 }
