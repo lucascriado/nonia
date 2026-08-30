@@ -11,8 +11,8 @@ const fustat = Fustat({
 
 export const metadata: Metadata = {
   title: {
-    default: "Nonia",
-    template: "%s | Nonia",
+    default: "nonia.app",
+    template: "%s | nonia.app",
   },
   description: "Nonia — plataforma de gestão ministerial: membros, visitantes, células, ministérios e agenda.",
   applicationName: "Nonia",
