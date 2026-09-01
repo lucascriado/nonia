@@ -6,11 +6,12 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const [stats, activities, birthdays, events] = await Promise.all([
-      query<{ totalMembers: number; visitorsThisMonth: number; activeCells: number }>(`
+      query<{ totalMembers: number; visitorsThisMonth: number; activeCells: number; birthdaysThisMonth: number }>(`
         SELECT
           (SELECT count(*)::int FROM members WHERE status='active') AS "totalMembers",
           (SELECT count(*)::int FROM visitors WHERE date_trunc('month', visit_date)=date_trunc('month', CURRENT_DATE)) AS "visitorsThisMonth",
-          (SELECT count(DISTINCT cell_name)::int FROM members WHERE status='active' AND cell_name <> 'Sem célula') AS "activeCells"
+          (SELECT count(DISTINCT cell_name)::int FROM members WHERE status='active' AND cell_name <> 'Sem célula') AS "activeCells",
+          (SELECT count(*)::int FROM people WHERE birth_date IS NOT NULL AND EXTRACT(MONTH FROM birth_date)=EXTRACT(MONTH FROM CURRENT_DATE)) AS "birthdaysThisMonth"
       `),
       query<{ id: string; category: string; actor: string; action: string; subject: string; occurredAt: string }>(`
         SELECT id, category, actor, action, subject, occurred_at AS "occurredAt"

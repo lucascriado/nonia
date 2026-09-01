@@ -6,6 +6,13 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const weekdays = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
 
+// Em português só o nome do mês leva maiúscula; `text-transform: capitalize`
+// produzia "Setembro De 2026".
+function monthLabel(date: Date) {
+  const label = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+  return label.charAt(0).toLocaleUpperCase("pt-BR") + label.slice(1);
+}
+
 export function Calendar({ events = [] }: { events?: Array<{ id: string; title: string; startsAt: string; color: string }> }) {
   const [visibleDate, setVisibleDate] = useState(() => new Date());
   const year = visibleDate.getFullYear();
@@ -24,7 +31,7 @@ export function Calendar({ events = [] }: { events?: Array<{ id: string; title: 
     <>
       <div className="panel-header">
         <div className="calendar-title">
-          <h2>{new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(visibleDate)}</h2>
+          <h2>{monthLabel(visibleDate)}</h2>
           <button aria-label="Mês anterior" onClick={() => setVisibleDate(new Date(year, month - 1, 1))}><ChevronLeft /></button>
           <button aria-label="Próximo mês" onClick={() => setVisibleDate(new Date(year, month + 1, 1))}><ChevronRight /></button>
         </div>

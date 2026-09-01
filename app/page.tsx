@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, MapPin, Network, PartyPopper, Settings, UserPlus, Users } from "lucide-react";
+import { Cake, CalendarDays, MapPin, Network, PartyPopper, Settings, UserPlus, Users } from "lucide-react";
 import { Calendar } from "@/components/calendar";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -10,13 +10,13 @@ import { toast } from "sonner";
 import { ActivitySkeleton, NumberSkeleton, Skeleton } from "@/components/skeleton";
 
 type DashboardData = {
-  stats: { totalMembers: number; visitorsThisMonth: number; activeCells: number };
+  stats: { totalMembers: number; visitorsThisMonth: number; activeCells: number; birthdaysThisMonth: number };
   activities: Array<{ id: string; category: string; actor: string; action: string; subject: string; occurredAt: string }>;
   birthdays: Array<{ id: string; name: string; birthDate: string }>;
   events: Array<{ id: string; title: string; location: string; startsAt: string; color: string }>;
 };
 
-const emptyData: DashboardData = { stats: { totalMembers: 0, visitorsThisMonth: 0, activeCells: 0 }, activities: [], birthdays: [], events: [] };
+const emptyData: DashboardData = { stats: { totalMembers: 0, visitorsThisMonth: 0, activeCells: 0, birthdaysThisMonth: 0 }, activities: [], birthdays: [], events: [] };
 
 export default function Dashboard() {
   const [data, setData] = useState(emptyData);
@@ -31,9 +31,10 @@ export default function Dashboard() {
   }, []);
 
   const stats = [
-    { label: "Membros ativos", value: data.stats.totalMembers, icon: Users, color: "purple" },
+    { label: "Membros ativos", value: data.stats.totalMembers, icon: Users, color: "green" },
     { label: "Visitantes no mês", value: data.stats.visitorsThisMonth, icon: UserPlus, color: "blue" },
-    { label: "Células ativas", value: data.stats.activeCells, icon: Network, color: "green" },
+    { label: "Células ativas", value: data.stats.activeCells, icon: Network, color: "purple" },
+    { label: "Aniversariantes do mês", value: data.stats.birthdaysThisMonth, icon: Cake, color: "blue" },
   ];
 
   return (

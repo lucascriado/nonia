@@ -168,7 +168,7 @@ export default function VisitorsPage() {
 
         <section className="visitor-stats" aria-label="Indicadores de visitantes">
           <VisitorStat loading={loading} label="Total de visitantes" value={visitors.length} color="default" />
-          <VisitorStat loading={loading} label="Primeira visita" value={visitors.filter((item) => item.membershipStage === "Visitou a igreja").length} detail="Novo" color="danger" />
+          <VisitorStat loading={loading} label="Primeira visita" value={visitors.filter((item) => item.membershipStage === "Visitou a igreja").length} detail="Novo" color="new" />
           <VisitorStat loading={loading} label="Em integração" value={visitors.filter((item) => item.membershipStage !== "Visitou a igreja" && item.membershipStage !== "Membro").length} icon={<Users />} color="tracking" />
           <VisitorStat loading={loading} label="Membros" value={visitors.filter((item) => item.membershipStage === "Membro").length} icon={<PartyPopper />} color="success" />
         </section>

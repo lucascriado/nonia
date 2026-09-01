@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Droplets,
   Eye,
+  HeartHandshake,
   Landmark,
   Pencil,
   Plus,
@@ -210,9 +211,10 @@ export default function MembersPage() {
           </div>
 
           <section className="member-stats" aria-label="Resumo de membros">
-            <MemberStat loading={loading} label="Total ativos" value={members.filter((member) => member.status === "Ativo").length} icon={UserCheck} color="neutral" />
+            <MemberStat loading={loading} label="Total ativos" value={members.filter((member) => member.status === "Ativo").length} icon={UserCheck} color="green" />
             <MemberStat loading={loading} label="Novos este mês" value={members.filter((member) => member.isNew).length} prefix="+" icon={Landmark} color="blue" />
-            <MemberStat loading={loading} label="Aguardando batismo" value={members.filter((member) => member.baptism === "Aguardando").length} icon={Droplets} color="green" />
+            <MemberStat loading={loading} label="Batizados" value={members.filter((member) => member.baptism === "Batizado").length} icon={Droplets} color="neutral" />
+            <MemberStat loading={loading} label="Aguardando batismo" value={members.filter((member) => member.baptism === "Aguardando").length} icon={HeartHandshake} color="blue" />
           </section>
         </section>
       </main>
