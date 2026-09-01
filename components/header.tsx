@@ -2,8 +2,24 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Bell, CalendarDays, History, LayoutDashboard, Menu, Network, Puzzle, Search, UserPlus, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Bell,
+  CalendarDays,
+  History,
+  LayoutDashboard,
+  Menu,
+  Moon,
+  Network,
+  Puzzle,
+  Search,
+  Settings,
+  Sun,
+  UserPlus,
+  Users,
+  Wallet,
+} from "lucide-react";
+import { readPreferences, savePreferences } from "@/components/app-preferences";
 
 const searchItems = [
   { title: "Dashboard", description: "Indicadores, atividades recentes e próximos eventos", href: "/", icon: LayoutDashboard, keywords: "inicio painel indicadores atividades eventos aniversario" },
@@ -13,11 +29,34 @@ const searchItems = [
   { title: "Atividades", description: "Histórico de alterações do sistema", href: "/atividades", icon: History, keywords: "historico logs atividades alteracoes" },
   { title: "Células", description: "Pequenos grupos, líderes, membros e encontros", href: "/celulas", icon: Network, keywords: "celulas pequenos grupos lider membros presenca" },
   { title: "Ministérios", description: "Equipes, voluntários e chamada da escola bíblica", href: "/ministerios", icon: Puzzle, keywords: "ministerios voluntarios escola biblica chamada presenca domingo" },
+  { title: "Financeiro", description: "Entradas, saídas, comprovantes e saldo disponível", href: "/financeiro", icon: Wallet, keywords: "financeiro dizimo oferta despesa saldo lancamento comprovante" },
+  { title: "Configurações", description: "Perfil, tema, idioma e preferências da plataforma", href: "/configuracoes", icon: Settings, keywords: "configuracoes preferencias tema idioma fonte perfil" },
 ];
+
+// Algumas páginas passam um título mais longo ("Gestão de Células"), então a
+// legenda também é procurada por correspondência parcial.
+function subtitleFor(title: string) {
+  const normalized = title.toLocaleLowerCase("pt-BR");
+  return searchItems.find((item) => item.title.toLocaleLowerCase("pt-BR") === normalized)?.description
+    ?? searchItems.find((item) => normalized.includes(item.title.toLocaleLowerCase("pt-BR")))?.description;
+}
 
 export function Header({ title }: { title: string }) {
   const [search, setSearch] = useState("");
   const [focused, setFocused] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    setTheme(readPreferences().theme);
+  }, []);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    savePreferences({ theme: next });
+  }
+
+  const subtitle = subtitleFor(title);
   const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
   const results = useMemo(() => {
     if (!normalizedSearch) return searchItems.slice(0, 5);
@@ -31,7 +70,12 @@ export function Header({ title }: { title: string }) {
       <label className="icon-button menu-button" htmlFor="menu-toggle" aria-label="Abrir menu" data-sidebar-trigger>
         <Menu />
       </label>
-      <h1>{title}</h1>
+
+      <div className="topbar-title">
+        <h1>{title}</h1>
+        {subtitle && <span className="topbar-subtitle">{subtitle}</span>}
+      </div>
+
       <label className="search global-search">
         <Search />
         <input
@@ -43,6 +87,7 @@ export function Header({ title }: { title: string }) {
           onChange={(event) => setSearch(event.target.value)}
           onFocus={() => setFocused(true)}
         />
+        <kbd aria-hidden>Ctrl K</kbd>
         {focused && (search || results.length > 0) && (
           <div className="global-search-results">
             {results.map(({ title: itemTitle, description, href, icon: Icon }) => (
@@ -55,11 +100,20 @@ export function Header({ title }: { title: string }) {
           </div>
         )}
       </label>
-      <button className="icon-button" aria-label="Notificações"><Bell /></button>
+
+      <button
+        className="icon-button"
+        onClick={toggleTheme}
+        aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}
+        title={theme === "dark" ? "Tema claro" : "Tema escuro"}
+      >
+        {theme === "dark" ? <Sun /> : <Moon />}
+      </button>
+      <button className="icon-button has-dot" aria-label="Notificações"><Bell /></button>
       <span className="divider" />
       <div className="user">
         <span><strong>Pr. Renato</strong><small>Administrador</small></span>
-        <Image src="/renato.png" alt="Pr. Renato" width={40} height={40} priority />
+        <Image src="/renato.png" alt="Pr. Renato" width={30} height={30} priority />
       </div>
     </header>
   );

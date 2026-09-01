@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Fustat } from "next/font/google";
+import { Inter } from "next/font/google";
 import { AppPreferences } from "@/components/app-preferences";
 import "./globals.css";
 
-const fustat = Fustat({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-fustat",
+  variable: "--font-sans",
   display: "swap",
 });
 
@@ -16,11 +16,14 @@ export const metadata: Metadata = {
   },
   description: "Nonia — plataforma de gestão ministerial: membros, visitantes, células, ministérios e agenda.",
   applicationName: "Nonia",
-  metadataBase: new URL("https://nonia.io"),
+  metadataBase: new URL("https://nonia.app"),
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1e293b",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#e9ebe2" },
+    { media: "(prefers-color-scheme: dark)", color: "#12150f" },
+  ],
 };
 
 // Aplica tema, fonte e idioma salvos antes da primeira pintura para evitar
@@ -30,7 +33,7 @@ const preferencesInitScript = `try{var p=JSON.parse(localStorage.getItem("nonia-
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body className={fustat.variable}>
+      <body className={inter.variable}>
         <script dangerouslySetInnerHTML={{ __html: preferencesInitScript }} />
         <AppPreferences />
         {children}
