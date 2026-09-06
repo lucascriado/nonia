@@ -6,6 +6,7 @@ import { createSession, jsonWithCookie, requestMeta, resolveSession, sessionCook
 import { badRequest, conflict, readJson } from "@/lib/http";
 import { Organization, OrganizationMember, User } from "@/lib/models";
 import { hashPassword, validatePasswordStrength } from "@/lib/passwords";
+import { validarDocumento } from "@/lib/documents";
 import { EMAIL_PATTERN, normalizeEmail, uniqueOrganizationSlug } from "@/lib/organizations";
 import { sessionPayload } from "@/lib/auth-payloads";
 import { apiError } from "@/lib/records";
@@ -38,6 +39,16 @@ export async function POST(request: Request) {
     const passwordError = validatePasswordStrength(password);
     if (passwordError) throw badRequest(passwordError, "weak_password");
 
+    // O documento é opcional no cadastro, mas se vier tem que ser real: é o
+    // único dado fiscal da igreja, e um número inválido guardado em silêncio
+    // só aparece no dia em que alguém precisar dele.
+    let documento: string | null = null;
+    if (payload.document?.trim()) {
+      const validado = validarDocumento(payload.document);
+      if (!validado) throw badRequest("Informe um CNPJ ou CPF válido.", "invalid_document");
+      documento = validado.formatado;
+    }
+
     const existing = await db.query<{ id: string }>(`SELECT id FROM users WHERE lower(email) = $1`, {
       bind: [email],
       type: QueryTypes.SELECT,
@@ -56,7 +67,7 @@ export async function POST(request: Request) {
         {
           name: organizationName,
           slug,
-          document: payload.document?.trim() || null,
+          document: documento,
           email,
           phone: payload.phone?.trim() || null,
         },

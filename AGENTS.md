@@ -268,6 +268,33 @@ mudou payload, resposta ou cookie.
 - `npm run auth:owner -- --email … --name … --password …` cria o proprietário
   de uma organização que ficou sem usuário.
 
+## Documentos: CPF e CNPJ
+
+`lib/documents.ts` é o único lugar que valida documento.
+
+> ### ⚠ CNPJ alfanumérico
+>
+> **Desde 31/07/2026 a Receita emite CNPJ com letras nas 12 primeiras
+> posições** — só os 2 dígitos verificadores continuam numéricos. **O validador
+> de módulo 11 numérico "de sempre", que é o que qualquer pessoa escreve de
+> memória, recusa o CNPJ de qualquer empresa aberta de agosto de 2026 em
+> diante.**
+>
+> A regra converte cada caractere pelo **código ASCII menos 48** (`'0'..'9'`
+> viram 0..9, `'A'` vira 17, `'Z'` vira 42), e é **retrocompatível**: um CNPJ
+> numérico antigo gera o mesmo dígito sob a regra nova. É uma validação só, não
+> duas.
+>
+> **Por que isso é grave e não chato:** o erro seria silencioso do **nosso**
+> lado — um 400 educado, nada nos logs, nenhum teste falhando — e caro do lado
+> do **cliente**: a igreja recém-aberta lê que o documento dela é inválido e vai
+> embora. A verificação passa, o texto fecha, e o que chega ao cliente está
+> errado.
+
+**A máscara da tela não pode aceitar só dígitos.** Se o campo recusar letras na
+digitação, a validação correta do servidor não salva ninguém — a pessoa nem
+consegue escrever o próprio CNPJ.
+
 ## Exportação em CSV
 
 `lib/csv.ts` é o único lugar que monta CSV. **Quem abre estes arquivos é
@@ -375,6 +402,16 @@ apareceram.
   duas origens chegando entrelaçadas. Ali o pedaço **não some**, ele se mistura,
   e dá para reconstruir os dois lados. Na substituição a palavra desaparece e o
   resto continua parecendo íntegro — é essa a que engana.
+- **Confira a fonte antes de implementar regra de documento, imposto, formato
+  oficial ou prazo legal — o que você lembra pode ter mudado.** Conhecimento
+  factual sobre regra externa envelhece **sem avisar, e sem parecer
+  envelhecido**: a versão que você tem de memória continua coerente, completa e
+  errada. O caso é o CNPJ alfanumérico (ver "Documentos"), onde escrever de
+  memória teria recusado o documento de toda empresa aberta a partir de agosto
+  de 2026.
+- **Dado de teste inventado envelhece junto com a regra.** Duas suítes
+  quebraram por usar um CNPJ inventado que a validação nova recusa — teste
+  errado, código certo. Prefira exemplo que satisfaça a regra de verdade.
 - **Revisar uma tabela não é o mesmo que percorrer o caminho com ela.** Uma
   configuração pode parecer sensata lida como lista e ser absurda em uso: a
   permissão da secretaria foi decidida no abstrato e parecia razoável na tabela
@@ -437,9 +474,22 @@ para concluir coisa alguma sobre o projeto.
   que depois da integração é `app/(app)/membros/page.tsx`. Não é erro do seu
   código: é um `.next` de antes dos route groups.
 - **500 em tudo, com `ENOENT .next/dev/routes-manifest.json`.** Acontece ao
-  rodar `next build` e depois `next dev` **no mesmo `.next`**: o diretório fica
-  meio produção, meio desenvolvimento, e o servidor não sobe nada. Parece
-  integração quebrada e não é. **Limpe o `.next` ao trocar de modo.**
+  misturar `next build` e `next dev` **no mesmo `.next`** — inclusive rodando o
+  build com o servidor de desenvolvimento **vivo**. O diretório fica meio
+  produção, meio desenvolvimento, e nada sobe. Parece integração quebrada e não
+  é.
+
+  **O hábito, não o aviso:** ao trocar de modo, **derrube o servidor, apague o
+  `.next`, então rode.**
+
+  ```bash
+  # antes de buildar, com o dev rodando
+  # (encerre o next dev)  →  rm -rf .next  →  npm run build
+  ```
+
+  **Isto já pegou quem o documentou**, depois de documentado. Armadilha
+  conhecida não deixa de pegar; por isso a instrução é um passo a executar e não
+  um alerta a lembrar.
 #### Outros
 
 - **Data-texto convertida em instante sai um dia atrasada.** `new Date("2026-09-06")`
