@@ -19,8 +19,8 @@ import {
 import type { Ref } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Avatar } from "@/components/avatar";
-import { useCurrentUser } from "@/components/current-user";
+import { Avatar, initialsFrom } from "@/components/avatar";
+import { useSession } from "@/components/current-user";
 
 // Novas rotas de menu entram aqui. O campo `section` define em qual grupo o
 // item aparece; a ordem dos grupos segue a primeira ocorrência na lista.
@@ -43,7 +43,7 @@ const navSections = Array.from(new Set(primaryLinks.map((link) => link.section))
 
 export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
   const pathname = usePathname();
-  const user = useCurrentUser();
+  const { user, organization } = useSession();
 
   return (
     <aside className="sidebar" ref={sidebarRef}>
@@ -62,8 +62,8 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
 
       <div className="sidebar-scroll">
         <Link className="workspace-card" href="/configuracoes" title="Espaço de trabalho">
-          <span className="workspace-avatar" aria-hidden>NO</span>
-          <span><strong>Igreja Nonia</strong><small>Espaço de trabalho</small></span>
+          <span className="workspace-avatar" aria-hidden>{initialsFrom(organization?.name ?? "Nonia")}</span>
+          <span><strong>{organization?.name ?? "Sua igreja"}</strong><small>Espaço de trabalho</small></span>
           <ChevronsUpDown aria-hidden />
         </Link>
 
