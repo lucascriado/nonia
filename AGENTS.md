@@ -309,6 +309,11 @@ apareceram.
 
   **E o hábito:** se uma frase que você mandou ficou estranha, assuma que foi
   isso antes de assumir distração.
+
+  **Não confunda com texto embaralhado**, que tem outra causa: mensagens de
+  duas origens chegando entrelaçadas. Ali o pedaço **não some**, ele se mistura,
+  e dá para reconstruir os dois lados. Na substituição a palavra desaparece e o
+  resto continua parecendo íntegro — é essa a que engana.
 - **Revisar uma tabela não é o mesmo que percorrer o caminho com ela.** Uma
   configuração pode parecer sensata lida como lista e ser absurda em uso: a
   permissão da secretaria foi decidida no abstrato e parecia razoável na tabela
@@ -408,6 +413,31 @@ quebrou.
 - **`PATCH /api/users/<id>` com id malformado ainda devolve 500** em vez de 404
   — uuid válido inexistente devolve 404 certo. **Valide o formato do id antes de
   usá-lo numa consulta**, senão o erro do driver vira erro de servidor.
+
+#### O que essas armadilhas têm em comum
+
+Vale ler junto, porque separadas cada uma parece um caso isolado e o padrão é o
+que importa: **a verificação passa, o texto fecha, o sistema responde — e o que
+chega está errado.**
+
+**Nenhuma delas seria pega olhando com mais atenção.** Foram pegas medindo a
+coisa certa, ou porque alguém desconfiou de uma pista pequena e conferiu na
+hora:
+
+- uma frase lida numa tela dizia que o `linger` estava ligado;
+  `loginctl show-user` devolveu o contrário — **um comando**;
+- um relato de integração não mencionou que a migration renomeava uma coluna;
+  o código dizia, e a documentação teria envelhecido calada — **um `grep`**;
+- uma frase do próprio relatório ficou estranha ao reler; era o shell tendo
+  comido duas palavras — **uma releitura**.
+
+Três assuntos técnicos diferentes, o mesmo método. Daí os dois corolários:
+
+> **Atenção não é defesa contra essa classe. Medir é.**
+>
+> **Pista pequena e barata de conferir se confere na hora** — o custo de
+> conferir é quase sempre menor que o custo de estar errado por horas, e quem
+> espera acumular evidência já está errado esse tempo todo.
 
 #### Resíduo de decisão antiga sobrevivendo onde ninguém olhou
 
