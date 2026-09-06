@@ -29,6 +29,24 @@ um `cat >` por cima. Sobrescrever às cegas apaga o que outra pessoa acabou de
 pôr ali, e o `git status` só avisa depois. Se acontecer, `git checkout -- <arquivo>`
 antes de commitar.
 
+## Documentação
+
+`CLAUDE.md`, `AGENTS.md`, `README.md` e `database/README.md` têm dono único, e
+cada um tem um assunto: estado e decisões, convenções de código, como começar,
+banco. Não repita conteúdo entre eles — aponte.
+
+**Quando duplicar for a escolha certa**, e às vezes é: o critério não é o
+conteúdo, é o **público**. Duplica-se quando duas pessoas chegam por caminhos
+diferentes e nenhuma passa pelo outro texto — quem vai implementar lê a seção,
+quem faz varredura antes de expor o sistema lê a tabela de pendências. Duplicar
+por preguiça de escolher onde vai é outra coisa.
+
+**Toda cópia deliberada aponta para a outra.** Uma linha em cada, dizendo onde
+está a irmã e que as duas mudam juntas. Sem isso a duplicação é dívida com
+prazo: alguém atualiza a que está lendo e nem descobre que a outra existe — foi
+o que aconteceu com o guarda-corpo do bypass em 06/09/2026, que envelheceu de um
+lado só na primeira vez que o conteúdo mudou.
+
 ## Mensagens de commit
 
 - **Não inclua o rodapé `Claude-Session: https://claude.ai/code/session_…`.**
@@ -56,6 +74,18 @@ antes de commitar.
 - Utilitários e camada de dados ficam em `lib/`.
 - Estilos globais e tokens ficam em `app/globals.css`; os do site público em
   `app/(marketing)/marketing.css`, com prefixo `mk-` e cor sempre por token.
+- **Componente compartilhado nasce com as regras no `globals.css`**, nunca numa
+  folha de escopo como o `marketing.css`. **Onde a regra mora determina onde o
+  componente funciona**: componente que pode ser usado em mais de um escopo
+  precisa das regras no lugar que todos os escopos carregam.
+
+  A regra vem de dois incidentes em 06/09/2026, o mesmo erro nos dois sentidos:
+  o botão de mostrar senha ficou abaixo dos 44px porque a regra estava no
+  `globals.css` e o `marketing.css` vencia por ordem de carregamento; e o
+  `AuthField`, nascido para `/entrar` e `/cadastro`, teve o botão de mostrar
+  senha caindo para fora do campo ao ser reusado dentro do app, porque as regras
+  dele moravam no `marketing.css`. **Nenhum dos dois aparece em `typecheck` nem
+  em `build` — só abrindo a tela.**
 - Use `DashboardShell` nas páginas administrativas.
 - Use `AnimatedNumber` para indicadores carregados.
 - Use os skeletons de `components/skeleton.tsx` durante consultas ao servidor.
@@ -171,6 +201,40 @@ mudou payload, resposta ou cookie.
 - `npm run auth:owner -- --email … --name … --password …` cria o proprietário
   de uma organização que ficou sem usuário.
 
+## Exportação em CSV
+
+`lib/csv.ts` é o único lugar que monta CSV. **Quem abre estes arquivos é
+secretaria de igreja, no Excel em português** — um CSV "tecnicamente correto"
+abre lá como uma coluna só e com os acentos quebrados, e a pessoa conclui que o
+sistema está com defeito.
+
+| | Escolha | Por quê |
+| --- | --- | --- |
+| separador | **ponto e vírgula** | é o que o Excel pt-BR espera; com vírgula, tudo vira uma coluna só |
+| codificação | **UTF-8 com BOM** | sem o BOM, "João" vira "JoÃ£o" |
+| quebra de linha | **CRLF** | RFC 4180, e é o que o Excel prefere |
+| datas | **dd/mm/aaaa** | |
+| números | **vírgula decimal, sem separador de milhar** | o milhar atrapalha o Excel a reconhecer a célula como número |
+
+Nada disso é descuido a corrigir para o padrão internacional. **São escolhas
+deliberadas**; mudá-las quebra o único uso que existe.
+
+### Injeção de fórmula — não remova a neutralização
+
+Célula que começa com `=` `+` `-` `@` é **fórmula** no Excel. O dado vem de
+formulário aberto: um membro cadastrado como `=1+1` vira conta na planilha, e
+construções piores chamam programa externo na máquina de quem abre. **É
+explorável por qualquer pessoa que consiga cadastrar um membro.**
+
+Todo texto exportado passa por `texto()`, que põe um apóstrofo à frente nesses
+casos — o apóstrofo marca a célula como texto e **não aparece** na planilha. A
+guarda é `/^[=+\-@\t\r]/`, que cobre também tab e CR.
+
+Efeito colateral aceito e documentado: telefone digitado como `+55 11…` também
+ganha o apóstrofo, visível só em editor de texto. É o preço, e é barato.
+
+Use `bruto()` só para valor que o **próprio sistema** gerou (data, número).
+
 ## Armadilhas conhecidas
 
 - **Renomear `middleware.ts` para `proxy.ts` não basta: a função exportada
@@ -198,10 +262,29 @@ de entrar na documentação como verdade.
   respondeu**. No caso acima a medição de uma linha
   (`loginctl show-user lucas --property=Linger`) devolveu o oposto do que a tela
   sugeria, e foi só por isso que o documento não registrou uma afirmação falsa.
+- **Build passando não é prova de que o schema está aplicado.** `typecheck` e
+  `build` não abrem conexão com o banco: passam iguais com a migration aplicada
+  ou não. Em 06/09/2026 a `008` foi integrada na `main` sem ser rodada no
+  `nonia_dev`, os dois comandos passaram, e `GET /api/auth/session` respondia
+  **500** com `column p.max_members does not exist` — o código já consultava a
+  coluna nova, o banco ainda tinha a antiga. Verificou-se a coisa errada e
+  chamou-se de verificado.
+- **Rota dando 500 e falando de coluna que não existe: o primeiro palpite é
+  migration não aplicada, não bug de código.** Custa um `SELECT` em
+  `schema_migrations`.
+- **Prefira uma verificação que roda em tudo a uma inspeção que depende de
+  reparar.** A sobreposição do cartão no celular foi achada por um detector
+  escrito para o caso — não por olhar tela por tela procurando. Olhar encontra o
+  que se procura; verificação encontra o que ninguém procurou, e roda de novo de
+  graça na próxima mudança.
 - **Confira que você está olhando a tela certa.** Uma varredura de `/entrar` e
   `/cadastro` feita com sessão aberta não valida nada: o `proxy.ts` manda quem
   tem cookie direto para `/painel`, então o que foi inspecionado foi outra
   página. Para validar tela de visitante, esteja deslogado.
+- **Ao documentar um padrão de código, escreva o padrão, não a descrição
+  dele.** `/^[=+\-@\t\r]/` envelhece na cara de quem lê; "começa com `=`, `+`,
+  `-` ou `@`" continua fazendo sentido depois de o código mudar, e por isso
+  passa despercebido.
 - **Antes de escrever uma proibição, cheque o objeto dela.** "Não commite `X`"
   e "não commite a mudança de `X`" são regras diferentes, e a primeira apaga do
   repositório um arquivo que talvez esteja versionado desde sempre — foi o que
@@ -249,6 +332,17 @@ para concluir coisa alguma sobre o projeto.
   integração quebrada e não é. **Limpe o `.next` ao trocar de modo.**
 #### Outros
 
+- **Data-texto convertida em instante sai um dia atrasada.** `new Date("2026-09-06")`
+  é meia-noite **em UTC**, e no fuso de São Paulo imprime **05/09**. Um relatório
+  inteiro sai um dia errado e ninguém percebe até a tesouraria fechar o mês.
+  **Data que chega como texto é tratada como texto** — fatie a string, não
+  converta em `Date` para reformatar.
+
+- **Esconder um elemento sem desfazer o `grid` que o dimensionava imprime um
+  item sobre o outro.** No celular, ocultar o ícone do cartão sem voltar o grid
+  de duas colunas para uma jogava rótulo e valor na mesma coluna de 40px, e o
+  cartão exibia "TOTAL 4 DE CÉLULAS" — dois textos sobrepostos. `display: none`
+  tira o conteúdo, **não** a coluna que existia para ele.
 - **`next-env.d.ts` aparecendo sujo no `git status` sem você ter tocado nele.**
   O arquivo **é versionado desde o primeiro commit do repositório e tem que
   continuar** — sem ele, o Next reclama no primeiro build limpo. O que não se
@@ -312,7 +406,10 @@ para concluir coisa alguma sobre o projeto.
 ## Banco e migrations
 
 - A variável obrigatória é `DATABASE_URL`; nunca versione credenciais reais.
-- Piso de versão: **PostgreSQL 13+** (`gen_random_uuid()` nativo).
+- Piso de versão: **PostgreSQL 15+** — era 13+ pelo `gen_random_uuid()` nativo,
+  e subiu na `006`, que usa `ON DELETE SET NULL` com lista de colunas.
+- `npm run db:status` compara as migrations do disco com as aplicadas e **só
+  lê**. É o comando para responder "o banco está em dia?" sem escrever nada.
 - Migrations ficam em `database/migrations/` e são executadas em ordem.
 - Use `npm run db:migrate` (`database/migrate.mjs`); ele registra os arquivos
   em `schema_migrations`. No container, as migrations rodam no boot.
@@ -341,6 +438,12 @@ para concluir coisa alguma sobre o projeto.
 
 - **O sistema visual é sage/verde-floresta e não está em discussão** (a paleta
   índigo foi proposta e reprovada em 06/09/2026).
+- **Alinhamento (decisão do Lucas, 06/09/2026):** texto corrido de cartão e
+  linha de tabela fica **à esquerda** — centralizar faz perder o ponto de
+  retorno da linha e a leitura fica mais lenta. **Número, rótulo, estado vazio e
+  ação ficam centralizados.**
+- **No celular o título da página não aparece:** ele duplicava a barra de cima e
+  custava ~68px da primeira dobra.
 - Preserve os tokens em `:root`, especialmente cores, bordas e easing.
 - Toda cor vive em token — o tema escuro é só uma troca de variáveis.
 - A fonte é **Inter**, via `next/font/google` e a variável `--font-sans`.

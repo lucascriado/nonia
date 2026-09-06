@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `154cacc`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `4c08947`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -65,6 +65,14 @@ As três branches estão em `origin` desde 06/09/2026.
 - **O repositório é público.** Antes de qualquer push, confira que o diff não
   leva senha, token, uuid de infra, IP nem conteúdo de `.env`. É por isso que a
   regra de manter identificador de infra fora do repo existe.
+- **Integrar branch que traz migration inclui rodar `npm run db:migrate` contra
+  o `nonia_dev`, na mesma operação, antes de anunciar a integração.** Não é
+  opcional e não depende de alguém pedir — o banco é compartilhado e ninguém
+  mais tem permissão de aplicar por conta própria. Ver "Migration órfã".
+- **Quem entrega uma rodada com migration nova avisa explicitamente no
+  relatório.** Teste em banco efêmero é o certo — teste destrutivo não toca o
+  banco compartilhado —, mas justamente por isso o compartilhado **nunca**
+  recebe a migration por efeito colateral de teste.
 - **Trabalhe só no seu worktree**, inclusive para documentação. O
   `/home/lucas/www/nonia` é onde o gerente troca de branch e faz merge: edição
   não commitada ali é varrida para dentro de um commit de merge, e foi o que
@@ -121,6 +129,12 @@ decisão sem condição declarada é a que alguém desfaz em silêncio, por não
 com o que comparar a situação nova. Decisão que é gosto, e não fato, não tem
 condição e não ganha uma inventada.
 
+Em decisão **suspensa**, a condição de **retomar** e a de **reabrir** são
+escritas separadas. Retomar é executar o que já foi decidido; reabrir é discutir
+de novo a escolha. Juntas, retomar o assunto convida a refazer do zero uma
+análise que já existe — e a chegar a outra conclusão sem conhecer o motivo da
+primeira.
+
 | Decisão | Conteúdo | Data |
 | --- | --- | --- |
 | **SaaS multi-igreja** | Cada igreja é uma `organization` (tenant). `organization_id` em toda tabela de domínio, isolamento total entre organizações | 06/09/2026 |
@@ -133,9 +147,12 @@ condição e não ganha uma inventada.
 | **Pagamento: Mercado Pago** | Escolhido pelo requisito de CPF (Pix/boleto). O schema de planos/assinaturas é **agnóstico ao gateway**: colunas `provider*` guardam o id externo, nenhuma regra de domínio depende do MP. **Reabrir se** o requisito de CPF com Pix/boleto cair — é ele que escolheu o gateway, e o schema já não amarra | 06/09/2026 |
 | **Route groups** | `app/(marketing)/` para o site público e `app/(app)/` para o sistema logado. Route group não entra na URL; a única rota que mudou foi a dashboard, de `/` para **`/painel`** | 06/09/2026 |
 | **Cadastro nasce em avaliação e cai para o Semente** | Quem se cadastra entra em **avaliação de 14 dias**; terminado o prazo sem assinar, cai para o **Semente gratuito, sem expirar**. Resolve a divergência entre o `register`, que atribuía `avaliacao`, e a landing, que promete gratuito para até 100 membros sem prazo — as duas frases passam a ser verdadeiras. Ver "Plano efetivo" | 06/09/2026 |
-| **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. *Ainda não implementado* | 06/09/2026 |
-| **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura. *Ainda não implementado* | 06/09/2026 |
-| **Mercado Pago: API de Pagamentos, não recorrência** | `POST /v1/payments`, Checkout Transparente. Ver "Cobrança" | 06/09/2026 |
+| **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. Ver "Assinatura e acesso" | 06/09/2026 |
+| **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura | 06/09/2026 |
+| **Somente leitura vem de DÍVIDA, não de ausência de plano pago** | Cancelar leva ao gratuito, com o teto do gratuito; **atrasar** leva a somente leitura. Sem essa distinção, cancelar seria melhor que atrasar e o somente leitura seria contornável em um clique | 06/09/2026 |
+| **Exportar entra no MVP** | A promessa "quem quiser sair leva o que é seu" só era verdadeira pela API — não havia botão de exportar em lugar nenhum. Decidido implementar em vez de recuar a promessa. Formato e cuidados em [`AGENTS.md`](AGENTS.md) | 06/09/2026 |
+| **Bypass de contratação no lugar do gateway** | A igreja clica e a assinatura vale na hora, sem pagamento real. Atalho de desenvolvimento, **não é produto**, e nasce com guarda-corpo obrigatório. Ver "Cobrança" | 06/09/2026 |
+| **Mercado Pago: API de Pagamentos, não recorrência** | `POST /v1/payments`, Checkout Transparente. **Decisão suspensa**, não revogada: vale para quando o pagamento real entrar. **Retomar quando** houver hospedagem com URL pública. Ver "Cobrança" | 06/09/2026 |
 | **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
 | **Tema sage/verde-floresta FICA** | Uma paleta índigo foi proposta e **reprovada pelo Lucas em 06/09/2026**. O commit da proposta já foi revertido na branch de UI. Não reabrir | 06/09/2026 |
 
@@ -216,6 +233,40 @@ migration **008**, que renomeia `plans.max_people` para `plans.max_members`. A
 verificação entrou em `app/api/members`, `app/api/users` e na conversão de
 visitante em membro, e trava a linha da assinatura dentro da transação para que
 duas criações simultâneas não furem o teto juntas.
+
+### Quinta a sétima levas — `a0a3fb7`, `c29dc74`, `ed865cd`
+
+- **Somente leitura e contratação sem gateway** (`a0a3fb7`):
+  `lib/subscription-state.ts` e `lib/billing-bypass.ts`, com as rotas de
+  `app/api/billing`.
+- **Conserto de sobreposição, escala de espaço e centralização** (`c29dc74`).
+- **Exportação em CSV** (`ed865cd`): `lib/csv.ts` e `app/api/export/{members,
+  visitors,financeiro}`. **A API está pronta; o botão ainda não existe.**
+
+### Migration órfã — incidente de 06/09/2026
+
+`GET /api/auth/session` respondia **500** na `main` com
+`column p.max_members does not exist`. O `nonia_dev` estava na `007`, com a
+coluna ainda chamada `max_people`, enquanto o código integrado já consultava
+`max_members`. Resolvido rodando `npm run db:migrate` contra o `nonia_dev`.
+
+Duas causas, e nenhuma é descuido de uma pessoa:
+
+- O backend testa em **Postgres efêmero**, que é o certo — teste destrutivo não
+  pode tocar o banco compartilhado. A consequência é que o compartilhado nunca
+  recebe a migration como efeito colateral de teste: ela fica órfã.
+- A integração verificou `typecheck` e `build`, **que não abrem conexão com o
+  banco**, e chamou de verificado.
+
+> **Build passando não é prova de que o schema está aplicado.** É o mesmo falso
+> positivo do `.next`: artefato de compilação não é evidência de que o sistema
+> funciona. As regras de processo acima existem por causa deste incidente.
+
+Foi encontrado porque o frontend testou a troca de senha **ponta a ponta contra
+o banco de verdade**, em vez de confiar no contrato — a terceira vez no dia em
+que testar contra a realidade derrubou algo que passara em `typecheck` e
+`build`. E foi encontrado sem estrago porque quem achou **não** rodou a migration
+por conta própria: banco compartilhado não é território de quem está numa branch.
 
 ## Isolamento entre organizações
 
@@ -305,6 +356,11 @@ O plano que vale a cada momento é **calculado na leitura**, nesta ordem:
 > decisão resolve não é "falta de cron", é "estado que depende de alguém ter
 > rodado algo".
 
+> **O bypass mexe na regra 1.** Com ele ligado, "assinatura paga vigente vence
+> tudo" passa a valer **sem que nenhum pagamento tenha existido** — a assinatura
+> nasce `active`. A regra não muda; o que muda é como se chega nela. Ver
+> "Cobrança".
+
 ### Mudança de comportamento — falhar fechado (06/09/2026)
 
 **É o oposto do que valia antes.** Organização sem assinatura vigente não tinha
@@ -316,12 +372,74 @@ perde acesso e não tem nada apagado — a verificação é `uso >= teto` **na
 criação**, então a organização só não cresce. O papel não interfere: teto é
 comercial, não é permissão.
 
-## Cobrança — Mercado Pago
+## Cobrança
 
-**Decidido em 06/09/2026, nada implementado ainda.**
+### Bypass de contratação (06/09/2026) — decidido, em implementação
 
-A integração usa a **API de Pagamentos** (`POST /v1/payments`), em Checkout
-Transparente. As duas alternativas foram descartadas por motivo concreto:
+A igreja escolhe o plano, clica, e **a assinatura passa a valer na hora**: sem
+gateway, sem QR, sem webhook e sem credencial. O motivo é direto — o produto
+roda local, não há URL pública para receber webhook, e o que se quer agora é ver
+o fluxo funcionando ponta a ponta.
+
+**É atalho de desenvolvimento, não é produto.** Nada aqui substitui a integração
+de pagamento; ele existe para destravar o fluxo enquanto não há hospedagem.
+
+> ### ⚠ O bypass é uma porta dos fundos de faturamento
+>
+> O que está sendo construído é, literalmente, **"clicar e ganhar o plano
+> pago"**. Rodando local é inofensivo. No dia em que existir hospedagem,
+> qualquer pessoa se promoveria para o Comunidade sozinha.
+>
+> Por isso ele nasce com guarda-corpo, e **nenhum destes itens é opcional**:
+>
+> - atrás de variável de ambiente explícita, **desligada por padrão** — sem ela
+>   a rota **não existe**;
+> - **recusa em produção ainda que `BILLING_BYPASS` esteja ligada** — e grita no
+>   log. Variável que pode ser ligada num ambiente hospedado continua sendo a
+>   porta dos fundos, a um `export` de distância. É mais estrito do que o pedido
+>   original, e testado com build de produção real;
+> - nome que denuncia o que faz: **`BILLING_BYPASS`**;
+> - toda assinatura criada assim marcada na origem (`provider = 'bypass'`) e com
+>   `billing_event`, para **nunca** ser confundida com pagamento recebido por
+>   quem ler o banco depois.
+>
+>
+> *Estes quatro itens têm uma cópia deliberada na tabela de Pendências, marcada
+> como SEGURANÇA — públicos diferentes chegam por caminhos diferentes. As duas
+> mudam juntas.*
+>
+> Ele também **não cria nenhuma linha em `subscription_payments`** — não houve
+> pagamento, e o registro não vai fingir que houve.
+>
+> **Relaxar a recusa em produção é uma linha de código, e é decisão do Lucas.**
+> Fica escrito para não parecer impossível no dia em que for preciso demonstrar
+> o produto num ambiente hospedado — mas é decisão dele, não conveniência de
+> quem estiver implementando.
+
+> **Não ligar em ambiente exposto.** O bypass só sai de cena quando existir
+> pagamento real — enquanto isso, ele é a única forma de contratar, e essa é
+> exatamente a razão do cuidado.
+
+A assinatura nasce **`active` direto, sem passar por `trialing`**: o pedido foi
+"como se eu clicasse e já adquirisse", e passar pela avaliação atrasaria em 14
+dias justamente o efeito que se quer ver.
+
+> **`provider = 'bypass'` e o `billing_event` não são detalhe de registro: são a
+> única coisa que distingue, no banco, uma assinatura paga de uma assinatura
+> dada.** O `status` não carrega essa diferença — uma assinatura de bypass é
+> `active` igual a uma paga. Quem for ler faturamento um dia depende dessa
+> marcação, e ela é a razão de o guarda-corpo incluir os dois.
+
+### Mercado Pago — decisão **suspensa**, não revogada (06/09/2026)
+
+A integração real está **suspensa** enquanto não houver hospedagem. A análise
+abaixo **continua valendo como a decisão de _como_ integrar** quando o pagamento
+real entrar — ela não é lixo, e é o que impede alguém de escolher `preapproval`
+por engano sem saber que ele não aceita Pix.
+
+Quando retomar, a integração usa a **API de Pagamentos** (`POST /v1/payments`),
+em Checkout Transparente. As duas alternativas foram descartadas por motivo
+concreto:
 
 | Alternativa | Por que não |
 | --- | --- |
@@ -332,9 +450,43 @@ Transparente. As duas alternativas foram descartadas por motivo concreto:
 > cobrança nova a cada ciclo, não automática.** É limitação do meio de
 > pagamento, não do desenho — nenhum arranjo de código faz Pix debitar sozinho.
 
-**Reabrir se** cartão virar meio de pagamento aceito: aí `preapproval` passa a
-fazer sentido, e `subscriptions.provider_subscription_id` já está reservado
-para ele.
+**Retomar quando** houver hospedagem com URL pública, que é o que falta para o
+webhook existir. **Reabrir a escolha de API** só se cartão virar meio de
+pagamento aceito: aí `preapproval` passa a fazer sentido, e
+`subscriptions.provider_subscription_id` já está reservado para ele.
+
+### O que não muda
+
+Somente leitura com 7 dias de carência, a máquina de estados da assinatura, as
+colunas `provider*` e o `payload jsonb` seguem como estão.
+
+> O desenho agnóstico ao gateway **acabou de provar o próprio valor**: trocamos
+> gateway real por bypass sem tocar em uma linha do domínio. É a justificativa
+> daquela decisão sendo paga na prática, e o argumento para mantê-la quando o
+> pagamento real chegar.
+
+## Assinatura e acesso
+
+`lib/subscription-state.ts` é o **único** lugar onde os estados da assinatura,
+as transições permitidas e a carência existem — nada de `if (status ===
+"past_due")` espalhado por rota. Dois conceitos que não se misturam:
+
+| | |
+| --- | --- |
+| **Estado da assinatura** | o que está contratado (`subscriptions.status`) |
+| **Nível de acesso** | o que a igreja pode fazer **agora** — `full`, `grace` ou `read_only` — derivado do estado mais a data, calculado na leitura, como o plano efetivo |
+
+Vencida a mensalidade, começam **7 dias de carência** (`GRACE_DAYS`); depois
+disso o acesso vira `read_only`. **Não pagar nunca tranca a igreja para fora dos
+próprios dados**: consultar, buscar e exportar continuam valendo no pior estado.
+
+> **Somente leitura vem de dívida, não de ausência de plano pago.** Cancelar
+> leva ao gratuito, com o teto do gratuito; atrasar leva a somente leitura. Sem
+> essa distinção, cancelar seria melhor que atrasar, e o somente leitura seria
+> contornável em um clique.
+
+Sem data de vencimento a igreja fica na carência e **nunca** é trancada por
+falta de dado nosso — falha para o lado de quem usa.
 
 ## Lacunas conhecidas do MVP
 
@@ -453,9 +605,13 @@ português em servidor anterior, em vez de estourar erro de sintaxe.
 | `DATABASE_URL` | **obrigatória**, única exigida hoje |
 | `PORT` | opcional, padrão 3000 |
 | `MIGRATE_CONNECT_ATTEMPTS` | opcional, tentativas de conexão do `migrate.mjs` (padrão 15) |
-| `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` | Mercado Pago, ainda não referenciadas no código |
+| `BILLING_BYPASS` | liga o bypass de contratação. **Desligada por padrão; sem ela a rota não existe**, e é recusada em produção mesmo ligada. Nunca em ambiente exposto |
 
 Todas são **runtime**. Nenhuma pode virar `NEXT_PUBLIC_*`. Nunca commite valores.
+
+As credenciais do Mercado Pago (`MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) saíram
+desta lista em 06/09/2026: com a integração suspensa, não são necessárias.
+Voltam quando o pagamento real voltar.
 
 `APP_URL` saiu desta lista em 06/09/2026: ela só servia para montar o link de
 convite com um domínio público, que não existe mais no escopo. Sem ela, vale o
@@ -467,7 +623,8 @@ Datadas para que ninguém as leia como fato consumado.
 
 | Pendência | Desde |
 | --- | --- |
-| **Somente leitura na mensalidade vencida e a carência de 7 dias não existem** no código — são decisão de 06/09/2026 sem implementação. Hoje, vencer não muda nada além do plano efetivo cair para o `semente` | 06/09/2026 |
-| **Nada de Mercado Pago está implementado.** Não há checkout, webhook nem `MP_ACCESS_TOKEN` em uso — só o schema, que já é agnóstico. Ver "Cobrança" | 06/09/2026 |
+| **Exportar não tem botão.** A API está pronta (`/api/export/members`, `/visitors`, `/financeiro`), mas nenhuma tela oferece o download — a promessa "quem quiser sair leva o que é seu" ainda depende de chamar a API na mão | 06/09/2026 |
+| **Quando houver cobrança real, cancelar assinatura vencida não pode limpar a dívida.** Levantado pelo backend: hoje não há dívida a preservar, mas o dia em que houver é o dia em que cancelar viraria a saída barata do somente leitura | 06/09/2026 |
+| **SEGURANÇA — o bypass de contratação não pode ser ligado em ambiente exposto.** Ele concede plano pago sem pagamento. Enquanto existir, precisa de `BILLING_BYPASS` desligada por padrão, **recusa em produção ainda que a variável esteja ligada**, e toda assinatura marcada com `provider = 'bypass'` mais `billing_event`. **Só sai de cena quando existir pagamento real.** *Cópia deliberada do bloco em "Cobrança" — públicos diferentes; as duas mudam juntas.* | 06/09/2026 |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
-| **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |
+| **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. É arquivo do backend pela regra de propriedade, e está com ele | 06/09/2026 |

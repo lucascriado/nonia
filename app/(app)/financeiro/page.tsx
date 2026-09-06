@@ -17,6 +17,8 @@ import {
   Wallet,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FilterDisclosure } from "@/components/filter-disclosure";
+import { ExportButton } from "@/components/export-button";
 import { AnimatedNumber } from "@/components/animated-number";
 import { DeleteRecordDialog } from "@/components/person-record-dialog";
 import { FinancialRecordDialog, FinancialRecordValues } from "@/components/financial-record-dialog";
@@ -99,6 +101,8 @@ export default function FinancePage() {
     setPage(1);
   }
 
+  const activeFilters = [type !== "all", status !== "all", category !== "all", attachment !== "all", search.trim() !== ""].filter(Boolean).length;
+
   function clearFilters() {
     setSearch(""); setType("all"); setStatus("all"); setCategory("all"); setAttachment("all"); setPage(1);
   }
@@ -139,6 +143,7 @@ export default function FinancePage() {
       <main className="finance-main">
         <section className="resource-heading">
           <div><h2>Gestão Financeira</h2><p>Acompanhe entradas, saídas, pendências e comprovantes das movimentações.</p></div>
+          <ExportButton resource="financeiro" permission="finance.read" filters={{ search, type, status, category, attachment }} />
           <button className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>
         </section>
 
@@ -150,29 +155,31 @@ export default function FinancePage() {
         </section>
 
         <section className="finance-content">
-          <div className="member-filters resource-filters">
-            <select aria-label="Filtrar por tipo" value={type} onChange={(event) => updateFilter(() => setType(event.target.value))}>
-              <option value="all">Tipo: Todos</option>
-              <option value="income">Entrada</option>
-              <option value="expense">Saída</option>
-            </select>
-            <select aria-label="Filtrar por status" value={status} onChange={(event) => updateFilter(() => setStatus(event.target.value))}>
-              <option value="all">Status: Todos</option>
-              <option value="paid">Pago</option>
-              <option value="pending">Pendente</option>
-            </select>
-            <select aria-label="Filtrar por categoria" value={category} onChange={(event) => updateFilter(() => setCategory(event.target.value))}>
-              <option value="all">Categoria: Todas</option>
-              {categories.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select aria-label="Filtrar por comprovante" value={attachment} onChange={(event) => updateFilter(() => setAttachment(event.target.value))}>
-              <option value="all">Comprovante: Todos</option>
-              <option value="with">Com comprovante</option>
-              <option value="without">Sem comprovante</option>
-            </select>
-            <label className="member-filter-search"><Search /><input value={search} onChange={(event) => updateFilter(() => setSearch(event.target.value))} placeholder="Filtrar por descrição..." /></label>
-            <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
-          </div>
+          <FilterDisclosure activeCount={activeFilters}>
+            <div className="member-filters resource-filters">
+              <select aria-label="Filtrar por tipo" value={type} onChange={(event) => updateFilter(() => setType(event.target.value))}>
+                <option value="all">Tipo: Todos</option>
+                <option value="income">Entrada</option>
+                <option value="expense">Saída</option>
+              </select>
+              <select aria-label="Filtrar por status" value={status} onChange={(event) => updateFilter(() => setStatus(event.target.value))}>
+                <option value="all">Status: Todos</option>
+                <option value="paid">Pago</option>
+                <option value="pending">Pendente</option>
+              </select>
+              <select aria-label="Filtrar por categoria" value={category} onChange={(event) => updateFilter(() => setCategory(event.target.value))}>
+                <option value="all">Categoria: Todas</option>
+                {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <select aria-label="Filtrar por comprovante" value={attachment} onChange={(event) => updateFilter(() => setAttachment(event.target.value))}>
+                <option value="all">Comprovante: Todos</option>
+                <option value="with">Com comprovante</option>
+                <option value="without">Sem comprovante</option>
+              </select>
+              <label className="member-filter-search"><Search /><input value={search} onChange={(event) => updateFilter(() => setSearch(event.target.value))} placeholder="Filtrar por descrição..." /></label>
+              <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
+            </div>
+          </FilterDisclosure>
 
           <div className="members-table-card">
             <div className="members-table-scroll">
