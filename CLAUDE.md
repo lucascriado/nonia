@@ -126,21 +126,22 @@ usa `LOGIN = "/entrar"` e o frontend aponta para lá em
 Descrito aqui porque já é arquitetura de pé, não projeto. **Nada disso está na
 `main`.**
 
-### `feat/auth-multitenant` (backend/DBA) — Fase 1 entregue, 7 commits
+### `feat/auth-multitenant` (backend/DBA) — Fase 1 entregue, 8 commits
 
-Validação relatada pelo backend: `typecheck` e `build` limpos, **73 casos ponta
-a ponta contra PostgreSQL 18.6 real, 0 falhas**.
+Validação relatada pelo backend: `typecheck` e `build` limpos, **97 casos
+automatizados contra PostgreSQL 18.6 real, 0 falhas**.
 
 - Migrations **004** (`organizations`, `users`, `roles`, `permissions`,
   `role_permissions`, `organization_members`, `sessions`, `invitations`,
-  `plans`, `subscriptions`, `subscription_payments`, `billing_events`) e
+  `plans`, `subscriptions`, `subscription_payments`, `billing_events`),
   **005** (retrofit de `organization_id` nas 11 tabelas de domínio, com
-  backfill e `NOT NULL` só no fim; idempotentes e transacionais).
+  backfill e `NOT NULL` só no fim), **006** (backstop de isolamento no banco)
+  e **007** (planos comerciais). Todas idempotentes e transacionais.
 - `lib/auth.ts` (sessão, `requireSession`/`requirePermission`/`requireRole`),
   `lib/passwords.ts`, `lib/tenant.ts` (escopo), `lib/http.ts`,
   `lib/invitations.ts`, `lib/organizations.ts`, `lib/cell-membership.ts`.
-- `middleware.ts` no Edge: só desvia navegação pela presença do cookie
-  `nonia_session`; quem valida de verdade é o handler.
+- `proxy.ts` no Edge (era `middleware.ts`): só desvia navegação pela presença
+  do cookie `nonia_session`; quem valida de verdade é o handler.
 - **12 endpoints** de autenticação e gestão de usuários, com escopo de tenant
   aplicado em **todas** as 26 rotas de `app/api`. O contrato está em
   [`AGENTS.md`](AGENTS.md#autenticação-e-multi-tenancy) — é lá que o frontend
@@ -160,28 +161,40 @@ a ponta contra PostgreSQL 18.6 real, 0 falhas**.
 - Referências ao domínio antigo `nonia.io` corrigidas.
 - A proposta de tema índigo foi revertida (reprovada).
 
-## Isolamento entre organizações — estado medido
+## Isolamento entre organizações
 
-Medido nas migrations e nas rotas em 06/09/2026. Registrado porque a versão
-otimista ("o banco recusa referência cruzada") **não é verdade em toda parte**.
+Fechado nas duas camadas desde a migration **006** (06/09/2026).
 
-**O banco barra sozinho** (FK composta que carrega `organization_id`):
-`members.person_id`, `visitors.person_id`, `cell_members` (célula e membro),
-`ministry_attendance_sessions.ministry_id` e `ministry_attendance_records`
-(sessão e membro).
+1. **Aplicação** — toda rota de `app/api` começa por `requirePermission(...)` e
+   usa `organizationId(auth)` em toda leitura e escrita. Id que chega pelo
+   payload passa por `assertBelongsToOrganization` e volta **400 `cross_tenant`**
+   com mensagem de negócio; id que vem na URL passa por `assertOwnedResource` e
+   volta 404, para não confirmar que o id existe em outra organização.
+2. **Banco** — não sobrou **nenhuma FK simples** entre tabelas de domínio. Toda
+   referência é composta `(id, organization_id)`, e as sete constraints antigas
+   que duplicavam uma composta foram removidas: uma constraint por referência, e
+   é a que carrega o tenant.
 
-**O banco NÃO barra** (FK simples, sem `organization_id`):
+Verificado pelo gerente no `nonia_dev`, em transação com `ROLLBACK` e um
+savepoint por coluna: as quatro gravações cruzadas que antes passavam
+(`members.ministry_id`, `cells.leader_id`, `ministries.leader_id`,
+`organization_members.person_id`) são recusadas com **23503**.
 
-| Coluna | Cobertura hoje |
-| --- | --- |
-| `cells.leader_id` | aplicação — `assertBelongsToOrganization` no POST e no PATCH |
-| `ministries.leader_id` | aplicação — `assertBelongsToOrganization` no POST e no PATCH |
-| `members.ministry_id` | aplicação — o ministério é resolvido **por nome dentro da organização** |
-| `organization_members.person_id` | **descoberto** — gravado direto do payload em `POST /api/users` e `PATCH /api/users/[id]`, sem validação |
+As quatro são `ON DELETE SET NULL (<coluna>)`. A lista de colunas não é
+enfeite: sem ela o `SET NULL` zeraria também `organization_id`, que é
+`NOT NULL`, e excluir uma pessoa passaria a estourar. É essa forma que
+**exige PostgreSQL 15+**.
 
-As três primeiras não são exploráveis: a camada de aplicação cobre. Falta o
-backstop do banco, que vem na migration **006**. A quarta é uma lacuna real da
-aplicação, não só do banco — ver Pendências.
+A 006 também sana referências já gravadas cruzadas **antes** de criar as
+constraints — uma base suja derrubaria o boot do container, já que as migrations
+rodam na inicialização. Testado com base suja de propósito.
+
+> **Como isso foi feito importa.** Até 06/09/2026 quatro colunas tinham FK
+> simples e a aplicação cobria três delas; `organization_members.person_id` não
+> era validado em lugar nenhum. A ordem escolhida foi **validação de aplicação
+> primeiro, migration no mesmo lote** — a 006 sozinha teria trocado uma gravação
+> cruzada silenciosa por um erro de FK cru na cara do usuário. Vale para a
+> próxima vez que uma constraint nova for fechada sobre um caminho já aberto.
 
 ## Planos comerciais
 
@@ -195,31 +208,55 @@ Oficiais desde 06/09/2026.
 
 O cadastro continua nascendo no plano **`avaliacao`**, 14 dias grátis.
 
-O backend foi acionado em 06/09/2026 para cadastrar os três comerciais na
-tabela `plans`, com os limites como dado do plano.
+Os três estão cadastrados na tabela `plans` desde a migration **007**, com os
+limites como **dado do plano**, não como regra espalhada pelo código — é neles
+que o checkout do Mercado Pago vai se ancorar.
 
-> **Nenhum desses limites é aplicado.** Ninguém bloqueia o 101º membro nem o
-> 11º usuário: `plans.max_users` e `plans.max_people` existem no schema e são
-> declarados em `lib/models.ts`, mas nenhuma rota os consulta. Os três planos
-> comerciais também **não têm linha na tabela `plans`** — vivem só em
-> `app/(marketing)/plans.ts`, no site. Vender com limite não verificado é
-> aceitável no MVP **desde que ninguém ache que está pronto**.
+Em `price_cents`, **`NULL` é "sob consulta" e `0` é gratuito de verdade**. A
+coluna virou anulável na 007 exatamente por isso: sem a distinção, a Rede
+ficaria indistinguível da Semente no banco. `max_users` e `max_people` nulos
+significam ilimitado.
+
+> **Nenhum desses limites é aplicado.** Nada impede o 101º membro no Semente nem
+> o 11º usuário no Comunidade: os tetos estão cadastrados e **nenhuma rota os
+> consulta**. Vender com limite não verificado é aceitável no MVP **desde que
+> ninguém ache que está pronto**.
 
 ## Lacunas conhecidas do MVP
 
 Decididas, não esquecidas. Não "conserte" sem falar com o Lucas.
 
-### Recuperação de senha — fora do MVP (06/09/2026)
+### Senha: o que entrou e o que continua de fora (06/09/2026)
 
-Não existe fluxo de "esqueci minha senha", e é decisão, não pendência.
-Recuperação por e-mail exige **e-mail transacional configurado** — SMTP e
-domínio verificado —, que não existe hoje e não estava no escopo do MVP.
+**Trocar a própria senha ENTROU no escopo.** Decisão do Lucas: hoje ninguém
+consegue trocar a própria senha, nem o dono do sistema, então quem desconfia que
+a senha vazou não tem o que fazer. Não custa e-mail nenhum. A rota pede **senha
+atual e senha nova**; o backend está implementando — *ainda não existe no
+código quando isto foi escrito.*
 
-Enquanto isso, **quem perde a senha depende de um `owner` redefinir pela
-gestão de usuários**. O backend foi orientado a não implementar nada até que
-o Lucas reabra o assunto. O caminho `/recuperar-senha` aparece em
-`GUEST_ONLY_PAGES` do middleware sem página correspondente — é resíduo, não
+> **Troca com senha atual e `self_password_reset` são coisas diferentes, e as
+> duas continuam certas.** O `403 self_password_reset` do
+> `PATCH /api/users/[id]` bloqueia **redefinição sem confirmação** da própria
+> senha; a rota nova é **troca com confirmação**. Quem "unificar" as duas
+> pensando que são a mesma coisa abre um buraco: passa a permitir redefinir a
+> própria senha sem provar que sabe a atual.
+
+Continuam como lacunas conhecidas:
+
+**1. Não existe recuperação de senha por e-mail.** Exige e-mail transacional
+configurado — SMTP e domínio verificado —, que não existe; com o domínio fora de
+escopo, ficou mais caro ainda. O caminho `/recuperar-senha` aparece em
+`GUEST_ONLY_PAGES` do `proxy.ts` sem página correspondente: é resíduo, não
 promessa.
+
+**2. Quem acessa duas igrejas e ESQUECE a senha continua sem saída.** A nuance
+importa: quem ainda lembra da senha vai poder trocá-la pela rota nova. Quem
+esqueceu, não — não há recuperação por e-mail, e o socorro pelo
+`PATCH /api/users/[id]` recusa esse caso com **403
+`user_in_multiple_organizations`**, porque a senha é da identidade, não do
+vínculo, e um `owner` de uma igreja não pode mexer na credencial que dá acesso a
+outra. É consequência conhecida, não bug, e a primeira coisa a reabrir se
+aparecer um usuário multi-igreja de verdade.
 
 ## Mudanças de escopo e decisões revertidas
 
@@ -270,13 +307,20 @@ deles, que foi exatamente o que custou tempo em 06/09/2026.
 
 | Papel | Versão |
 | --- | --- |
-| Mínimo exigido pelas migrations | **PostgreSQL 13+** (`gen_random_uuid()` nativo, sem `pgcrypto`) |
+| Mínimo exigido pelas migrations | **PostgreSQL 15+** |
 | `nonia_dev` e a base `postgres` do mesmo servidor | **PostgreSQL 18.6** |
 
 No servidor, usuário e base padrão são `postgres`, não `nonia`.
 
-> O piso de 13+ pode subir para **15+** dependendo de como a migration 006
-> fechar as FKs que faltam — ver Pendências.
+O piso era 13+, por causa do `gen_random_uuid()` nativo, e **subiu para 15+ na
+migration 006** (06/09/2026), que usa `ON DELETE SET NULL` com lista de colunas.
+
+A alternativa seria trigger, e foi descartada com razão: ela não substituiria só
+a validação — teria de reimplementar o próprio `ON DELETE SET NULL`, virando
+cerca de seis triggers em quatro tabelas refazendo o motor de integridade
+referencial em PL/pgSQL, e ainda sem a validação retroativa que o
+`ADD CONSTRAINT` faz de graça. A 006 confere a versão e falha com mensagem em
+português em servidor anterior, em vez de estourar erro de sintaxe.
 
 ### Variáveis de ambiente
 
@@ -300,10 +344,7 @@ Datadas para que ninguém as leia como fato consumado.
 | Pendência | Desde |
 | --- | --- |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
-| **`organization_members.person_id` aceita uuid de outra organização.** `POST /api/users` e `PATCH /api/users/[id]` gravam o campo direto do payload, sem `assertBelongsToOrganization`. Nenhuma rota lida hoje devolve dado da pessoa por esse caminho (só o uuid), mas é escrita cruzada entre tenants e precisa de correção na aplicação, não só da 006 | 06/09/2026 |
-| **Migration 006** — fechar as FKs que faltam (`cells.leader_id`, `ministries.leader_id`, `members.ministry_id`, `organization_members.person_id`). **Ordem decidida em 06/09/2026: a validação de aplicação vem primeiro, a migration no mesmo lote** — a 006 sozinha trocaria uma gravação errada silenciosa por um erro de FK cru na cara do usuário. Se o caminho escolhido exigir `ON DELETE SET NULL` por coluna, o **piso de PostgreSQL sobe de 13+ para 15+** e este arquivo precisa ser corrigido | 06/09/2026 |
-| **`middleware.ts` será renomeado para `proxy.ts`** (o Next 16 depreciou "middleware" em favor de "proxy"). Decidido em 06/09/2026, **ainda não feito** — verificado: só existe `middleware.ts` na branch de auth | 06/09/2026 |
-| **Limites de plano não são aplicados** e os planos comerciais não existem na tabela `plans`. Ver "Planos comerciais" | 06/09/2026 |
+| **Limites de plano não são aplicados.** Os tetos estão cadastrados na tabela `plans` desde a 007 e **nenhuma rota os consulta** — nada impede o 101º membro no Semente nem o 11º usuário no Comunidade. Ver "Planos comerciais" | 06/09/2026 |
 | `/precos` e `/cadastro` **não existem como página** — são só constantes em `components/marketing/routes.ts` na branch de UI. O frontend está montando as duas | 06/09/2026 |
 | `docker-compose.yml` da **`main`** ainda sobe `postgres:17-alpine`; a branch de auth já corrigiu para `18-alpine` e o alinhamento chega pela integração | 06/09/2026 |
 | `.env.example` da **`main`** ainda diz "Em produção (Dokploy)"; a branch de auth já corrige. Não foi tocado aqui para não criar conflito | 06/09/2026 |
