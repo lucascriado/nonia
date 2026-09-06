@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `62d0305`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `488cc3d`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -126,6 +126,7 @@ Decisões fechadas. Reabrir só com o Lucas, não por conta própria.
 | **Planos comerciais definidos** | Semente, Comunidade e Rede — ver "Planos comerciais" abaixo | 06/09/2026 |
 | **Pagamento: Mercado Pago** | Escolhido pelo requisito de CPF (Pix/boleto). O schema de planos/assinaturas é **agnóstico ao gateway**: colunas `provider*` guardam o id externo, nenhuma regra de domínio depende do MP | 06/09/2026 |
 | **Route groups** | `app/(marketing)/` para o site público e `app/(app)/` para o sistema logado. Route group não entra na URL; a única rota que mudou foi a dashboard, de `/` para **`/painel`** | 06/09/2026 |
+| **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
 | **Tema sage/verde-floresta FICA** | Uma paleta índigo foi proposta e **reprovada pelo Lucas em 06/09/2026**. O commit da proposta já foi revertido na branch de UI. Não reabrir | 06/09/2026 |
 
 ### Rotas públicas decididas
@@ -171,7 +172,9 @@ contra PostgreSQL 18.6 real, 0 falhas**.
 - Site público: landing em `/`, FAQ em `/faq`, e as telas de sessão `/entrar`,
   `/cadastro` e `/convite/[token]`.
 - Ajustes de responsividade no celular e correções do tema escuro.
-- Os PNGs placeholder saíram do repositório — não há mais `public/`.
+- Os PNGs placeholder saíram do repositório, e `public/` foi junto — o que
+  quebrou o `COPY` do `Dockerfile`. **Corrigido em `488cc3d`**, recriando
+  `public/` com um `.gitkeep`.
 
 ## Isolamento entre organizações
 
@@ -367,6 +370,5 @@ Datadas para que ninguém as leia como fato consumado.
 | --- | --- |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **Limites de plano não são aplicados.** Os tetos estão cadastrados na tabela `plans` desde a 007 e **nenhuma rota os consulta** — nada impede o 101º membro no Semente nem o 11º usuário no Comunidade. Ver "Planos comerciais" | 06/09/2026 |
-| **O `Dockerfile` quebra desde que `public/` saiu do repositório.** A linha `COPY --from=builder /app/public ./public` aponta para um diretório que não existe mais — `docker compose up --build`, que o README documenta, falha. Verificado estaticamente; não há Docker nesta máquina para reproduzir | 06/09/2026 |
 | **`/precos` não existe como página** — é só uma constante em `components/marketing/routes.ts`, para onde apontam os CTAs de plano da landing. `/entrar`, `/cadastro` e `/convite/[token]` já existem | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |
