@@ -286,6 +286,36 @@ export async function requirePermission(...permissions: string[]): Promise<AuthC
   return auth;
 }
 
+/**
+ * Sessão + `billing.write`, DE PROPÓSITO sem a guarda de somente leitura.
+ *
+ * Exceção nomeada, e existe para exatamente duas rotas: contratar
+ * (POST /api/billing/subscribe) e cancelar (POST /api/billing/cancel).
+ *
+ * POR QUE: a guarda de somente leitura existe por causa de inadimplência, e
+ * cobrar de quem está inadimplente exige deixá-lo pagar. Sem esta exceção a
+ * igreja vira somente leitura POR CAUSA da cobrança e as duas únicas ações
+ * que a tirariam de lá ficam bloqueadas -- impasse sem saída pelo produto.
+ * Foi assim que nasceu, e uma jornada completa foi o que revelou.
+ *
+ * NÃO GENERALIZE. Não recebe parâmetro nenhum de propósito: a permissão é
+ * fixa, então isto não vira lista onde se acrescenta uma rota sem pensar.
+ * Precisou isentar outra coisa? Escreva outra função e pense de novo.
+ *
+ * PENDÊNCIA que mora aqui: quando houver cobrança de verdade, isentar o
+ * cancelamento passa a ser uma saída para a dívida -- cancelar devolveria a
+ * escrita no plano gratuito e apagaria a inadimplência. A regra "cancelar
+ * assinatura vencida não limpa a dívida" tem que ser aplicada neste ponto.
+ * Hoje não é explorável porque nenhum dinheiro troca de mãos.
+ */
+export async function requireBillingWriteEvenWhenReadOnly(): Promise<AuthContext> {
+  const auth = await requireSession();
+  if (!can(auth, "billing.write")) {
+    throw forbidden(`Seu papel (${auth.role.name}) não permite esta ação.`, "missing_permission");
+  }
+  return auth;
+}
+
 /** Exige sessão e que o papel seja um dos informados. */
 export async function requireRole(...slugs: string[]): Promise<AuthContext> {
   const auth = await requireSession();
