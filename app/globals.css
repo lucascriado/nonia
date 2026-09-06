@@ -124,6 +124,122 @@
   --shadow-lg: 0 26px 60px rgba(0, 0, 0, .6);
 }
 
+/* ==========================================================================
+   TEMA EM AVALIACAO - "indigo & grafite"
+   Substituto proposto para o sage/verde-floresta. Fica atras de
+   `data-palette="indigo"` para poder ser comparado lado a lado: hoje so a
+   Dashboard liga o atributo. Aprovado, estes valores sobem para o `:root`
+   acima e este bloco (e o PalettePreview) desaparecem.
+
+   A direcao volta ao indigo que ja era a cor de marca do nonia (#4648d4 no
+   icone antigo), agora sobre neutro frio de grafite em vez do papel sage.
+   O verde deixa de ser a cor da interface e passa a significar so uma coisa:
+   sucesso.
+   ========================================================================== */
+
+:root[data-palette="indigo"] {
+  /* superficies */
+  --bg: #f5f6fa;
+  --panel: #ffffff;
+  --panel-soft: #f1f3f9;
+  --panel-inset: #eaedf6;
+  --sidebar: #ffffff;
+  --sidebar-active: #ebeafc;
+  --overlay: rgba(19, 22, 38, .42);
+
+  /* linhas */
+  --border: #e3e6f0;
+  --border-soft: #edeff6;
+  --border-strong: #c6cbdc;
+
+  /* texto */
+  --text: #191c2a;
+  --muted: #676e88;
+  --heading: #14172a;
+
+  /* acento primario */
+  --primary: #4f46e5;
+  --primary-strong: #3d34cc;
+  --primary-soft: #ecebfe;
+  --primary-border: #c5c1f8;
+  --on-primary: #ffffff;
+  --neutral-soft: #e9ecf5;
+
+  /* Acentos decorativos: degraus proprios, nao matizes do primario. Cada um
+     carrega significado (alerta, informacao, destaque) e por isso pode sair
+     da familia indigo sem brigar com ela. */
+  --accent: #b45309;
+  --accent-soft: #fdf0dd;
+  --danger: #c2362b;
+  --danger-soft: #fce8e6;
+  --danger-border: #f0bdb7;
+  --warning: #a16207;
+  --warning-soft: #fbf0d8;
+  --info: #0e7490;
+  --info-soft: #dcf0f6;
+  --violet: #7c3aed;
+  --violet-soft: #efe9fe;
+
+  /* Verde volta a significar sucesso, e nao "a cor do sistema". */
+  --green: #15803d;
+  --green-soft: #dcf5e5;
+  --green-border: #a8dcbe;
+  --green-text: #12643a;
+
+  /* sombras, agora frias */
+  --shadow-xs: 0 1px 2px rgba(19, 22, 38, .06);
+  --shadow-sm: 0 2px 10px rgba(19, 22, 38, .07);
+  --shadow-md: 0 12px 28px rgba(19, 22, 38, .10);
+  --shadow-lg: 0 26px 60px rgba(19, 22, 38, .20);
+}
+
+:root[data-palette="indigo"][data-theme="dark"] {
+  --bg: #0d0f18;
+  --panel: #161926;
+  --panel-soft: #1d2130;
+  --panel-inset: #141724;
+  --sidebar: #111421;
+  --sidebar-active: #24283c;
+  --overlay: rgba(0, 0, 0, .66);
+
+  --border: #262b3d;
+  --border-soft: #202435;
+  --border-strong: #3a4058;
+
+  --text: #e9ebf4;
+  --muted: #949ab4;
+  --heading: #f2f3fa;
+
+  --primary: #8f89f7;
+  --primary-strong: #a9a4fa;
+  --primary-soft: #232345;
+  --primary-border: #3b3a6b;
+  --on-primary: #0e0f1c;
+  --neutral-soft: #232739;
+
+  --accent: #e0a45c;
+  --accent-soft: #33261a;
+  --danger: #f08b80;
+  --danger-soft: #3a2020;
+  --danger-border: #5c3430;
+  --warning: #dfb457;
+  --warning-soft: #342b18;
+  --info: #6fc0d8;
+  --info-soft: #17303a;
+  --violet: #a992fa;
+  --violet-soft: #2a2545;
+
+  --green: #5fc98d;
+  --green-soft: #16331f;
+  --green-border: #2f5b3e;
+  --green-text: #a5e5bf;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, .45);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, .4);
+  --shadow-md: 0 12px 28px rgba(0, 0, 0, .5);
+  --shadow-lg: 0 26px 60px rgba(0, 0, 0, .65);
+}
+
 :root[data-font-size="small"] { font-size: 0.875rem; }
 :root[data-font-size="large"] { font-size: 1.0625rem; }
 
