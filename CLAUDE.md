@@ -126,6 +126,7 @@ Decisões fechadas. Reabrir só com o Lucas, não por conta própria.
 | **Planos comerciais definidos** | Semente, Comunidade e Rede — ver "Planos comerciais" abaixo | 06/09/2026 |
 | **Pagamento: Mercado Pago** | Escolhido pelo requisito de CPF (Pix/boleto). O schema de planos/assinaturas é **agnóstico ao gateway**: colunas `provider*` guardam o id externo, nenhuma regra de domínio depende do MP | 06/09/2026 |
 | **Route groups** | `app/(marketing)/` para o site público e `app/(app)/` para o sistema logado. Route group não entra na URL; a única rota que mudou foi a dashboard, de `/` para **`/painel`** | 06/09/2026 |
+| **Cadastro nasce em avaliação e cai para o Semente** | Quem se cadastra entra em **avaliação de 14 dias**; terminado o prazo sem assinar, cai para o **Semente gratuito, sem expirar**. Resolve a divergência entre o `register`, que atribuía `avaliacao`, e a landing, que promete gratuito para até 100 membros sem prazo — as duas frases passam a ser verdadeiras. Ver "Plano efetivo" | 06/09/2026 |
 | **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
 | **Tema sage/verde-floresta FICA** | Uma paleta índigo foi proposta e **reprovada pelo Lucas em 06/09/2026**. O commit da proposta já foi revertido na branch de UI. Não reabrir | 06/09/2026 |
 
@@ -242,6 +243,31 @@ significam ilimitado.
 > o 11º usuário no Comunidade: os tetos estão cadastrados e **nenhuma rota os
 > consulta**. Vender com limite não verificado é aceitável no MVP **desde que
 > ninguém ache que está pronto**.
+
+## Plano efetivo — derivado na leitura
+
+**Decidido em 06/09/2026, implementação em andamento.** Ainda não está no
+código.
+
+Toda organização nasce em `avaliacao` (14 dias). O plano que vale a cada momento
+é **calculado na leitura**, nesta ordem:
+
+1. assinatura paga ativa, se houver;
+2. senão, `avaliacao`, enquanto estiver dentro do prazo;
+3. senão, `semente` — gratuito, sem expirar.
+
+> **Por que derivado e não gravado por tarefa agendada.** A alternativa era um
+> job que virasse o plano quando o prazo expirasse, e foi descartada: não há
+> cron, não há deploy, e a máquina é local — pode estar desligada exatamente
+> quando o prazo virar. Calculando na leitura, o rebaixamento acontece sozinho e
+> **é impossível uma organização ficar num estado que ninguém atualizou**. Se um
+> dia entrar tarefa agendada no projeto, esta decisão pode ser reaberta — mas o
+> problema que ela resolve não é "falta de cron", é "estado que depende de
+> alguém ter rodado algo".
+
+**Cair para o Semente não tira nada de ninguém.** Organização que passou dos 100
+membros durante a avaliação **não perde acesso e não tem nada apagado** — o
+limite bloqueia só criação nova.
 
 ## Lacunas conhecidas do MVP
 
@@ -376,5 +402,6 @@ Datadas para que ninguém as leia como fato consumado.
 | --- | --- |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **Limites de plano não são aplicados.** Os tetos estão cadastrados na tabela `plans` desde a 007 e **nenhuma rota os consulta** — nada impede o 101º membro no Semente nem o 11º usuário no Comunidade. Ver "Planos comerciais" | 06/09/2026 |
-| **`/precos` responde 404** — é só uma constante em `components/marketing/routes.ts`, para onde apontam os CTAs de plano da landing. Confirmado em 06/09/2026; o frontend está montando a página. `/entrar`, `/cadastro` e `/convite/[token]` já existem | 06/09/2026 |
+| **`/precos` responde 404 na `main`** — a página existe na branch do frontend (`ee51d44`) e a pendência fecha na integração | 06/09/2026 |
+| **O login não volta para a página pretendida na `main`.** O `proxy.ts` manda `/entrar?redirect=<caminho>` e o formulário lê `?next=`; todo mundo cai em `/painel`. Corrigido na branch do frontend, chega na integração | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |

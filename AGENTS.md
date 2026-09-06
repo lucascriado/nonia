@@ -198,10 +198,22 @@ de entrar na documentação como verdade.
   respondeu**. No caso acima a medição de uma linha
   (`loginctl show-user lucas --property=Linger`) devolveu o oposto do que a tela
   sugeria, e foi só por isso que o documento não registrou uma afirmação falsa.
+- **Confira que você está olhando a tela certa.** Uma varredura de `/entrar` e
+  `/cadastro` feita com sessão aberta não valida nada: o `proxy.ts` manda quem
+  tem cookie direto para `/painel`, então o que foi inspecionado foi outra
+  página. Para validar tela de visitante, esteja deslogado.
 - O mesmo vale para relato de terceiro sobre número, versão ou estado de
   arquivo: se dá para abrir o código ou rodar o comando, abra e rode. Onde não
   der, **escreva o que verificou e o que não** — "verificado estaticamente",
   "relatado pelo backend", "pendente de confirmação".
+
+- **O nome do parâmetro de retorno é um contrato entre o `proxy.ts` e o
+  formulário de login.** O proxy manda `/entrar?redirect=<caminho>`; quem lê
+  precisa ler `redirect`. Em 06/09/2026 o proxy mandava `redirect` e o
+  formulário lia `next`: **nenhum dos dois estava errado sozinho**, e juntos
+  faziam todo mundo cair em `/painel` em vez de voltar para a página pretendida.
+  Bug que só existe na junção — e o argumento concreto a favor de integrar cedo,
+  porque nenhuma das duas branches conseguiria vê-lo.
 
 ### Quando o culpado não é o seu código
 
