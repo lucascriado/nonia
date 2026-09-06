@@ -1083,6 +1083,20 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .profile-password-actions .primary-action { padding: 0 var(--space-5); }
 .profile-password-actions button:disabled { cursor: wait; opacity: .65; }
 
+.finance-summary-scope {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.finance-summary-scope svg { width: var(--icon-sm); flex: 0 0 var(--icon-sm); color: var(--primary); }
+
 /* --------------------------------------------------------------------------
    Faixa de cobranca
    Fica entre a topbar e o conteudo, em todas as telas do app. Segue a mesma

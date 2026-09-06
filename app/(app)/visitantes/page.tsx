@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -79,6 +79,9 @@ export default function VisitorsPage() {
     }
   }
   const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [total, setTotal] = useState(0);
+  const [inviters, setInviters] = useState<string[]>([]);
+  const [counts, setCounts] = useState({ todos: 0, primeiraVisita: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<Tab>("Todos");
@@ -93,39 +96,75 @@ export default function VisitorsPage() {
   // A aba fica fora da conta: ela continua visível fora do disclosure.
   const activeFilters = [invitedBy !== "all", search.trim() !== ""].filter(Boolean).length;
 
-  async function loadVisitors() {
+  /**
+   * Filtro, aba e paginação são do SERVIDOR. A lista em memória é uma PÁGINA:
+   * contar a partir dela daria "25 de 137" sem ninguém perceber.
+   */
+  const listQuery = useMemo(() => {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (search.trim()) query.set("search", search.trim());
+    if (tab !== "Todos") query.set("tab", tab);
+    if (invitedBy !== "all") query.set("invitedBy", invitedBy);
+    return query.toString();
+  }, [invitedBy, page, search, tab]);
+
+  const loadVisitors = useCallback(async (query: string) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/visitors", { cache: "no-store" });
+      const response = await fetch(`/api/visitors?${query}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Falha ao carregar visitantes");
-      const records = await response.json() as Array<Omit<Visitor, "initials" | "membershipStage" | "date"> & { membershipStage?: string; date: string }>;
+      const payload = await response.json() as {
+        records: Array<Omit<Visitor, "initials" | "membershipStage" | "date"> & { membershipStage?: string; date: string }>;
+        total: number;
+      };
+      setTotal(payload.total);
+      const records = payload.records;
       setVisitors(records.map((visitor) => ({ ...visitor, initials: initialsFrom(visitor.name), membershipStage: membershipStageFromDb(visitor.membershipStage), date: formatDate(visitor.date) })));
     } catch {
       toast.error("Não foi possível carregar os visitantes");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void loadVisitors(); }, []);
+  useEffect(() => {
+    const delay = search.trim() ? 300 : 0;
+    const timer = window.setTimeout(() => void loadVisitors(listQuery), delay);
+    return () => window.clearTimeout(timer);
+  }, [listQuery, loadVisitors, search]);
 
-  const inviters = [...new Set(visitors.map((visitor) => visitor.invitedBy))];
-  const filtered = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    return visitors.filter((visitor) => {
-      const matchesSearch = !term || `${visitor.name} ${visitor.email} ${visitor.invitedBy}`.toLocaleLowerCase("pt-BR").includes(term);
-      const matchesTab = tab === "Todos" || (tab === "Recentes" ? visitor.recent : visitor.membershipStage === "Visitou a igreja");
-      return matchesSearch
-        && matchesTab
-        && (invitedBy === "all" || visitor.invitedBy === invitedBy);
-    });
-  }, [invitedBy, search, tab, visitors]);
+  /** Contagens por aba: cada uma lê o `total`, que já respeita o filtro. */
+  useEffect(() => {
+    let active = true;
+    const count = async (filter: string) => {
+      const response = await fetch(`/api/visitors?pageSize=1${filter}`, { cache: "no-store" });
+      if (!response.ok) return 0;
+      return (await response.json()).total as number;
+    };
+    Promise.all([count(""), count("&tab=Pendentes")])
+      .then(([todos, primeiraVisita]) => active && setCounts({ todos, primeiraVisita }))
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [visitors]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // Quem convidou não pode sair da página: a lista viria incompleta.
+  useEffect(() => {
+    let active = true;
+    fetch("/api/visitors?pageSize=100", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!active || !payload) return;
+        setInviters([...new Set((payload.records as Array<{ invitedBy: string }>).map((v) => v.invitedBy).filter(Boolean))]);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount);
-  const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const start = filtered.length ? (currentPage - 1) * pageSize + 1 : 0;
-  const end = Math.min(currentPage * pageSize, filtered.length);
+  const visible = visitors;
+  const start = total ? (currentPage - 1) * pageSize + 1 : 0;
+  const end = Math.min(currentPage * pageSize, total);
 
   function changeTab(nextTab: Tab) {
     setTab(nextTab);
@@ -152,7 +191,7 @@ export default function VisitorsPage() {
     }
     toast.success(editing ? "Visitante alterado com sucesso" : "Visitante cadastrado com sucesso");
     setDialogMode(null); setSelectedVisitor(null); setPage(1);
-    await loadVisitors();
+    await loadVisitors(listQuery);
     return true;
   }
 
@@ -165,7 +204,7 @@ export default function VisitorsPage() {
     }
     toast.error("Visitante excluído com sucesso");
     setDeleteTarget(null);
-    await loadVisitors();
+    await loadVisitors(listQuery);
     return true;
   }
 
@@ -179,7 +218,7 @@ export default function VisitorsPage() {
       toast.success("Visitante convertido em membro");
       setConvertTarget(null);
       setPage(1);
-      await loadVisitors();
+      await loadVisitors(listQuery);
       return true;
     } catch {
       toast.error("Não foi possível converter o visitante");
@@ -199,10 +238,12 @@ export default function VisitorsPage() {
         </section>
 
         <section className="visitor-stats" aria-label="Indicadores de visitantes">
-          <VisitorStat loading={loading} label="Total de visitantes" value={visitors.length} color="default" />
-          <VisitorStat loading={loading} label="Primeira visita" value={visitors.filter((item) => item.membershipStage === "Visitou a igreja").length} detail="Novo" color="new" />
-          <VisitorStat loading={loading} label="Em integração" value={visitors.filter((item) => item.membershipStage !== "Visitou a igreja" && item.membershipStage !== "Membro").length} icon={<Users />} color="tracking" />
-          <VisitorStat loading={loading} label="Membros" value={visitors.filter((item) => item.membershipStage === "Membro").length} icon={<PartyPopper />} color="success" />
+          <VisitorStat loading={loading} label="Total de visitantes" value={counts.todos} color="default" />
+          <VisitorStat loading={loading} label="Primeira visita" value={counts.primeiraVisita} detail="Novo" color="new" />
+          {/* "Em integração" e "Membros" sairiam da PÁGINA, não do total: não há
+              filtro na API para etapa de integração, e o número seria 25 de
+              137. Indicador errado é pior que indicador a menos — voltam
+              quando o backend expuser a contagem por etapa. */}
         </section>
 
         <FilterDisclosure activeCount={activeFilters}>
@@ -248,7 +289,7 @@ export default function VisitorsPage() {
           </div>
           {loading && <TableSkeleton rows={4} columns={5} />}
           <div className="visitor-pagination">
-            <span>Mostrando {start}-{end} de {filtered.length} visitantes</span>
+            <span>Mostrando {start}-{end} de {total} visitantes</span>
             <div><button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft /></button>{visiblePageNumbers(currentPage, pageCount).map((number) => <button className={number === currentPage ? "current" : undefined} key={number} onClick={() => setPage(number)}>{number}</button>)}<button disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}><ChevronRight /></button></div>
           </div>
         </section>

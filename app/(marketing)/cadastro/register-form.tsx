@@ -11,12 +11,12 @@ import { marketingRoutes } from "@/components/marketing/routes";
 import { maskPhone } from "@/components/masks";
 import { plans } from "../plans";
 
-type Errors = Partial<Record<"organizationName" | "fullName" | "email" | "password", string>>;
+type Errors = Partial<Record<"organizationName" | "fullName" | "email" | "document" | "password", string>>;
 
 export function RegisterForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const [values, setValues] = useState({ organizationName: "", fullName: "", email: "", phone: "", password: "" });
+  const [values, setValues] = useState({ organizationName: "", fullName: "", email: "", phone: "", document: "", password: "" });
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -56,6 +56,7 @@ export function RegisterForm() {
         email: values.email.trim(),
         password: values.password,
         phone: values.phone.trim() || undefined,
+        document: values.document.trim() || undefined,
       });
       router.replace(marketingRoutes.app);
     } catch (error) {
@@ -66,6 +67,9 @@ export function RegisterForm() {
       // não sabe qual campo corrigir.
       if (error.code === "email_taken") setErrors((current) => ({ ...current, email: error.message }));
       else if (error.code === "weak_password") setErrors((current) => ({ ...current, password: error.message }));
+      // Documento inválido é erro DE CAMPO: mostrar no topo faria a pessoa
+      // procurar o que corrigir num formulário de seis campos.
+      else if (error.code === "invalid_document") setErrors((current) => ({ ...current, document: error.message }));
       else setFormError(error.message);
 
       setSubmitting(false);
@@ -125,6 +129,20 @@ export function RegisterForm() {
           onChange={(event) => update("phone", maskPhone(event.target.value))}
           placeholder="(00) 0 0000-0000"
           value={values.phone}
+        />
+
+        {/* SEM máscara e SEM filtrar para dígito: desde 31/07/2026 a Receita
+            emite CNPJ alfanumérico, com letras nas 12 primeiras posições. Uma
+            máscara de números recusaria o documento de qualquer igreja aberta
+            de agosto em diante — e recusaria na porta, no cadastro. */}
+        <AuthField
+          autoCapitalize="characters"
+          error={errors.document}
+          hint="Opcional. Aceita CNPJ (inclusive o novo, com letras) ou o CPF do responsável."
+          label="CNPJ da igreja"
+          maxLength={18}
+          onChange={(event) => update("document", event.target.value.toUpperCase())}
+          value={values.document}
         />
 
         <AuthField

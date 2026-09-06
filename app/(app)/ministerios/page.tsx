@@ -46,14 +46,16 @@ export default function MinistriesPage() {
     try {
       const [ministriesResponse, membersResponse] = await Promise.all([
         fetch("/api/ministries", { cache: "no-store" }),
-        fetch("/api/members", { cache: "no-store" }),
+        fetch("/api/members?pageSize=100", { cache: "no-store" }),
       ]);
       if (!ministriesResponse.ok || !membersResponse.ok) throw new Error("Falha ao carregar ministérios");
       const data = await ministriesResponse.json() as { ministries: Ministry[]; summary: Summary };
       setMinistries(data.ministries);
       setSummary(data.summary);
-      const memberRows = await membersResponse.json() as Array<MemberOption>;
-      setMembers(memberRows.map((member) => ({ id: member.id, name: member.name, email: member.email, ministry: member.ministry })));
+      // /api/members passou a devolver { records, total }. O seletor de
+      // membros precisa de TODOS, não de uma página — daí o pageSize no teto.
+      const memberPayload = await membersResponse.json() as { records: MemberOption[] };
+      setMembers(memberPayload.records.map((member) => ({ id: member.id, name: member.name, email: member.email, ministry: member.ministry })));
     } catch {
       toast.error("Não foi possível carregar ministérios");
     } finally {

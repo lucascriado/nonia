@@ -121,3 +121,20 @@ export async function horizontalOverflow(page: Page) {
     return doc.scrollWidth > window.innerWidth + 1 ? { scrollWidth: doc.scrollWidth, viewport: window.innerWidth } : null;
   });
 }
+
+/**
+ * Espera a tela ASSENTAR antes de medir.
+ *
+ * Esqueleto de carregamento não é o que a regra de alvo de toque avalia: ele
+ * aparece por instantes e some. Medir num tempo fixo faz o teste às vezes
+ * cair no meio do carregamento e acusar defeito que não existe — teste que
+ * falha à toa deixa de ser lido.
+ */
+export async function waitForSettled(page: Page) {
+  await page.waitForLoadState("networkidle");
+  await page.waitForFunction(() => document.querySelectorAll(".skeleton, [aria-busy='true']").length === 0, null, {
+    timeout: 10_000,
+  }).catch(() => undefined);
+  // Uma volta de animação depois do último layout.
+  await page.waitForTimeout(400);
+}

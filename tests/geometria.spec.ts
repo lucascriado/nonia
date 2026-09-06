@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { APP_SCREENS, PUBLIC_SCREENS, horizontalOverflow, login, smallTouchTargets, textOverText } from "./helpers";
+import { APP_SCREENS, PUBLIC_SCREENS, horizontalOverflow, login, smallTouchTargets, textOverText, waitForSettled } from "./helpers";
 
 /**
  * Regressão de layout renderizado.
@@ -28,7 +28,7 @@ for (const viewport of VIEWPORTS) {
     for (const path of PUBLIC_SCREENS) {
       test(`público ${path}`, async ({ page }) => {
         await page.goto(path);
-        await page.waitForLoadState("networkidle");
+        await waitForSettled(page);
 
         expect(await textOverText(page), "texto sobre texto").toEqual([]);
         expect(await horizontalOverflow(page), "rolagem lateral").toBeNull();
@@ -40,10 +40,7 @@ for (const viewport of VIEWPORTS) {
       test(`app ${path}`, async ({ page }) => {
         await login(page);
         await page.goto(path);
-        await page.waitForLoadState("networkidle");
-        // As listagens pintam depois do fetch; sem isto o teste mediria o
-        // esqueleto e passaria por vazio.
-        await page.waitForTimeout(1200);
+        await waitForSettled(page);
 
         expect(await textOverText(page), "texto sobre texto").toEqual([]);
         expect(await horizontalOverflow(page), "rolagem lateral").toBeNull();

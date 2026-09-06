@@ -64,12 +64,14 @@ export default function CellsPage() {
     try {
       const [cellsResponse, membersResponse] = await Promise.all([
         fetch("/api/cells", { cache: "no-store" }),
-        fetch("/api/members", { cache: "no-store" }),
+        fetch("/api/members?pageSize=100", { cache: "no-store" }),
       ]);
       if (!cellsResponse.ok || !membersResponse.ok) throw new Error("Falha ao carregar células");
       setCells(await cellsResponse.json());
-      const memberRows = await membersResponse.json() as Array<MemberOption>;
-      setMembers(memberRows.map((member) => ({ id: member.id, name: member.name, email: member.email, cell: member.cell })));
+      // /api/members passou a devolver { records, total }. O seletor de
+      // membros precisa de TODOS, não de uma página — daí o pageSize no teto.
+      const memberPayload = await membersResponse.json() as { records: MemberOption[] };
+      setMembers(memberPayload.records.map((member) => ({ id: member.id, name: member.name, email: member.email, cell: member.cell })));
     } catch {
       toast.error("Não foi possível carregar células");
     } finally {

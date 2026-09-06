@@ -139,6 +139,11 @@ export type RegisterInput = {
   email: string;
   password: string;
   phone?: string;
+  /**
+   * CNPJ ou CPF. Vai como a pessoa digitou: desde 31/07/2026 o CNPJ pode ter
+   * letras, então a tela não normaliza nem valida — quem valida é o servidor,
+   * e reimplementar a regra aqui só criaria duas versões dela.
+   */
   document?: string;
   organizationSlug?: string;
 };
