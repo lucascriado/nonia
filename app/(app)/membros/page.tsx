@@ -1,20 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Droplets,
-  Eye,
-  HeartHandshake,
-  Landmark,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-  UserCheck,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Droplets, Eye, HeartHandshake, Landmark, Pencil, Plus, Search, Trash2, UserCheck, Users } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FirstRun } from "@/components/first-run";
 import { useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
@@ -183,6 +172,9 @@ export default function MembersPage() {
 
   const activeFilters = [ministry !== "all", status !== "all", baptism !== "all", search.trim() !== ""].filter(Boolean).length;
 
+  /** Sem NENHUM membro e sem filtro: a tela vira primeira vez. */
+  const firstRun = !loading && total === 0 && activeFilters === 0;
+
   function clearFilters() {
     setSearch("");
     setMinistry("all");
@@ -230,6 +222,20 @@ export default function MembersPage() {
           <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>
         </section>
 
+        {firstRun ? (
+          <FirstRun
+            action={
+              readOnly ? undefined : (
+                <button className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }} type="button">
+                  <Plus />Cadastrar o primeiro membro
+                </button>
+              )
+            }
+            icon={Users}
+            text="Cadastre quem já faz parte da igreja. Daqui em diante você encontra qualquer pessoa pelo nome, com a ficha inteira na mão."
+            title="Nenhum membro cadastrado ainda"
+          />
+        ) : (
         <section className="members-content">
           <FilterDisclosure activeCount={activeFilters}>
             <div className="member-filters">
@@ -296,6 +302,7 @@ export default function MembersPage() {
             <MemberStat loading={loading} label="Aguardando batismo" value={counts.aguardando} icon={HeartHandshake} color="blue" />
           </section>
         </section>
+        )}
       </main>
       <PersonRecordDialog open={dialogMode !== null} mode={dialogMode ?? "create"} kind="member" initialValues={selectedMember ? memberValues(selectedMember) : undefined} onClose={() => { setDialogMode(null); setSelectedMember(null); }} onSubmit={saveMember} />
       <DeleteRecordDialog open={deleteTarget !== null} name={deleteTarget?.name ?? ""} kind="member" onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} />

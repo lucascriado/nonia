@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Baby, BookOpenCheck, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, Music, Plus, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
+import { Baby, BookOpenCheck, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, Music, Plus, Puzzle, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FirstRun } from "@/components/first-run";
 import { useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
@@ -78,6 +79,8 @@ export default function MinistriesPage() {
 
   const activeFilters = [leader !== "all", search.trim() !== ""].filter(Boolean).length;
 
+  const firstRun = !loading && !mode && ministries.length === 0 && activeFilters === 0;
+
   function clearFilters() {
     setSearch("");
     setLeader("all");
@@ -138,6 +141,21 @@ export default function MinistriesPage() {
           <MinistryForm mode={mode} ministry={selectedMinistry} members={members} onClose={closeForm} onSubmit={saveMinistry} />
         ) : (
           <>
+            {firstRun ? (
+              <FirstRun
+                action={
+                  readOnly ? undefined : (
+                    <button className="primary-action" onClick={() => openForm("create")} type="button">
+                      <Plus />Criar o primeiro ministério
+                    </button>
+                  )
+                }
+                icon={Puzzle}
+                text="Monte as equipes que servem na igreja, com responsável e registro de presença nos encontros."
+                title="Nenhum ministério cadastrado ainda"
+              />
+            ) : (
+            <>
             <section className="resource-stats">
               <article><span><Users /></span><small>Total voluntários</small><strong>{loading ? <NumberSkeleton /> : <><AnimatedNumber value={summary.totalVolunteers} /> pessoas</>}</strong></article>
               <article><span><HeartHandshake /></span><small>Ministérios ativos</small><strong>{loading ? <NumberSkeleton /> : <><AnimatedNumber value={summary.activeMinistries} /> grupos</>}</strong></article>
@@ -175,7 +193,8 @@ export default function MinistriesPage() {
               ))}
               {!loading && !filteredMinistries.length && <p className="data-empty">{ministries.length ? "Nenhum ministério encontrado com esses filtros." : "Nenhum ministério cadastrado ainda. Crie o primeiro pelo botão Novo Ministério."}</p>}
             </section>
-
+            </>
+            )}
           </>
         )}
       </main>

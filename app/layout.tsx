@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     default: "nonia.app",
     template: "%s | nonia.app",
   },
-  description: "Nonia — plataforma de gestão ministerial: membros, visitantes, células, ministérios e agenda.",
+  description: "nonia: a sua igreja organizada, do cadastro ao caixa. Membros, visitantes, ministérios, agenda e financeiro num painel só.",
   applicationName: "Nonia",
   metadataBase: new URL("https://nonia.app"),
 };
@@ -28,7 +28,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     // O layout do site público escreve `data-motion` no <html> antes da
-    // hidratação — é justamente o ponto: sem isso a página pisca. O React
+    // hidratação - é justamente o ponto: sem isso a página pisca. O React
     // compararia esse atributo com o HTML do servidor e avisaria.
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.variable}>

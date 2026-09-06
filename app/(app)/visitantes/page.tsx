@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FirstRun } from "@/components/first-run";
 import { useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
@@ -95,6 +96,9 @@ export default function VisitorsPage() {
 
   // A aba fica fora da conta: ela continua visível fora do disclosure.
   const activeFilters = [invitedBy !== "all", search.trim() !== ""].filter(Boolean).length;
+
+  /** Sem NENHUM visitante e sem filtro nem aba: vira primeira vez. */
+  const firstRun = !loading && total === 0 && activeFilters === 0 && tab === "Todos";
 
   /**
    * Filtro, aba e paginação são do SERVIDOR. A lista em memória é uma PÁGINA:
@@ -237,6 +241,21 @@ export default function VisitorsPage() {
           <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>
         </section>
 
+        {firstRun ? (
+          <FirstRun
+            action={
+              readOnly ? undefined : (
+                <button className="primary-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }} type="button">
+                  <UserPlus />Registrar o primeiro visitante
+                </button>
+              )
+            }
+            icon={UserPlus}
+            text="Anote quem visitou a igreja. A partir daí você acompanha em que ponto da integração cada pessoa está, até virar membro."
+            title="Nenhum visitante registrado ainda"
+          />
+        ) : (
+        <>
         <section className="visitor-stats" aria-label="Indicadores de visitantes">
           <VisitorStat loading={loading} label="Total de visitantes" value={counts.todos} color="default" />
           <VisitorStat loading={loading} label="Primeira visita" value={counts.primeiraVisita} detail="Novo" color="new" />
@@ -297,6 +316,8 @@ export default function VisitorsPage() {
         <section className="visitor-followup">
           <article className="integration-guide"><h3>Próximos Passos na Integração</h3><p>Lembre-se que o primeiro contato deve ser feito em até 48h após a visita para garantir uma maior taxa de retenção.</p><button><ClipboardList />Ver Manual de Integração</button></article>
         </section>
+        </>
+        )}
       </main>
       <PersonRecordDialog open={dialogMode !== null} mode={dialogMode ?? "create"} kind="visitor" initialValues={selectedVisitor ? visitorValues(selectedVisitor) : { membershipStage: "Visitou a igreja" }} onClose={() => { setDialogMode(null); setSelectedVisitor(null); }} onSubmit={saveVisitor} />
       <DeleteRecordDialog open={deleteTarget !== null} name={deleteTarget?.name ?? ""} kind="visitor" onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} />

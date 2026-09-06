@@ -50,7 +50,7 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
       <div className="brand">
         <Link className="brand-link" href="/painel" aria-label="Ir para a dashboard" title="Dashboard">
           <span className="brand-icon" aria-hidden><Church /></span>
-          <span className="brand-text"><strong>Nonia</strong><small>Gestão ministerial</small></span>
+          <span className="brand-text"><strong>nonia</strong><small>A sua igreja organizada</small></span>
         </Link>
         <Link className="brand-action" href="/membros" aria-label="Cadastrar novo membro" title="Novo membro">
           <UserPlus />

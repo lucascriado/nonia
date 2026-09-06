@@ -18,6 +18,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FirstRun } from "@/components/first-run";
 import { useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { ExportButton } from "@/components/export-button";
@@ -162,6 +163,9 @@ export default function FinancePage() {
 
   const activeFilters = [type !== "all", status !== "all", category !== "all", attachment !== "all", search.trim() !== ""].filter(Boolean).length;
 
+  /** Sem NENHUM lançamento e sem filtro: a tela vira primeira vez. */
+  const firstRun = !loading && total === 0 && activeFilters === 0;
+
   function clearFilters() {
     setSearch(""); setType("all"); setStatus("all"); setCategory("all"); setAttachment("all"); setPage(1);
   }
@@ -206,6 +210,8 @@ export default function FinancePage() {
           <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>
         </section>
 
+        {!firstRun && (
+        <>
         {/* O resumo acompanha o filtro: filtrando por "Aluguel", o saldo é o do
             Aluguel, não o da igreja. Sem dizer isso, a pessoa vê o saldo mudar
             e acha que perdeu lançamento. */}
@@ -222,6 +228,23 @@ export default function FinancePage() {
           <article><span className="amber"><Clock /></span><small>Pendências</small><strong>{loading ? <NumberSkeleton /> : <AnimatedNumber value={pendingCount} />}</strong></article>
         </section>
 
+        </>
+        )}
+
+        {firstRun ? (
+          <FirstRun
+            action={
+              readOnly ? undefined : (
+                <button className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }} type="button">
+                  <Plus />Registrar o primeiro lançamento
+                </button>
+              )
+            }
+            icon={Wallet}
+            text="Registre dízimos, ofertas e despesas com o comprovante anexado. O saldo e a prestação de contas aparecem aqui assim que o primeiro lançamento entrar."
+            title="Nenhum lançamento ainda"
+          />
+        ) : (
         <section className="finance-content">
           <FilterDisclosure activeCount={activeFilters}>
             <div className="member-filters resource-filters">
@@ -298,6 +321,7 @@ export default function FinancePage() {
             </div>
           </div>
         </section>
+        )}
       </main>
       <FinancialRecordDialog open={dialogMode !== null} mode={dialogMode ?? "create"} initialValues={selectedTransaction ? transactionValues(selectedTransaction) : undefined} onClose={() => { setDialogMode(null); setSelectedTransaction(null); }} onSubmit={saveTransaction} />
       <DeleteRecordDialog open={deleteTarget !== null} name={deleteTarget?.description ?? ""} kind="financial" onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
