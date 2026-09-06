@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { getSession, type SessionOrganization, type SessionPayload } from "@/components/auth/session";
+import { getSession, type SessionOrganization, type SessionPayload, type SessionPlan } from "@/components/auth/session";
 
 export type CurrentUser = {
   name: string;
@@ -17,6 +17,8 @@ type SessionState = {
   user: CurrentUser;
   organization: SessionOrganization | null;
   permissions: string[];
+  /** Só chega pelo GET sessão; ausente enquanto a sondagem não volta. */
+  plan: SessionPlan | null;
   /** A sondagem ainda não voltou — não conclua "deslogado" a partir disto. */
   loading: boolean;
   authenticated: boolean;
@@ -38,6 +40,7 @@ const initialState: SessionState = {
   user: placeholderUser,
   organization: null,
   permissions: [],
+  plan: null,
   loading: true,
   authenticated: false,
 };
@@ -57,6 +60,7 @@ function toState(payload: SessionPayload): SessionState {
     },
     organization: payload.organization,
     permissions: payload.permissions,
+    plan: payload.plan ?? null,
     loading: false,
     authenticated: true,
   };
