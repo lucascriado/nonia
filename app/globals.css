@@ -1245,6 +1245,94 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .invite-link-done { margin-top: var(--space-3); border: 0; background: transparent; color: var(--primary); font-size: 0.8125rem; font-weight: 600; text-decoration: underline; }
 
 /* --------------------------------------------------------------------------
+   Perfil editavel e dados da igreja
+   -------------------------------------------------------------------------- */
+
+.settings-stack { display: grid; gap: var(--space-5); align-content: start; }
+
+.profile-edit { width: 100%; margin-top: var(--space-4); text-align: left; }
+.profile-edit .mk-field { margin-bottom: var(--space-4); }
+.profile-edit input:not([type="file"]) {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+.profile-edit input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+.profile-photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); }
+.profile-photo-actions input[type="file"] { display: none; }
+.profile-photo-actions button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.profile-photo-actions button:hover { border-color: var(--primary-border); color: var(--heading); }
+.profile-photo-actions svg { width: var(--icon-sm); color: var(--muted); }
+.profile-photo-actions small { flex: 1 0 100%; color: var(--muted); font-size: 0.6875rem; }
+
+/* Campo que existe mas nao se edita: fica a vista COM o motivo, em vez de
+   sumir e deixar a pessoa procurando onde muda. */
+.profile-locked-field {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.profile-locked-field svg { width: var(--icon-md); flex: 0 0 var(--icon-md); margin-top: 1px; }
+.profile-locked-field span { min-width: 0; flex: 1; }
+.profile-locked-field strong { display: block; color: var(--heading); font-size: 0.875rem; font-weight: 600; }
+
+.profile-edit-actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
+.profile-edit-actions button { min-height: 44px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.84375rem; font-weight: 600; }
+.profile-edit-actions button:disabled { cursor: wait; opacity: .65; }
+
+.org-panel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
+.org-panel > header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
+.org-panel > header > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
+.org-panel > header > span svg { width: var(--icon-md); }
+.org-panel h3 { margin: 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.org-panel > header p { margin: 3px 0 0; color: var(--muted); font-size: 0.8125rem; }
+.org-view, .org-form { padding: var(--space-5); }
+.org-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-soft); }
+.org-row:first-child { padding-top: 0; }
+.org-row span { color: var(--muted); font-size: 0.75rem; }
+.org-row strong { color: var(--heading); font-size: 0.875rem; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.org-view .profile-secondary-action { margin-top: var(--space-4); }
+.org-form .mk-field { margin-bottom: var(--space-4); }
+.org-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+.org-form input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+/* --------------------------------------------------------------------------
    Plano e assinatura
    -------------------------------------------------------------------------- */
 

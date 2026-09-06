@@ -9,7 +9,9 @@
 export type SessionUser = {
   id: string;
   name: string;
+  /** Identidade de login: não é editável. */
   email: string;
+  phone: string | null;
   avatarUrl: string | null;
   personId: string | null;
 };
@@ -177,6 +179,18 @@ export function acceptInvite(input: { token: string; password: string; fullName?
  */
 export function changePassword(input: { currentPassword: string; newPassword: string }) {
   return apiRequest<{ ok: true }>("/api/auth/password", json(input));
+}
+
+/**
+ * Dados do próprio usuário. Só exige sessão: NÃO é bloqueado em somente
+ * leitura, de propósito — o nome e a foto de alguém são dela, não da igreja, e
+ * não ficam reféns de uma mensalidade em aberto. Editar os dados da IGREJA é
+ * que é bloqueado.
+ *
+ * `null` remove telefone ou foto. O e-mail não entra: é a identidade de login.
+ */
+export function updateProfile(changes: { fullName?: string; phone?: string | null; avatarUrl?: string | null }) {
+  return apiRequest<{ ok: true }>("/api/auth/profile", { method: "PATCH", body: JSON.stringify(changes) });
 }
 
 export function switchOrganization(input: { organizationSlug?: string; organizationId?: string }) {
