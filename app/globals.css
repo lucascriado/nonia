@@ -1023,7 +1023,7 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
    antiga tinha duas colunas por causa do cartao "Preferencias do Sistema";
    agora e uma coluna estreita, para o cartao nao esticar sozinho na largura
    toda. */
-.settings-grid { display: grid; max-width: 380px; margin-inline: 0; gap: 20px; align-items: start; }
+.settings-grid { display: grid; max-width: 720px; margin-inline: 0; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: var(--space-5); align-items: start; }
 .profile-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
 .profile-card { position: relative; display: flex; flex-direction: column; align-items: center; padding: 0 22px 22px; }
 .profile-cover { width: calc(100% + 44px); height: 88px; margin-bottom: -44px; background: linear-gradient(120deg, var(--primary-soft), var(--panel-inset)); }
@@ -1082,6 +1082,62 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .profile-password-actions button { min-height: 44px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.84375rem; font-weight: 600; }
 .profile-password-actions .primary-action { padding: 0 var(--space-5); }
 .profile-password-actions button:disabled { cursor: wait; opacity: .65; }
+
+/* --------------------------------------------------------------------------
+   Plano e assinatura
+   -------------------------------------------------------------------------- */
+
+.plan-panel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
+.plan-panel > header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
+.plan-panel > header > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
+.plan-panel > header > span svg { width: var(--icon-md); }
+.plan-panel > header > div { min-width: 0; flex: 1; }
+.plan-panel h3 { margin: 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.plan-panel > header p { margin: 3px 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
+
+.plan-badge { padding: 5px var(--space-3); border-radius: 999px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.plan-badge.is-trial { background: var(--accent-soft); color: var(--accent); }
+.plan-badge.is-subscription { background: var(--primary-soft); color: var(--heading); }
+.plan-badge.is-free { background: var(--neutral-soft); color: var(--muted); }
+
+.plan-usage { display: grid; gap: var(--space-4); padding: var(--space-5); }
+.plan-usage-row { display: grid; gap: var(--space-2); }
+.plan-usage-label { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); color: var(--muted); font-size: 0.8125rem; }
+.plan-usage-label strong { color: var(--heading); font-size: 0.875rem; font-weight: 600; }
+.plan-usage-track { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: var(--panel-inset); }
+.plan-usage-track i { display: block; height: 100%; border-radius: 999px; background: var(--primary); transition: width .4s var(--ease-out); }
+.plan-usage-row small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.75rem; }
+.plan-usage-row small svg { width: var(--icon-sm); }
+/* O aviso muda de cor ANTES de encostar no teto, nao depois. */
+.plan-usage-row.is-near .plan-usage-track i { background: var(--warning); }
+.plan-usage-row.is-near small { color: var(--warning); }
+.plan-usage-row.is-full .plan-usage-track i { background: var(--danger); }
+.plan-usage-row.is-full small { color: var(--danger); font-weight: 600; }
+
+.plan-options { display: grid; gap: var(--space-3); padding: 0 var(--space-5) var(--space-5); }
+.plan-option { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-soft); }
+.plan-option.is-current { border-color: var(--primary-border); background: var(--primary-soft); }
+.plan-option > div { min-width: 0; flex: 1 1 180px; }
+.plan-option strong { display: block; color: var(--heading); font-size: 0.875rem; font-weight: 600; }
+.plan-option small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.75rem; line-height: 1.45; }
+.plan-option-price { color: var(--heading); font-size: 0.9375rem; font-weight: 700; white-space: nowrap; }
+.plan-option-current { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.plan-option-current svg { width: var(--icon-sm); }
+.plan-option-action { min-height: 40px; padding: 0 var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.plan-option-action:hover { border-color: var(--primary); background: var(--primary-soft); color: var(--heading); }
+
+.plan-confirm { display: flex; align-items: center; gap: var(--space-2); }
+.plan-confirm button { min-height: 40px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.plan-confirm .primary-action { padding: 0 var(--space-4); }
+.plan-confirm button:disabled { cursor: wait; opacity: .65; }
+
+.plan-cancel { padding-top: var(--space-3); border-top: 1px solid var(--border); text-align: right; }
+.plan-cancel > button { min-height: 40px; padding: 0 var(--space-3); border: 0; background: transparent; color: var(--muted); font-size: 0.8125rem; font-weight: 600; text-decoration: underline; }
+.plan-cancel > button:hover { color: var(--danger); }
+.plan-cancel p { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0 0 var(--space-3); padding: var(--space-3); border: 1px solid var(--danger-border); border-radius: var(--radius-sm); background: var(--danger-soft); color: var(--danger); font-size: 0.8125rem; line-height: 1.5; text-align: left; }
+.plan-cancel p svg { width: var(--icon-md); flex: 0 0 var(--icon-md); margin-top: 1px; }
+.plan-cancel .plan-confirm { justify-content: flex-end; }
+.plan-cancel-confirm { min-height: 40px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: var(--danger); color: var(--on-primary-fill); font-size: 0.8125rem; font-weight: 600; }
 .settings-footer { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; text-align: center; }
 .settings-footer span { color: var(--primary); }
 
@@ -1661,6 +1717,12 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
     clip-path: inset(50%);
     white-space: nowrap;
   }
+
+  .settings-grid { grid-template-columns: 1fr; max-width: none; }
+  .plan-option { align-items: stretch; }
+  .plan-option-action, .plan-confirm button { min-height: 44px; }
+  .plan-confirm { width: 100%; }
+  .plan-confirm button { flex: 1; }
 
   .cell-grid, .ministries-grid { gap: var(--space-4); }
   .cell-card, .ministry-card, .resource-card { padding: var(--space-5); gap: var(--space-3); }
