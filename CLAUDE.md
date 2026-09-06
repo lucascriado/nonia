@@ -18,7 +18,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Produção | **Não existe e está fora de escopo.** O nonia nunca foi deployado; desde 06/09/2026 ele roda **só localmente** — ver "Escopo atual" |
 | Aplicação no Coolify | **Descartada.** Foi criada em 06/09/2026 e nunca publicada; a exclusão ficou a cargo do admin de VPS no mesmo dia — ver "Mudanças de escopo" |
 | Base `postgres` do servidor | Provisionada e **vazia** (0 tabelas). Era a base destinada à produção; segue intocada. Baseline em `~/backups/nonia-2026-09-06.sql` |
-| Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
+| Domínio `nonia.app` | **Não responde, e não vai passar a responder.** O DNS foi **dispensado**, não adiado — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
 | Integração | **Feita.** `main` em `3c0c153`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
@@ -587,8 +587,14 @@ your own email address"*.
 **Sem domínio verificado o produto não regride** — fica idêntico ao que era
 antes de existir e-mail.
 
-Para o envio funcionar de verdade faltam três registros DNS: **MX** em `send`,
-**TXT de SPF** em `send` e **TXT de DKIM** em `resend._domainkey`.
+> **O envio está construído, testado contra a API real, e desligado por falta de
+> domínio verificado — por decisão, não por pendência.** O DNS foi dispensado em
+> 06/09/2026. Não é algo a fazer: é algo que dorme até o projeto ter domínio, se
+> um dia tiver. O convite por link continua funcionando e é por ele que a equipe
+> entra.
+
+Se o assunto voltar, para o envio funcionar faltam três registros DNS: **MX** em
+`send`, **TXT de SPF** em `send` e **TXT de DKIM** em `resend._domainkey`.
 
 > **No Cloudflare eles precisam ficar como DNS only, com o proxy DESLIGADO.**
 > Com a nuvem laranja a verificação falha — é o erro clássico de quem usa
@@ -722,7 +728,7 @@ a aplicação criada no Coolify. Só importa o banco estar online.
 | O que existia | Situação |
 | --- | --- |
 | Aplicação `nonia` no Coolify, criada em 06/09/2026 com `fqdn` nulo e auto-deploy desligado | **Descartada.** Nunca foi publicada, nunca teve container. A exclusão ficou com o admin de VPS. O uuid dela é **histórico** — não recrie a aplicação |
-| Plano de DNS/Cloudflare para `nonia.app` (7 etapas, Origin CA da zona antes da nuvem laranja) | **Arquivado**, não pendente. O levantamento continua correto e está em `/home/lucas/www/FASE0-INFRA.md` para quando o assunto voltar. O domínio segue quebrado de propósito |
+| Plano de DNS/Cloudflare para `nonia.app` (7 etapas, Origin CA da zona antes da nuvem laranja) | **Dispensado pelo Lucas em 06/09/2026**, porque o projeto roda local e só o banco é remoto. Não é "aguardando decisão": a decisão veio, e é não. O levantamento continua correto e está em `/home/lucas/www/FASE0-INFRA.md` caso o assunto volte um dia |
 | `www.nonia.app` | Nunca existiu registro, e não vai existir por ora |
 | Env `APP_URL` | **Saiu da lista.** Só servia para montar link de convite com domínio público |
 | "Não deployar enquanto as rotas estiverem abertas" | O raciocínio estava certo e virou **inaplicável**: não há para onde deployar. A regra que sobrevive é a de integração — ver "Escopo atual" |
