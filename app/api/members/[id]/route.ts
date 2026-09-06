@@ -61,16 +61,26 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       });
       assertAffected(affected, "Membro não encontrado.");
 
+      // A célula tem a mesma rede da foto e do comprovante: chave AUSENTE
+      // preserva, só string vazia explícita desvincula.
+      //
+      // Isso passou a importar quando a tela de células saiu da interface: um
+      // formulário de membro sem o campo de célula mandaria `cell` indefinido,
+      // e sem esta guarda cada edição de membro -- "só mudei o telefone" --
+      // devolveria a pessoa para "Sem célula" e apagaria o vínculo em
+      // cell_members. Perda silenciosa, num caminho que ninguém testa.
+      const mexeuNaCelula = payload.cell !== undefined;
+
       await Member.update({
         ministryId: ministry?.id ?? null,
         role: payload.role || "Membro Comum",
         status: payload.status === "Inativo" ? "inactive" : "active",
         baptismStatus: payload.baptismDate ? "baptized" : "waiting",
         baptismDate: nullable(payload.baptismDate),
-        cellName: payload.cell || "Sem célula",
+        ...(mexeuNaCelula ? { cellName: payload.cell || "Sem célula" } : {}),
       }, { where: { personId: id, organizationId: organizationId(auth) }, transaction });
 
-      await syncCellMembership(auth, id, payload.cell, transaction);
+      if (mexeuNaCelula) await syncCellMembership(auth, id, payload.cell, transaction);
       await addActivity(transaction, auth, "members", "atualizou o cadastro de", payload.name);
     });
 

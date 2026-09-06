@@ -42,7 +42,9 @@ export async function readJson<T>(request: Request): Promise<T> {
   try {
     return (await request.json()) as T;
   } catch {
-    throw badRequest("Corpo da requisição inválido: esperado JSON.", "invalid_json");
+    // A mensagem serve para ser mostrada como está; o detalhe técnico vive no
+    // `code`, que é quem programa que lê.
+    throw badRequest("Não foi possível ler os dados enviados. Atualize a página e tente de novo.", "invalid_json");
   }
 }
 

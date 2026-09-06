@@ -20,7 +20,15 @@ export async function assertBelongsToOrganization(
     `SELECT 1 AS ok FROM ${table} WHERE ${column} = $1 AND organization_id = $2`,
     { bind: [value, organizationId], transaction, type: QueryTypes.SELECT },
   );
-  if (!rows.length) throw badRequest("Registro informado não pertence a esta organização.", "cross_tenant");
+  // Acontece quando a tela mandou um id que não é desta igreja -- em geral
+  // porque a lista estava velha. A mensagem diz o que fazer, não só o que
+  // deu errado.
+  if (!rows.length) {
+    throw badRequest(
+      "O registro selecionado não pertence a esta igreja. Atualize a página e escolha de novo.",
+      "cross_tenant",
+    );
+  }
 }
 
 /** Filtra ids mantendo só os que são da organização. */
