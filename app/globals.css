@@ -1084,6 +1084,84 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .profile-password-actions button:disabled { cursor: wait; opacity: .65; }
 
 /* --------------------------------------------------------------------------
+   Usuarios e convites
+   -------------------------------------------------------------------------- */
+
+.users-grid { display: grid; max-width: 720px; margin-inline: 0; }
+.users-panel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
+.users-panel.is-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-6); color: var(--muted); font-size: 0.875rem; }
+.users-panel.is-loading svg { width: var(--icon-xl); color: var(--primary); }
+.users-panel > header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
+.users-panel > header > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
+.users-panel > header > span svg { width: var(--icon-md); }
+.users-panel h3 { margin: 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.users-panel > header p { margin: 3px 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
+
+.users-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.users-list li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-soft); }
+.users-list li:last-child { border-bottom: 0; }
+.users-list li.is-pending { background: var(--panel-soft); }
+.users-identity { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.users-identity strong { display: flex; align-items: center; gap: var(--space-2); overflow: hidden; color: var(--heading); font-size: 0.875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.users-identity em { padding: 2px 7px; border-radius: 999px; background: var(--primary-soft); color: var(--heading); font-size: 0.625rem; font-style: normal; font-weight: 700; text-transform: uppercase; }
+.users-identity small { overflow: hidden; color: var(--muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.users-role { padding: 5px var(--space-3); border-radius: 999px; background: var(--neutral-soft); color: var(--muted); font-size: 0.6875rem; font-weight: 700; white-space: nowrap; }
+
+.users-invite { padding: var(--space-5); border-top: 1px solid var(--border); background: var(--panel-soft); }
+.users-invite h4 { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-4); color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.users-invite h4 svg { width: var(--icon-md); color: var(--primary); }
+.users-invite .mk-field { margin-bottom: var(--space-4); }
+.users-invite select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+.users-invite select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.users-invite > .primary-action { width: 100%; min-height: 44px; }
+
+/* O link do convite. Sem envio de e-mail, ele e a UNICA forma de o convidado
+   receber o convite, e nao volta em listagem nenhuma — por isso o aviso tem
+   peso de alerta, e nao de nota de rodape. */
+.invite-link { padding: var(--space-5); border-top: 1px solid var(--border); background: var(--panel-soft); }
+.invite-link-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.invite-link-warning svg { width: var(--icon-md); flex: 0 0 var(--icon-md); margin-top: 1px; }
+.invite-link-warning > span { min-width: 0; flex: 1; }
+.invite-link-warning strong { font-weight: 700; }
+.invite-link-row { display: flex; gap: var(--space-2); }
+.invite-link-row input {
+  min-width: 0;
+  flex: 1;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+.invite-link-row .primary-action { flex: 0 0 auto; min-height: 44px; }
+.invite-link-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: 0.75rem; }
+.invite-link-done { margin-top: var(--space-3); border: 0; background: transparent; color: var(--primary); font-size: 0.8125rem; font-weight: 600; text-decoration: underline; }
+
+/* --------------------------------------------------------------------------
    Plano e assinatura
    -------------------------------------------------------------------------- */
 
@@ -1623,14 +1701,14 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    Agora a identidade manda, as etiquetas se agrupam numa faixa e a data e as
    acoes dividem o rodape do cartao. */
 @media (max-width: 640px) {
-  .members-table tr, .visitors-table tr {
+  .members-table tr, .visitors-table tr, .finance-table tr {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     padding: 14px 16px;
   }
-  .members-table td, .visitors-table td {
+  .members-table td, .visitors-table td, .finance-table td {
     display: block;
     min-height: 0;
     padding: 0;
@@ -1638,7 +1716,7 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
     text-align: left;
   }
   /* Os rotulos saem: as etiquetas ja se explicam e o nome dispensa "Nome". */
-  .members-table td::before, .visitors-table td::before { content: none; }
+  .members-table td::before, .visitors-table td::before, .finance-table td::before { content: none; }
 
   .members-table td[data-label="Nome"], .visitors-table td[data-label="Nome"] { flex: 1 0 100%; }
   .members-table td[data-label="Admissão"] { order: 8; flex: 1 0 auto; color: var(--muted); font-size: 0.75rem; }
@@ -1653,6 +1731,23 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .visitors-table td[data-label="Quem convidou"] { order: 4; flex: 0 1 auto; color: var(--muted); font-size: 0.75rem; }
   .visitors-table td[data-label="Data"] { order: 5; flex: 0 1 auto; color: var(--muted); font-size: 0.75rem; }
   .visitors-table td[data-label="Data"]::before { content: "visita em "; color: inherit; font-size: inherit; font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+  /* Financeiro e a linha com mais campos do sistema: descricao, contraparte,
+     categoria, tipo, valor, data, comprovante e situacao. Mesmo arranjo da
+     dashboard — o VALOR e o numero, entao ele fica na primeira linha junto da
+     descricao, alinhado a direita, e o resto vira etiqueta e metadado. */
+  .finance-table td[data-label="Descrição"] { flex: 1 1 60%; }
+  /* Mesma armadilha que truncava a etapa em /visitantes: a descricao tem
+     ellipsis com nowrap para caber na coluna da tabela, e no cartao ela tem a
+     largura toda — nao ha motivo para cortar. */
+  .finance-identity strong, .finance-identity small { overflow: visible; white-space: normal; }
+  .finance-table td[data-label="Valor"] { order: 2; flex: 0 0 auto; margin-left: auto; font-size: 1rem; font-weight: 700; text-align: right; }
+  .finance-table td[data-label="Tipo"] { order: 3; }
+  .finance-table td[data-label="Categoria"] { order: 4; }
+  .finance-table td[data-label="Status"] { order: 5; }
+  .finance-table td[data-label="Data"] { order: 6; flex: 1 0 auto; color: var(--muted); font-size: 0.75rem; }
+  .finance-table td[data-label="Comprovante"] { order: 7; flex: 0 0 auto; }
+  .finance-table td[data-label="Ações"] { order: 8; flex: 0 0 auto; margin-left: auto; }
 
   .visitor-status-cell { max-width: none; align-items: stretch; }
   .visitor-membership-progress { width: 100%; }
@@ -1733,6 +1828,11 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   }
 
   .settings-grid { grid-template-columns: 1fr; max-width: none; }
+  .users-grid { max-width: none; }
+  .users-list li { flex-wrap: wrap; }
+  .users-role { margin-left: 54px; }
+  .invite-link-row { flex-direction: column; }
+  .invite-link-row .primary-action { width: 100%; }
   .plan-option { align-items: stretch; }
   .plan-option-action, .plan-confirm button { min-height: 44px; }
   .plan-confirm { width: 100%; }

@@ -12,6 +12,7 @@ import {
   Puzzle,
   Search,
   Settings,
+  ShieldCheck,
   UserPlus,
   Users,
   Wallet,
@@ -28,6 +29,7 @@ const searchItems = [
   { title: "Células", description: "Pequenos grupos, líderes, membros e encontros", href: "/celulas", icon: Network, keywords: "celulas pequenos grupos lider membros presenca" },
   { title: "Ministérios", description: "Equipes, voluntários e chamada da escola bíblica", href: "/ministerios", icon: Puzzle, keywords: "ministerios voluntarios escola biblica chamada presenca domingo" },
   { title: "Financeiro", description: "Entradas, saídas, comprovantes e saldo disponível", href: "/financeiro", icon: Wallet, keywords: "financeiro dizimo oferta despesa saldo lancamento comprovante" },
+  { title: "Usuários", description: "Quem tem acesso ao painel e com qual papel", href: "/usuarios", icon: ShieldCheck, keywords: "usuarios acesso papel permissao convite equipe secretaria lider" },
   { title: "Configurações", description: "Perfil da conta", href: "/configuracoes", icon: Settings, keywords: "configuracoes perfil conta usuario" },
 ];
 
