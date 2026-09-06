@@ -11,8 +11,8 @@ services:
         condition: service_healthy
 
   db:
-    # Espelha a produção (18.6). O piso do schema é o PG 13,
-    # por causa do gen_random_uuid() nativo.
+    # Espelha o banco de desenvolvimento (18.6). O piso do schema é o
+    # PG 15, exigido pela migration 006 (ON DELETE SET NULL por coluna).
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
