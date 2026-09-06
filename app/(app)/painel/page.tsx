@@ -6,7 +6,6 @@ import { Cake, CalendarDays, MapPin, Network, PartyPopper, Settings, UserPlus, U
 import { Calendar } from "@/components/calendar";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { AnimatedNumber } from "@/components/animated-number";
-import { PalettePreview } from "@/components/palette-preview";
 import { toast } from "sonner";
 import { ActivitySkeleton, NumberSkeleton, Skeleton } from "@/components/skeleton";
 
@@ -40,8 +39,6 @@ export default function Dashboard() {
 
   return (
     <DashboardShell title="Dashboard">
-      {/* Andaime: só esta tela usa o tema em avaliação. Ver PalettePreview. */}
-      <PalettePreview />
       <main>
         <section className="stats" aria-label="Indicadores">
           {stats.map(({ label, value, icon: Icon, color }) => (
