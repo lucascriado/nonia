@@ -8,7 +8,7 @@ import { planComparison, plans, type ComparisonValue } from "../plans";
 export const metadata: Metadata = {
   title: "Planos e preços",
   description:
-    "Um plano por igreja: Semente grátis para até 100 membros, Comunidade por R$ 89 ao mês com membros ilimitados, e Rede sob consulta para várias congregações.",
+    "Um plano por igreja: Semente grátis para até 100 membros, Comunidade por R$ 89 ao mês com membros ilimitados, e Rede sob consulta.",
   alternates: { canonical: "/precos" },
   openGraph: {
     title: "Planos e preços do nonia",
@@ -43,7 +43,7 @@ const billingFaq = [
   },
   {
     question: "Como funciona o plano Rede?",
-    answer: "Ele atende redes e denominações com várias congregações sob o mesmo contrato, cada uma com seu espaço e a liderança enxergando o consolidado. O valor depende do número de congregações - fale com a gente.",
+    answer: "Ele atende igrejas grandes, com equipe numerosa e necessidades que fogem do Comunidade: usuários ilimitados, onboarding acompanhado e suporte prioritário. O valor é combinado caso a caso - fale com a gente.",
   },
 ];
 

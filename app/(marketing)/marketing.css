@@ -87,18 +87,21 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-brand-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: var(--radius-sm); background: var(--heading); color: var(--on-primary); transition: transform .3s var(--ease-out); }
 .mk-brand-icon svg { width: var(--icon-lg); }
 .mk-brand:hover .mk-brand-icon { transform: rotate(-6deg) scale(1.05); }
-.mk-brand-text { font-size: 1.0625rem; font-weight: 700; letter-spacing: -.02em; }
+/* A marca NAO acompanha o maiusculo do menu: o minusculo do "nonia" e
+   escolha declarada, e marca nao segue a regra tipografica da navegacao. */
+.mk-brand-text { font-size: 1.0625rem; font-weight: 700; letter-spacing: -.02em; text-transform: lowercase; }
 
 /* Centralizado de verdade: o menu vira a coluna do meio de uma grade de três,
    com marca e ações nas laterais. Com `margin-right: auto` ele só encostava na
    esquerda. */
 .mk-nav { display: flex; align-items: center; justify-content: center; gap: 4px; }
 .mk-nav a {
-  padding: 8px 12px;
-  text-transform: lowercase;
+  padding: 8px 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
   border-radius: var(--radius-sm);
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 500;
   text-decoration: none;
   transition: color .2s ease, background .2s ease;
@@ -112,8 +115,10 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   gap: 7px;
   padding: 8px 12px;
   color: var(--text);
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
   text-decoration: none;
   transition: color .2s ease;
 }
@@ -147,6 +152,8 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-mobile-nav nav { display: flex; flex-direction: column; }
 .mk-mobile-nav nav a {
   padding: 13px 4px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
   border-bottom: 1px solid var(--border-soft);
   color: var(--text);
   font-size: 0.9375rem;
@@ -187,7 +194,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-button-quiet { border-color: color-mix(in srgb, var(--on-primary) 40%, transparent); background: transparent; color: var(--on-primary); }
 .mk-button-quiet:hover { background: color-mix(in srgb, var(--on-primary) 14%, transparent); }
 
-.mk-button-sm { min-height: 38px; padding: 0 16px; font-size: 0.875rem; }
+.mk-button-sm { min-height: 38px; padding: 0 16px; font-size: 0.75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .mk-button-lg { min-height: 52px; padding: 0 26px; font-size: 1rem; }
 
 .mk-link-arrow {
@@ -256,7 +263,18 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 }
 
 .mk-hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 30px; }
-.mk-hero-note { margin: 16px 0 0; color: var(--muted); font-size: 0.8125rem; }
+/* Tres linhas curtas, nao um paragrafo: cada uma responde uma duvida de quem
+   esta com o dedo no botao. `display: block` nos span garante a quebra sem
+   depender da largura. */
+.mk-hero-note {
+  max-width: 54ch;
+  margin: 16px auto 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+.mk-hero-note strong { color: var(--text); font-weight: 700; }
+.mk-hero-note span { display: block; }
 
 .mk-hero-figure { width: 100%; margin-top: 54px; }
 
@@ -349,9 +367,30 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
    Reveal, para a secao nao aparecer toda de uma vez. */
 [data-motion="on"] .mk-feature-card { transition: border-color .25s ease, box-shadow .25s ease, transform .35s var(--ease-out); }
 
-/* Numero do passo: aparece junto do cartao, sem giro nem salto. */
-[data-motion="on"] .mk-step .mk-step-number { opacity: 0; transition: opacity .5s ease .15s; }
+/* Passos entram em ORDEM, com um atraso entre eles, para o olho seguir 1, 2, 3.
+   O escalonamento e do proprio Reveal; aqui entra so a linha que liga um passo
+   ao outro, crescendo junto. Movimento que EXPLICA a ordem, e nao decora: toca
+   uma vez e para. */
+[data-motion="on"] .mk-step .mk-step-number { opacity: 0; transition: opacity .45s ease .1s; }
 [data-motion="on"] .mk-step.is-visible .mk-step-number { opacity: 1; }
+
+/* Conector entre os passos, so onde ha proximo e so em tela larga, onde eles
+   ficam lado a lado. */
+.mk-step { position: relative; }
+@media (min-width: 901px) {
+  .mk-step:not(:last-child)::after {
+    position: absolute;
+    top: 44px;
+    right: -20px;
+    width: 20px;
+    height: 1px;
+    background: var(--border-strong);
+    content: "";
+    transform-origin: left;
+  }
+  [data-motion="on"] .mk-step:not(:last-child)::after { scale: 0 1; transition: scale .4s var(--ease-out) .3s; }
+  [data-motion="on"] .mk-step.is-visible:not(:last-child)::after { scale: 1 1; }
+}
 
 /* Faixa de beneficios: cada item desliza de baixo, escalonado pelo Reveal. */
 [data-motion="on"] .mk-strip-inner span svg { transition: transform .3s var(--ease-out); }
@@ -384,6 +423,10 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
    -------------------------------------------------------------------------- */
 
 .mk-section { padding: 92px 0; scroll-margin-top: 80px; }
+/* Gradiente de separacao atras dos modulos. Vai do fundo da pagina para o tom
+   de painel e volta: a diferenca entre as pontas e de um degrau da paleta, sem
+   cor nova. A intencao e separar a secao, nao chamar atencao para o fundo. */
+#recursos { background: linear-gradient(180deg, var(--bg), var(--panel-soft) 45%, var(--bg)); }
 .mk-section-soft { background: var(--panel-soft); border-block: 1px solid var(--border); }
 
 .mk-section-head { max-width: 62ch; margin-inline: auto; text-align: center; }
@@ -394,7 +437,19 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-section-head .mk-link-arrow { margin-top: 20px; }
 
 /* Recursos */
-.mk-feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 52px; }
+/* Cinco cards em tres colunas deixam a ultima linha com dois, encostados a
+   esquerda enquanto a de cima ocupa a largura toda.
+   E FLEX, e nao grid, de proposito: em grid o `justify-content` centraliza o
+   CONJUNTO DE COLUNAS, e os dois ultimos continuam nas colunas 1 e 2. Só o
+   flex-wrap centraliza a linha que sobra. */
+.mk-feature-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 52px;
+}
+.mk-feature-card { flex: 0 1 357px; }
 .mk-feature-card {
   padding: 26px;
   border: 1px solid var(--border);
@@ -417,7 +472,12 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-step p { margin: 9px 0 0; color: var(--muted); font-size: 0.9375rem; line-height: 1.62; }
 
 /* Diferenciais */
-.mk-split { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 56px; align-items: start; }
+/* As duas colunas tem alturas diferentes por natureza: a esquerda e texto e
+   botao, a direita e uma grade de quatro cartoes. Com `align-items: start` elas
+   comecavam desencontradas por 20px e terminavam com 64px de diferenca, o que
+   o olho le como desalinho mesmo com a grade correta. Centralizadas, as duas
+   dividem a mesma linha do meio. */
+.mk-split { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 56px; align-items: center; }
 .mk-split-text h2 { margin: 14px 0 0; color: var(--heading); font-size: clamp(1.625rem, 3.2vw, 2.25rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.18; }
 .mk-split-text p { margin: 16px 0 26px; color: var(--muted); font-size: 1rem; line-height: 1.65; }
 
@@ -485,12 +545,15 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-cta-card {
   padding: 62px 32px;
   border-radius: 24px;
-  background: linear-gradient(140deg, var(--primary-strong), var(--primary-fill));
+  /* As duas pontas saem do MESMO token de preenchimento. Antes a ponta clara
+     era `--primary-strong`, que no escuro e um verde de TEXTO, quase menta -
+     virava um bloco aceso, o mesmo erro do botao primario. */
+  background: linear-gradient(140deg, var(--primary-fill), color-mix(in srgb, var(--primary-fill) 74%, #000));
   color: var(--on-primary-fill);
   text-align: center;
 }
 .mk-cta-card h2 { margin: 0; font-size: clamp(1.625rem, 3.4vw, 2.375rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
-.mk-cta-card p { max-width: 52ch; margin: 16px auto 0; font-size: 1rem; line-height: 1.65; opacity: .85; }
+.mk-cta-card p { max-width: 52ch; margin: 16px auto 0; font-size: 1rem; line-height: 1.65; opacity: .92; }
 .mk-cta-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 30px; }
 .mk-cta-card .mk-button-primary { background: var(--on-primary); color: var(--primary-strong); }
 .mk-cta-card .mk-button-primary:hover { background: var(--on-primary); opacity: .9; }
@@ -814,7 +877,8 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 }
 
 @media (max-width: 900px) {
-  .mk-feature-grid, .mk-steps, .mk-plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mk-steps, .mk-plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mk-feature-card { flex: 0 1 calc(50% - 10px); }
   .mk-strip-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mk-footer-inner { grid-template-columns: 1fr 1fr; }
   .mk-footer-brand { grid-column: 1 / -1; }
@@ -827,7 +891,8 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   .mk-hero { padding-top: 48px; }
   .mk-hero-figure { margin-top: 40px; }
   .mk-strip { margin-top: 48px; }
-  .mk-feature-grid, .mk-steps, .mk-plan-grid, .mk-differentials { grid-template-columns: 1fr; }
+  .mk-steps, .mk-plan-grid, .mk-differentials { grid-template-columns: 1fr; }
+  .mk-feature-card { flex: 1 1 100%; }
   .mk-plan-tagline { min-height: 0; }
   .mk-cta-card { padding: 44px 22px; }
   .mk-cta { padding-bottom: 68px; }
