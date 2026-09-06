@@ -29,6 +29,24 @@ um `cat >` por cima. Sobrescrever às cegas apaga o que outra pessoa acabou de
 pôr ali, e o `git status` só avisa depois. Se acontecer, `git checkout -- <arquivo>`
 antes de commitar.
 
+## Documentação
+
+`CLAUDE.md`, `AGENTS.md`, `README.md` e `database/README.md` têm dono único, e
+cada um tem um assunto: estado e decisões, convenções de código, como começar,
+banco. Não repita conteúdo entre eles — aponte.
+
+**Quando duplicar for a escolha certa**, e às vezes é: o critério não é o
+conteúdo, é o **público**. Duplica-se quando duas pessoas chegam por caminhos
+diferentes e nenhuma passa pelo outro texto — quem vai implementar lê a seção,
+quem faz varredura antes de expor o sistema lê a tabela de pendências. Duplicar
+por preguiça de escolher onde vai é outra coisa.
+
+**Toda cópia deliberada aponta para a outra.** Uma linha em cada, dizendo onde
+está a irmã e que as duas mudam juntas. Sem isso a duplicação é dívida com
+prazo: alguém atualiza a que está lendo e nem descobre que a outra existe — foi
+o que aconteceu com o guarda-corpo do bypass em 06/09/2026, que envelheceu de um
+lado só na primeira vez que o conteúdo mudou.
+
 ## Mensagens de commit
 
 - **Não inclua o rodapé `Claude-Session: https://claude.ai/code/session_…`.**
@@ -388,7 +406,10 @@ para concluir coisa alguma sobre o projeto.
 ## Banco e migrations
 
 - A variável obrigatória é `DATABASE_URL`; nunca versione credenciais reais.
-- Piso de versão: **PostgreSQL 13+** (`gen_random_uuid()` nativo).
+- Piso de versão: **PostgreSQL 15+** — era 13+ pelo `gen_random_uuid()` nativo,
+  e subiu na `006`, que usa `ON DELETE SET NULL` com lista de colunas.
+- `npm run db:status` compara as migrations do disco com as aplicadas e **só
+  lê**. É o comando para responder "o banco está em dia?" sem escrever nada.
 - Migrations ficam em `database/migrations/` e são executadas em ordem.
 - Use `npm run db:migrate` (`database/migrate.mjs`); ele registra os arquivos
   em `schema_migrations`. No container, as migrations rodam no boot.

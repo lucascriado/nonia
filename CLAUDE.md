@@ -404,6 +404,10 @@ de pagamento; ele existe para destravar o fluxo enquanto não há hospedagem.
 >   quem ler o banco depois.
 >
 >
+> *Estes quatro itens têm uma cópia deliberada na tabela de Pendências, marcada
+> como SEGURANÇA — públicos diferentes chegam por caminhos diferentes. As duas
+> mudam juntas.*
+>
 > Ele também **não cria nenhuma linha em `subscription_payments`** — não houve
 > pagamento, e o registro não vai fingir que houve.
 >
@@ -601,7 +605,7 @@ português em servidor anterior, em vez de estourar erro de sintaxe.
 | `DATABASE_URL` | **obrigatória**, única exigida hoje |
 | `PORT` | opcional, padrão 3000 |
 | `MIGRATE_CONNECT_ATTEMPTS` | opcional, tentativas de conexão do `migrate.mjs` (padrão 15) |
-| `BILLING_BYPASS` | liga o bypass de contratação. **Desligada por padrão; sem ela a rota não existe.** Nunca em ambiente exposto *(chega com a implementação)* |
+| `BILLING_BYPASS` | liga o bypass de contratação. **Desligada por padrão; sem ela a rota não existe**, e é recusada em produção mesmo ligada. Nunca em ambiente exposto |
 
 Todas são **runtime**. Nenhuma pode virar `NEXT_PUBLIC_*`. Nunca commite valores.
 
@@ -621,6 +625,6 @@ Datadas para que ninguém as leia como fato consumado.
 | --- | --- |
 | **Exportar não tem botão.** A API está pronta (`/api/export/members`, `/visitors`, `/financeiro`), mas nenhuma tela oferece o download — a promessa "quem quiser sair leva o que é seu" ainda depende de chamar a API na mão | 06/09/2026 |
 | **Quando houver cobrança real, cancelar assinatura vencida não pode limpar a dívida.** Levantado pelo backend: hoje não há dívida a preservar, mas o dia em que houver é o dia em que cancelar viraria a saída barata do somente leitura | 06/09/2026 |
-| **SEGURANÇA — o bypass de contratação não pode ser ligado em ambiente exposto.** Ele concede plano pago sem pagamento. Enquanto existir, precisa de `BILLING_BYPASS` desligada por padrão, recusa se `NODE_ENV=production` sem a variável, e toda assinatura marcada com `provider = 'bypass'` mais `billing_event`. **Só sai de cena quando existir pagamento real.** Ver "Cobrança" | 06/09/2026 |
+| **SEGURANÇA — o bypass de contratação não pode ser ligado em ambiente exposto.** Ele concede plano pago sem pagamento. Enquanto existir, precisa de `BILLING_BYPASS` desligada por padrão, **recusa em produção ainda que a variável esteja ligada**, e toda assinatura marcada com `provider = 'bypass'` mais `billing_event`. **Só sai de cena quando existir pagamento real.** *Cópia deliberada do bloco em "Cobrança" — públicos diferentes; as duas mudam juntas.* | 06/09/2026 |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
-| **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |
+| **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. É arquivo do backend pela regra de propriedade, e está com ele | 06/09/2026 |
