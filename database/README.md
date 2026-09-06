@@ -128,9 +128,14 @@ organização nasce em `avaliacao`.
   `PATCH /api/users/[id]`.
 - Essa redefinição **recusa** quem também acessa outra organização, porque a
   senha é da identidade global e não do vínculo — redefini-la daria acesso à
-  outra igreja. Quem acessa duas igrejas e perde a senha fica sem saída.
-- **Não há troca da própria senha**: ela precisa pedir a senha atual, e essa
-  rota ainda não existe.
+  outra igreja. Quem acessa duas igrejas ainda pode trocar a própria senha por
+  `POST /api/auth/password`, já que ali é a própria pessoa provando que a sabe;
+  quem acessa duas igrejas e **esqueceu** a senha é que fica sem saída.
+- A troca da **própria** senha é `POST /api/auth/password`, e exige a senha
+  atual. Não confunda com a redefinição de `PATCH /api/users/[id]`: lá é
+  socorro dado por um responsável e não exige confirmação nenhuma, por isso
+  recusa a si mesmo e recusa quem acessa mais de uma organização. As duas não
+  devem ser unificadas — o que separa é justamente a senha atual.
 - **O convite não é enviado por e-mail**: `POST /api/users` devolve a
   `inviteUrl` para quem convidou repassar.
 

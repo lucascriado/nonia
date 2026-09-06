@@ -66,9 +66,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const passwordError = validatePasswordStrength(payload.password);
       if (passwordError) throw badRequest(passwordError, "weak_password");
 
+      // Trocar a PRÓPRIA senha é POST /api/auth/password, que exige a senha
+      // atual. Este caminho aqui é socorro e não exige nada, então não pode
+      // valer para si mesmo -- não unifique os dois.
       if (target.userId === auth.user.id) {
         throw forbidden(
-          "Use a troca de senha da sua própria conta, que pede a senha atual.",
+          "Use POST /api/auth/password para trocar a sua própria senha; ela pede a senha atual.",
           "self_password_reset",
         );
       }
