@@ -144,10 +144,16 @@ As duas branches entraram na `main` sem nenhum conflito de código. Os únicos
 conflitos foram nos arquivos de documentação, resolvidos a favor da versão do
 documentador.
 
-### `feat/auth-multitenant` (backend/DBA) — 10 commits
+### Do backend/DBA — `feat/auth-multitenant`
 
-Validação do backend: `typecheck` e `build` limpos, **97 casos automatizados
-contra PostgreSQL 18.6 real, 0 falhas**.
+Validação do backend na árvore já integrada, **por comportamento e não só por
+compilação**: **107 casos contra um banco novo, com as 7 migrations aplicadas do
+zero, 0 falhas**. `typecheck` e `build` limpos.
+
+Verificado junto que **toda tela de `app/(app)` está na lista de rotas
+protegidas do `proxy.ts`** — nenhuma ficou desprotegida. Vale registrar porque
+lista explícita é lista que envelhece calada: tela nova que ninguém acrescente
+ali passa a ser tratada como página pública. Hoje a lista está em dia.
 
 - Migrations **004** (organizações, usuários, sessões, RBAC, convites, planos e
   assinaturas), **005** (`organization_id` nas 11 tabelas de domínio, com
@@ -165,7 +171,7 @@ contra PostgreSQL 18.6 real, 0 falhas**.
 - Acesso de dev após `npm run db:seed:dev`: `demo@nonia.app` / `demo1234`.
   `npm run auth:owner` cria o proprietário de uma organização órfã.
 
-### `feat/ui-theme` (frontend)
+### Do frontend — `feat/ui-theme`
 
 - Route groups `(marketing)` e `(app)`, dashboard em `/painel`, título próprio
   por tela.
@@ -370,5 +376,5 @@ Datadas para que ninguém as leia como fato consumado.
 | --- | --- |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **Limites de plano não são aplicados.** Os tetos estão cadastrados na tabela `plans` desde a 007 e **nenhuma rota os consulta** — nada impede o 101º membro no Semente nem o 11º usuário no Comunidade. Ver "Planos comerciais" | 06/09/2026 |
-| **`/precos` não existe como página** — é só uma constante em `components/marketing/routes.ts`, para onde apontam os CTAs de plano da landing. `/entrar`, `/cadastro` e `/convite/[token]` já existem | 06/09/2026 |
+| **`/precos` responde 404** — é só uma constante em `components/marketing/routes.ts`, para onde apontam os CTAs de plano da landing. Confirmado em 06/09/2026; o frontend está montando a página. `/entrar`, `/cadastro` e `/convite/[token]` já existem | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |

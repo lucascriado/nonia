@@ -179,16 +179,34 @@ mudou payload, resposta ou cookie.
   `The file "./proxy.ts" must export a function`. Quem fizer o rename lendo só o
   aviso de depreciação derruba a aplicação inteira.
 - **`next build` sem `DATABASE_URL` falha** com "Failed to collect page data",
-  porque `lib/db.ts` instancia o Sequelize no import do módulo. É anterior à
-  Fase 1. Por isso o `Dockerfile` injeta uma `DATABASE_URL` fictícia só na etapa
-  de build — **aquela linha não é sobra; quem "limpar" quebra o build.**
+  porque `lib/db.ts` instancia o Sequelize no import do módulo. Por isso o
+  `Dockerfile` injeta uma `DATABASE_URL` fictícia só na etapa de build —
+  **aquela linha não é sobra; quem "limpar" quebra o build.**
 
-- **Não use `DataTypes.NOW` neste projeto.** Quando `lib/models.ts` é
-  reavaliado sobre a instância do Sequelize cacheada em `globalThis` (o hot
-  reload do `next dev`), o valor vira `Invalid date` e quebra o INSERT — o
-  cadastro morre. Não aparece no primeiro boot, só depois de um reload, então
-  é fácil culpar outra coisa. Use default explícito: `() => new Date()`
-  (ou `() => new Date().toISOString().slice(0, 10)` em `DATEONLY`).
+### Quando o culpado não é o seu código
+
+Três sintomas diferentes, o mesmo gênero: algo fora do que você escreveu — um
+arquivo gerado, uma instância em cache — se comporta como se o seu código
+estivesse quebrado. Antes de caçar o bug, descarte estes.
+
+- **`typecheck` falhando em `.next/dev/types/validator.ts`**, com
+  `Cannot find module '../../../app/membros/page.js'` e mais oito iguais. O
+  `tsconfig` inclui `.next/dev/types/**/*.ts`, então o `tsc` valida um arquivo
+  **gerado** que ainda aponta para o caminho antigo — `app/membros/page.tsx`,
+  que depois da integração é `app/(app)/membros/page.tsx`. Não é erro do seu
+  código: é um `.next` de antes dos route groups. **Conserto: `rm -rf .next`.**
+- **`next-env.d.ts` aparecendo sujo no `git status` sem você ter tocado nele.**
+  O Next regrava o arquivo, e ele alterna entre `./.next/types/routes.d.ts` e
+  `./.next/dev/types/routes.d.ts` conforme o último comando ter sido `build` ou
+  `dev`. **Deixe como está e simplesmente não commite.** Não ponha no
+  `.gitignore`: o arquivo sumiria do repositório e o Next reclamaria no primeiro
+  build limpo.
+- **`DataTypes.NOW` virando `Invalid date` e quebrando o INSERT do cadastro.**
+  Acontece quando `lib/models.ts` é reavaliado sobre a instância do Sequelize
+  cacheada em `globalThis`, no hot reload do `next dev`. Não aparece no primeiro
+  boot, só depois de um reload. **Não use `DataTypes.NOW` neste projeto**; use
+  default explícito: `() => new Date()` (ou
+  `() => new Date().toISOString().slice(0, 10)` em `DATEONLY`).
 
 ## Backend e Sequelize
 
