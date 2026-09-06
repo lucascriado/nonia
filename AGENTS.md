@@ -51,29 +51,79 @@ git diff --check
 Chega à `main` com a integração de `feat/auth-multitenant`. **Toda rota nova de
 `app/api` já deve nascer autenticada e com escopo de tenant.**
 
+### Modelo
+
 - Cada igreja é uma `organization`; todo dado de domínio tem `organization_id`.
-- A identidade de login é `users` (e-mail único global); o vínculo com a igreja
-  e o papel ficam em `organization_members`.
+- A identidade de login é `users` (e-mail único **global**); o vínculo com a
+  igreja e o papel ficam em `organization_members`. A mesma pessoa administra
+  duas igrejas com um login só.
 - Sessão própria: token aleatório **opaco** no cookie httpOnly `nonia_session`,
   com apenas o SHA-256 dele em `sessions`. **Não há JWT nem `AUTH_SECRET`** —
   não existe nada a assinar, não reintroduza essa variável.
-- Senha com scrypt de `node:crypto` (`lib/passwords.ts`), sem dependência
-  nativa. O hash guarda os próprios parâmetros de custo.
+- Senha com scrypt de `node:crypto` (`lib/passwords.ts`): `N=2^15, r=8, p=1`,
+  `maxmem` 96 MB, sem dependência nativa. O hash guarda os próprios parâmetros
+  de custo, então dá para encarecer depois sem invalidar senha antiga.
+- Papéis do sistema: `owner` (100), `admin` (80), `secretaria` (60),
+  `lider` (40), `leitura` (20). São 24 permissões no formato `recurso.acao`,
+  em `permissions`/`role_permissions`.
+- `secretaria` tem `finance.read` e **não** tem `finance.write`: lançamento
+  financeiro é de `admin` ou `owner`. Decisão de produto, não descuido do seed.
+
+### Contrato
+
+Cookie `nonia_session`: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age` de
+**30 dias**, `Secure` só quando `NODE_ENV=production`.
+
+Erro, sempre: `{"error": "mensagem em pt-BR", "code": "slug"}`. Monte pelos
+helpers de `lib/http.ts` — o `code` é o que o frontend usa, a mensagem é o que
+o usuário lê.
+
+`SessionPayload` (`lib/auth-payloads.ts`) é **idêntico** em cadastro, login,
+aceite de convite, troca de organização e `GET /api/auth/session`:
+`authenticated`, `user`, `organization`, `role`, `permissions` (ordenadas) e
+`expiresAt`.
+
+| Método e rota | O que faz |
+| --- | --- |
+| `POST /api/auth/register` | cadastra igreja + proprietário, abre sessão |
+| `POST /api/auth/login` | autentica e abre sessão |
+| `POST /api/auth/logout` | revoga a sessão e limpa o cookie |
+| `GET /api/auth/session` | devolve a sessão corrente |
+| `POST /api/auth/switch` | troca a organização ativa (`organizationId` ou `organizationSlug`) |
+| `GET /api/auth/invite` | lê um convite pelo token |
+| `POST /api/auth/invite/accept` | aceita o convite e abre sessão |
+| `GET /api/users` | usuários da organização + convites pendentes |
+| `POST /api/users` | adiciona usuário (com senha) ou gera convite (sem senha) |
+| `PATCH /api/users/[id]` | papel, status e vínculo com pessoa |
+| `DELETE /api/users/[id]` | remove o vínculo com a organização |
+| `GET /api/roles` | papéis disponíveis |
+
+### Regras ao escrever rota
+
+- Comece com `requirePermission(...)` e use `organizationId(auth)` em todo
+  SELECT, UPDATE, DELETE e INSERT.
+- **Todo id que vem do payload precisa ser validado** com
+  `assertBelongsToOrganization` / `filterOwnedMemberIds` de `lib/tenant.ts`,
+  ou resolvido por nome dentro da organização. O banco **não** cobre tudo:
+  `cells.leader_id`, `ministries.leader_id`, `members.ministry_id` e
+  `organization_members.person_id` têm FK simples até a migration 006 entrar.
+  O estado medido dessas colunas está no [`CLAUDE.md`](CLAUDE.md).
 - `middleware.ts` roda no Edge e só desvia navegação pela presença do cookie.
   Quem valida sessão e permissão é o handler, via `lib/auth.ts`.
-- Toda rota de `app/api` começa com `requirePermission(...)` e usa
-  `organizationId(auth)` em todo SELECT, UPDATE, DELETE e INSERT.
-- Ids vindos do payload (`leaderId`, `memberIds`) passam por
-  `assertBelongsToOrganization` / `filterOwnedMemberIds` de `lib/tenant.ts`.
-- Papéis do sistema: `owner`, `admin`, `secretaria`, `lider`, `leitura`.
-  As permissões são pares `recurso.acao` em `permissions`/`role_permissions`.
 - `addActivity` recebe o contexto da sessão e grava o tenant e o autor.
-- Erros de API saem por `lib/http.ts` (`unauthorized`, `forbidden`,
-  `notFound`, `badRequest`, `conflict`), com `code` estável para o frontend.
 - Acesso de desenvolvimento após `npm run db:seed:dev`:
   `demo@nonia.app` / `demo1234`.
 - `npm run auth:owner -- --email … --name … --password …` cria o proprietário
   de uma organização que ficou sem usuário.
+
+## Armadilhas conhecidas
+
+- **Não use `DataTypes.NOW` neste projeto.** Quando `lib/models.ts` é
+  reavaliado sobre a instância do Sequelize cacheada em `globalThis` (o hot
+  reload do `next dev`), o valor vira `Invalid date` e quebra o INSERT — o
+  cadastro morre. Não aparece no primeiro boot, só depois de um reload, então
+  é fácil culpar outra coisa. Use default explícito: `() => new Date()`
+  (ou `() => new Date().toISOString().slice(0, 10)` em `DATEONLY`).
 
 ## Backend e Sequelize
 
