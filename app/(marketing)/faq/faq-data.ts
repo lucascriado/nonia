@@ -181,11 +181,6 @@ export const faqTopics: FaqTopic[] = [
         answer:
           "Você consegue exportar os cadastros antes de encerrar, e a base fica disponível por um período após o cancelamento caso a igreja mude de ideia.",
       },
-      {
-        question: "Cada congregação da nossa rede precisa de uma assinatura?",
-        answer:
-          "No plano Rede, não: as congregações ficam sob o mesmo contrato, cada uma com o seu espaço, e a liderança da rede enxerga o consolidado.",
-      },
     ],
   },
   {
