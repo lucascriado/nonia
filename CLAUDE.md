@@ -121,6 +121,12 @@ decisão sem condição declarada é a que alguém desfaz em silêncio, por não
 com o que comparar a situação nova. Decisão que é gosto, e não fato, não tem
 condição e não ganha uma inventada.
 
+Em decisão **suspensa**, a condição de **retomar** e a de **reabrir** são
+escritas separadas. Retomar é executar o que já foi decidido; reabrir é discutir
+de novo a escolha. Juntas, retomar o assunto convida a refazer do zero uma
+análise que já existe — e a chegar a outra conclusão sem conhecer o motivo da
+primeira.
+
 | Decisão | Conteúdo | Data |
 | --- | --- | --- |
 | **SaaS multi-igreja** | Cada igreja é uma `organization` (tenant). `organization_id` em toda tabela de domínio, isolamento total entre organizações | 06/09/2026 |
@@ -306,6 +312,11 @@ O plano que vale a cada momento é **calculado na leitura**, nesta ordem:
 > decisão resolve não é "falta de cron", é "estado que depende de alguém ter
 > rodado algo".
 
+> **O bypass mexe na regra 1.** Com ele ligado, "assinatura paga vigente vence
+> tudo" passa a valer **sem que nenhum pagamento tenha existido** — a assinatura
+> nasce `active`. A regra não muda; o que muda é como se chega nela. Ver
+> "Cobrança".
+
 ### Mudança de comportamento — falhar fechado (06/09/2026)
 
 **É o oposto do que valia antes.** Organização sem assinatura vigente não tinha
@@ -348,6 +359,16 @@ de pagamento; ele existe para destravar o fluxo enquanto não há hospedagem.
 > **Não ligar em ambiente exposto.** O bypass só sai de cena quando existir
 > pagamento real — enquanto isso, ele é a única forma de contratar, e essa é
 > exatamente a razão do cuidado.
+
+A assinatura nasce **`active` direto, sem passar por `trialing`**: o pedido foi
+"como se eu clicasse e já adquirisse", e passar pela avaliação atrasaria em 14
+dias justamente o efeito que se quer ver.
+
+> **`provider = 'bypass'` e o `billing_event` não são detalhe de registro: são a
+> única coisa que distingue, no banco, uma assinatura paga de uma assinatura
+> dada.** O `status` não carrega essa diferença — uma assinatura de bypass é
+> `active` igual a uma paga. Quem for ler faturamento um dia depende dessa
+> marcação, e ela é a razão de o guarda-corpo incluir os dois.
 
 ### Mercado Pago — decisão **suspensa**, não revogada (06/09/2026)
 
