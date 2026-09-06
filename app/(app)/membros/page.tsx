@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Droplets, Eye, HeartHandshake, Landmark, Pencil, Plus, Search, Trash2, UserCheck, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Droplets, Eye, HeartHandshake, Landmark, Pencil, Plus, Search, Trash2, UserCheck, UserPlus, Users } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
@@ -13,6 +13,14 @@ import { DeleteRecordDialog, PersonRecordDialog, PersonRecordValues } from "@/co
 import { toast } from "sonner";
 import { NumberSkeleton, TableSkeleton } from "@/components/skeleton";
 import { visiblePageNumbers } from "@/lib/pagination";
+
+/**
+ * A faixa de indicadores, contada pelo SERVIDOR na mesma consulta da página e
+ * com o MESMO filtro. Antes a tela pedia três contagens à parte, cada uma
+ * mandando só o próprio recorte: com uma busca aplicada, a lista obedecia ao
+ * filtro e "Total ativos" ignorava, e ninguém questiona um número.
+ */
+type Summary = { newThisMonth: number; active: number; baptized: number; awaitingBaptism: number };
 
 type Member = {
   id: string;
@@ -27,7 +35,6 @@ type Member = {
   status: "Ativo" | "Inativo";
   baptism: "Batizado" | "Aguardando";
   date: string;
-  isNew?: boolean;
   phone?: string;
   birthDate?: string;
   gender?: string;
@@ -74,7 +81,7 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [total, setTotal] = useState(0);
   const [ministries, setMinistries] = useState<string[]>([]);
-  const [counts, setCounts] = useState({ ativos: 0, batizados: 0, aguardando: 0 });
+  const [summary, setSummary] = useState<Summary>({ newThisMonth: 0, active: 0, baptized: 0, awaitingBaptism: 0 });
   const [loading, setLoading] = useState(true);
   /** Status HTTP da última leitura que falhou, ou `null`. Ver LoadFailure. */
   const [failed, setFailed] = useState<number | null>(null);
@@ -109,6 +116,7 @@ export default function MembersPage() {
       const payload = await response.json() as {
         records: Array<Omit<Member, "initials" | "status" | "baptism" | "date"> & { status: string; baptism: string; date: string }>;
         total: number;
+        summary: Summary;
       };
       setMembers(payload.records.map((member) => ({
         ...member,
@@ -118,6 +126,7 @@ export default function MembersPage() {
         date: formatDate(member.date),
       })));
       setTotal(payload.total);
+      setSummary(payload.summary);
       setFailed(null);
     } catch (error) {
       // O motivo fica na tela, não só no toast: quem chegou aqui por troca de
@@ -135,24 +144,6 @@ export default function MembersPage() {
     const timer = window.setTimeout(() => void loadMembers(listQuery), delay);
     return () => window.clearTimeout(timer);
   }, [listQuery, loadMembers, search]);
-
-  /**
-   * Contagens dos indicadores. Cada uma é uma consulta que pede UMA linha e lê
-   * o `total`, que já respeita o filtro — barato e exato, ao contrário de
-   * somar a página.
-   */
-  useEffect(() => {
-    let active = true;
-    const count = async (filter: string) => {
-      const response = await fetch(`/api/members?pageSize=1&${filter}`, { cache: "no-store" });
-      if (!response.ok) return 0;
-      return (await response.json()).total as number;
-    };
-    Promise.all([count("status=Ativo"), count("baptism=Batizado"), count("baptism=Aguardando")])
-      .then(([ativos, batizados, aguardando]) => active && setCounts({ ativos, batizados, aguardando }))
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, [members]);
 
   // A lista de ministérios não pode sair da página: ela viria incompleta.
   useEffect(() => {
@@ -248,6 +239,19 @@ export default function MembersPage() {
           />
         ) : (
         <section className="members-content">
+          {/* Antes da lista, não depois: indicador embaixo da tabela é rodapé,
+              e a pessoa leria a lista inteira antes de saber o resumo dela. */}
+          {/* Só quando há filtro: sem ele o rótulo "Total ativos" já é o total
+              da igreja, e a frase seria ruído. Com filtro, ela é o que separa
+              um resumo do recorte de uma afirmação sobre a igreja inteira. */}
+          {activeFilters > 0 && <p className="stats-caption">Números do que está filtrado, não da igreja inteira.</p>}
+          <section className="member-stats" aria-label="Resumo de membros">
+            <MemberStat loading={loading} label="Novos este mês" value={summary.newThisMonth} icon={UserPlus} color="green" />
+            <MemberStat loading={loading} label="Total ativos" value={summary.active} icon={UserCheck} color="green" />
+            <MemberStat loading={loading} label="Batizados" value={summary.baptized} icon={Droplets} color="neutral" />
+            <MemberStat loading={loading} label="Aguardando batismo" value={summary.awaitingBaptism} icon={HeartHandshake} color="blue" />
+          </section>
+
           <FilterDisclosure activeCount={activeFilters}>
             <div className="member-filters">
               <select aria-label="Filtrar por ministério" value={ministry} onChange={(event) => updateFilter(() => setMinistry(event.target.value))}>
@@ -302,16 +306,6 @@ export default function MembersPage() {
               </div>
             </div>
           </div>
-
-          <section className="member-stats" aria-label="Resumo de membros">
-            <MemberStat loading={loading} label="Total ativos" value={counts.ativos} icon={UserCheck} color="green" />
-            {/* "Novos este mês" sairia da página, não do total: a API não tem
-                filtro para "entrou este mês" e o número seria 25 de 137. Um
-                indicador errado é pior que um indicador a menos — volta quando
-                o backend expuser a contagem. */}
-            <MemberStat loading={loading} label="Batizados" value={counts.batizados} icon={Droplets} color="neutral" />
-            <MemberStat loading={loading} label="Aguardando batismo" value={counts.aguardando} icon={HeartHandshake} color="blue" />
-          </section>
         </section>
         )}
       </main>

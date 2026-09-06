@@ -17,6 +17,13 @@ test.describe("listagem paginada", () => {
     await login(page);
   });
 
+  /** O cartão de um rótulo, lido como número. Por rótulo e não por posição: a
+   *  ordem dos indicadores muda, e teste preso a posição quebra por arrumação. */
+  async function indicador(page: import("@playwright/test").Page, rotulo: string) {
+    const texto = await page.locator(".member-stats article", { hasText: rotulo }).locator("strong").innerText();
+    return Number(texto.replace(/\D/g, ""));
+  }
+
   test("o indicador não pode ser a soma da página", async ({ page }) => {
     const resposta = await page.request.get("/api/members?pageSize=1");
     const { total } = await resposta.json();
@@ -27,12 +34,38 @@ test.describe("listagem paginada", () => {
     await page.waitForTimeout(1200);
 
     const linhasNaPagina = await page.locator(".members-table tbody tr").count();
-    const ativos = Number((await page.locator(".member-stats article").first().locator("strong").innerText()).replace(/\D/g, ""));
+    const ativos = await indicador(page, "Total ativos");
 
     // Se o indicador voltar a sair da lista, ele nunca poderá passar do número
     // de linhas da página — é exatamente esse teto que denuncia a regressão.
     expect(linhasNaPagina, "a página não pode conter tudo, senão o teste não distingue").toBeLessThan(total);
     expect(ativos, "indicador maior que a página prova que veio do servidor").toBeGreaterThan(linhasNaPagina);
+  });
+
+  /**
+   * O outro lado do mesmo defeito, e o que estava vivo até hoje: o indicador
+   * vinha do servidor, mas de uma requisição SEPARADA que mandava só o próprio
+   * recorte. Com filtro aplicado, a lista obedecia e o número ignorava. Aqui a
+   * asserção é de RELAÇÃO, não de valor: filtrar por inativos tem que zerar o
+   * indicador de ativos, seja qual for o conteúdo do banco.
+   */
+  test("o indicador obedece ao filtro da lista", async ({ page }) => {
+    const resposta = await page.request.get("/api/members?pageSize=1");
+    const { summary } = await resposta.json();
+    test.skip(!summary || summary.active === 0, "precisa de algum membro ativo para o filtro ter efeito");
+
+    await page.goto("/membros");
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1200);
+    expect(await indicador(page, "Total ativos")).toBe(summary.active);
+
+    // No desktop a gaveta já vem aberta; no celular é preciso abrir.
+    const seletor = page.locator('select[aria-label="Filtrar por status"]');
+    if (!(await seletor.isVisible())) await page.locator(".filter-disclosure-toggle").first().click();
+    await seletor.selectOption("Inativo");
+    await page.waitForTimeout(1500);
+
+    expect(await indicador(page, "Total ativos"), "com o filtro em Inativo, nenhum ativo pode sobrar no indicador").toBe(0);
   });
 
   test("o resumo do financeiro vem do servidor, não da página", async ({ page }) => {
