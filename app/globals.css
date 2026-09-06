@@ -79,6 +79,16 @@
   --radius: 12px;
   --radius-lg: 16px;
 
+  /* Escala de espacamento. Antes cada tela escolhia no olho: 18px de padding
+     num cartao, 10px de gap, 4px num rodape, 12px noutro. O ritmo e o que
+     estava faltando, nao um valor especifico. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
   /* Escala de icones. Antes cada lugar escolhia entre 10 e 24px no olho, o
      que deixava icones de mesmo peso visual com tamanhos diferentes lado a
      lado. Novos icones escolhem um degrau, nao um numero. */
@@ -522,7 +532,7 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
 .resource-search input:focus { border-color: var(--primary-border); box-shadow: 0 0 0 3px var(--primary-soft); }
 .resource-filters, .visitor-filters { margin-bottom: 20px; }
 
-.cell-grid, .ministries-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.cell-grid, .ministries-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-5); }
 .resource-card { min-height: 196px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); color: var(--text); }
 .cell-card, .ministry-card { display: flex; flex-direction: column; gap: 10px; padding: 18px; transition: border-color .2s ease, box-shadow .25s ease, transform .25s var(--ease-out); }
 .resource-card:hover { border-color: var(--primary-border); box-shadow: var(--shadow-md); transform: translateY(-3px); }
@@ -541,6 +551,9 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
 .avatar-row span { display: grid; width: 28px; height: 28px; place-items: center; margin-right: -8px; border: 2px solid var(--panel); border-radius: 50%; background: var(--panel-inset); color: var(--text); font-size: 0.625rem; font-weight: 700; }
 .avatar-row span:nth-child(2) { background: var(--info-soft); color: var(--info); }
 .avatar-row span:nth-child(3) { background: var(--primary-soft); color: var(--heading); }
+/* A pilha sobreposta e proposital para os retratos, mas o "+N" e informacao:
+   sobreposto, o numero fica ilegivel. Ele sai da pilha e ganha respiro. */
+.avatar-row .avatar-more { margin-right: 0; margin-left: var(--space-3); background: var(--neutral-soft); color: var(--muted); }
 .resource-card footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-top: auto; padding-top: 10px; }
 .resource-card footer button { display: inline-flex; min-width: 32px; min-height: 32px; flex: 0 1 auto; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--primary); font-size: 0.71875rem; font-weight: 600; white-space: nowrap; transition: background .2s ease, color .2s ease; }
 .resource-card footer button:hover { background: var(--primary-soft); }
@@ -567,7 +580,7 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
 .add-resource-card small { color: var(--muted); font-size: 0.75rem; }
 .resource-create-row { display: flex; justify-content: flex-end; margin-top: 20px; }
 
-.resource-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0 0 20px; }
+.resource-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-5); margin: 0 0 var(--space-5); }
 .resource-stats.ministry-summary, .resource-stats.cells-summary, .resource-stats.finance-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .resource-stats article { display: grid; min-height: 88px; align-items: center; column-gap: 12px; grid-template-columns: 40px minmax(0, 1fr); padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); transition: border-color .2s ease, box-shadow .25s ease, transform .25s var(--ease-out); }
 .resource-stats article:hover { border-color: var(--primary-border); box-shadow: var(--shadow-sm); transform: translateY(-2px); }
@@ -1544,6 +1557,139 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 }
 
 @keyframes sheet-enter { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
+/* --------------------------------------------------------------------------
+   Respiro e centralizacao no celular
+   O Lucas apontou cartao colado em cartao e icone colado no texto. O ajuste e
+   de ritmo, nao de caso: tudo abaixo sai da escala --space-*. Cabe no orcamento
+   porque a passada anterior devolveu ~250px de cromo em /celulas — o respiro
+   gasta ~20px por tela, nao os 250.
+
+   Centralizar vale para bloco curto: numero, rotulo de indicador, estado vazio,
+   linha de acao. NAO vale para texto corrido nem lista: paragrafo e endereco
+   centralizados sao mais dificeis de ler, e isso nao e questao de gosto.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .cell-grid, .ministries-grid { gap: var(--space-4); }
+  .cell-card, .ministry-card, .resource-card { padding: var(--space-5); gap: var(--space-3); }
+  .resource-card header { gap: var(--space-3); }
+  .resource-card footer { gap: var(--space-2); padding-top: var(--space-3); }
+  /* A pilha sobreposta economiza largura, e no celular largura nao e o que
+     falta aqui: quatro iniciais de 28px cabem folgadas em 350px. Desempilhadas,
+     cada uma se le inteira — que e o que o Lucas pediu. No desktop a pilha
+     continua. */
+  .avatar-row { padding-top: var(--space-3); gap: var(--space-1); }
+  .avatar-row span { margin-right: 0; }
+  .avatar-row .avatar-more { margin-left: var(--space-2); }
+
+  /* Indicadores: numero e rotulo centralizados no chip, com respiro igual dos
+     dois lados. */
+  .resource-stats, .member-stats, .visitor-stats { gap: var(--space-3); }
+  .resource-stats article, .member-stats article, .visitor-stats article,
+  .member-stats .member-stat-card, .visitor-stats .visitor-stat {
+    padding: var(--space-4);
+    text-align: center;
+    justify-items: center;
+    align-items: center;
+  }
+  .member-stats .member-stat-card { align-items: center; }
+  .member-stat-card > span:last-child { align-items: center; }
+
+  /* Indicadores da dashboard: mesmo tratamento. */
+  .stats { gap: var(--space-3); }
+  .stat-card { padding: var(--space-4); align-items: center; text-align: center; }
+
+  /* Estado vazio e acoes: bloco curto, centralizado. */
+  .data-empty { padding: var(--space-5); }
+  .cell-card footer, .ministry-card footer, .resource-card footer { justify-content: center; }
+
+  /* Icone colado no texto era o outro sintoma. */
+  .resource-card p { gap: var(--space-2); }
+  .activity, .birthday { gap: var(--space-3); }
+  .timeline-content { gap: var(--space-3); }
+}
+
+/* --------------------------------------------------------------------------
+   Filtros recolhiveis
+   No desktop este involucro nao existe visualmente: o botao some e o corpo usa
+   `display: contents`, entao o layout original dos filtros fica intacto.
+   -------------------------------------------------------------------------- */
+
+.filter-disclosure { display: contents; }
+.filter-disclosure-toggle { display: none; }
+.filter-disclosure-body { display: contents; }
+
+@media (max-width: 640px) {
+  /* Recolhido, o bloco de filtros passa de 174px (celulas) e 272px
+     (atividades) para os 44px do botao. Em /celulas eram 564px de cromo antes
+     do primeiro cartao — nenhum dado na primeira tela. */
+  .filter-disclosure { display: block; margin-bottom: 16px; }
+  .filter-disclosure-body { display: block; }
+  .filter-disclosure:not(.is-open) .filter-disclosure-body { display: none; }
+
+  .filter-disclosure-toggle {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .filter-disclosure.is-open .filter-disclosure-toggle { border-color: var(--primary); color: var(--heading); }
+  .filter-disclosure-toggle svg { width: var(--icon-md); color: var(--muted); }
+  .filter-disclosure.is-open .filter-disclosure-toggle svg { color: var(--primary); }
+  /* Quantos filtros estao aplicados: recolhido, e a unica pista de que a
+     lista nao esta mostrando tudo. */
+  .filter-disclosure-count {
+    display: grid;
+    min-width: 20px;
+    height: 20px;
+    place-items: center;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--primary-fill);
+    color: var(--on-primary-fill);
+    font-size: 0.6875rem;
+    font-weight: 700;
+  }
+  .filter-disclosure .member-filters { margin-top: 12px; }
+
+  /* Os indicadores de resumo gastavam 186px acima da lista, empurrando o
+     primeiro cartao para fora da tela. Viram uma faixa de uma linha so: eles
+     resumem a lista, nao sao o conteudo dela. A faixa rola de lado quando nao
+     cabe — e um resumo curto, nao a informacao que a pessoa veio ver. */
+  .resource-stats, .member-stats, .visitor-stats,
+  .resource-stats.ministry-summary, .resource-stats.cells-summary, .resource-stats.finance-summary {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+  }
+  .resource-stats article, .member-stats article, .visitor-stats article,
+  .member-stats .member-stat-card, .visitor-stats .visitor-stat {
+    flex: 0 0 auto;
+    min-width: 136px;
+    min-height: 0;
+    gap: 2px;
+    padding: 12px 14px;
+    scroll-snap-align: start;
+  }
+  /* O icone ocupava a primeira coluna de um grid de duas: escondido, rotulo e
+     valor caiam os dois na coluna de 40px e se sobrepunham. Sem o icone, o
+     cartao passa a ter uma coluna so. */
+  .resource-stats article { grid-template-columns: minmax(0, 1fr); }
+  .member-stats .member-stat-card { flex-direction: column; align-items: flex-start; }
+  .resource-stats strong, .member-stats strong, .visitor-stats strong { font-size: 1.375rem; }
+  .resource-stats small, .member-stats small, .visitor-stats small { font-size: 0.6875rem; line-height: 0.95rem; white-space: nowrap; }
+  .resource-stats span, .visitor-stat i, .member-stat-icon { display: none; }
+}
 
 /* --------------------------------------------------------------------------
    Calendario no celular

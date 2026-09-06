@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Baby, BookOpenCheck, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, Music, Plus, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FilterDisclosure } from "@/components/filter-disclosure";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
 import { AnimatedNumber } from "@/components/animated-number";
 import { DeleteRecordDialog } from "@/components/person-record-dialog";
@@ -71,6 +72,8 @@ export default function MinistriesPage() {
     });
   }, [leader, ministries, search]);
 
+  const activeFilters = [leader !== "all", search.trim() !== ""].filter(Boolean).length;
+
   function clearFilters() {
     setSearch("");
     setLeader("all");
@@ -137,14 +140,16 @@ export default function MinistriesPage() {
               <article><span><Layers /></span><small>Média por ministério</small><strong>{loading ? <NumberSkeleton /> : <><AnimatedNumber value={averageVolunteers} /> pessoas</>}</strong></article>
             </section>
 
-            <div className="member-filters resource-filters">
-              <select aria-label="Filtrar por líder" value={leader} onChange={(event) => setLeader(event.target.value)}>
-                <option value="all">Líder: Todos</option>
-                {leaders.map((item) => <option key={item}>{item}</option>)}
-              </select>
-              <label className="member-filter-search"><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filtrar ministério..." /></label>
-              <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
-            </div>
+            <FilterDisclosure activeCount={activeFilters}>
+              <div className="member-filters resource-filters">
+                <select aria-label="Filtrar por líder" value={leader} onChange={(event) => setLeader(event.target.value)}>
+                  <option value="all">Líder: Todos</option>
+                  {leaders.map((item) => <option key={item}>{item}</option>)}
+                </select>
+                <label className="member-filter-search"><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filtrar ministério..." /></label>
+                <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
+              </div>
+            </FilterDisclosure>
 
             <section className="ministries-grid">
               {loading && Array.from({ length: 4 }).map((_, index) => <ResourceCardSkeleton key={index} />)}

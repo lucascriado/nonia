@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
 import { ConfirmConvertDialog, DeleteRecordDialog, PersonRecordDialog, PersonRecordValues } from "@/components/person-record-dialog";
 import { toast } from "sonner";
@@ -61,6 +62,9 @@ export default function VisitorsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Visitor | null>(null);
   const [convertTarget, setConvertTarget] = useState<Visitor | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
+
+  // A aba fica fora da conta: ela continua visível fora do disclosure.
+  const activeFilters = [invitedBy !== "all", search.trim() !== ""].filter(Boolean).length;
 
   async function loadVisitors() {
     setLoading(true);
@@ -173,14 +177,16 @@ export default function VisitorsPage() {
           <VisitorStat loading={loading} label="Membros" value={visitors.filter((item) => item.membershipStage === "Membro").length} icon={<PartyPopper />} color="success" />
         </section>
 
-        <div className="member-filters visitor-filters">
-          <select aria-label="Filtrar por responsável pelo convite" value={invitedBy} onChange={(event) => { setInvitedBy(event.target.value); setPage(1); }}>
-            <option value="all">Quem convidou: Todos</option>
-            {inviters.map((item) => <option key={item}>{item}</option>)}
-          </select>
-          <label className="member-filter-search"><Search /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Filtrar visitante..." /></label>
-          <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
-        </div>
+        <FilterDisclosure activeCount={activeFilters}>
+          <div className="member-filters visitor-filters">
+            <select aria-label="Filtrar por responsável pelo convite" value={invitedBy} onChange={(event) => { setInvitedBy(event.target.value); setPage(1); }}>
+              <option value="all">Quem convidou: Todos</option>
+              {inviters.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            <label className="member-filter-search"><Search /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Filtrar visitante..." /></label>
+            <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
+          </div>
+        </FilterDisclosure>
 
         <section className="visitors-table-card">
           <div className="visitor-table-toolbar">
