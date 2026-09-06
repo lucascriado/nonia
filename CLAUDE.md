@@ -19,9 +19,9 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Aplicação no Coolify | **Descartada.** Foi criada em 06/09/2026 e nunca publicada; a exclusão ficou a cargo do admin de VPS no mesmo dia — ver "Mudanças de escopo" |
 | Base `postgres` do servidor | Provisionada e **vazia** (0 tabelas). Era a base destinada à produção; segue intocada. Baseline em `~/backups/nonia-2026-09-06.sql` |
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
-| Autenticação na `main` | **Não existe.** Todas as rotas de `app/api` e todas as telas estão 100% abertas |
-| Multi-tenancy na `main` | **Não existe.** Nenhuma tabela tem `organization_id` |
-| Fase 1 (backend) | **Entregue na branch `feat/auth-multitenant`, ainda não integrada.** Ver "Em voo" abaixo |
+| Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
+| Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
+| Integração | **Feita.** `main` em `62d0305`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -30,10 +30,11 @@ Decisão do Lucas: **o nonia roda localmente por enquanto.** Sem domínio, sem
 DNS, sem deploy. A única infra que importa é **o banco estar online** — e ele
 está, pelo túnel.
 
-Isso não afrouxa a regra de integração: **a branch de auth não entra na `main`
-antes das telas de login existirem.** O motivo mudou — não é mais "expõe dados
-na internet", é "quebra o ambiente local do time inteiro, que fica sem
-conseguir entrar" —, mas a ordem é a mesma.
+A regra que valia até a integração — a autenticação não entra na `main` antes
+das telas de login existirem — foi **cumprida**: as duas branches entraram
+juntas, com `/entrar`, `/cadastro` e `/convite/[token]` prontas. Vale registrar
+o critério, porque ele se repete: nada que exija uma tela entra sem a tela, ou o
+ambiente local do time para de funcionar.
 
 > **O PostgreSQL embarcado na porta 54329 não é do nonia.** Ele pertence a
 > outra sessão de agente nesta máquina e não faz parte do projeto — não aponte
@@ -47,9 +48,10 @@ em `/home/lucas/www/`.
 
 | Worktree | Branch | Dono |
 | --- | --- | --- |
-| `/home/lucas/www/nonia` | `main` | gerente — árvore de **integração** |
+| `/home/lucas/www/nonia` | `main` | gerente — **só integração** |
 | `/home/lucas/www/nonia-auth` | `feat/auth-multitenant` | backend/DBA |
 | `/home/lucas/www/nonia-ui` | `feat/ui-theme` | frontend |
+| `/home/lucas/www/nonia-docs` | `docs/reconciliacao` | documentador |
 
 As três branches estão em `origin` desde 06/09/2026.
 
@@ -63,12 +65,16 @@ As três branches estão em `origin` desde 06/09/2026.
 - **O repositório é público.** Antes de qualquer push, confira que o diff não
   leva senha, token, uuid de infra, IP nem conteúdo de `.env`. É por isso que a
   regra de manter identificador de infra fora do repo existe.
-- Não mexa no worktree de outro dev — eles estão em movimento.
+- **Trabalhe só no seu worktree**, inclusive para documentação. O
+  `/home/lucas/www/nonia` é onde o gerente troca de branch e faz merge: edição
+  não commitada ali é varrida para dentro de um commit de merge, e foi o que
+  aconteceu em 06/09/2026 com duas mudanças de documentação — o conteúdo
+  sobreviveu, as mensagens de commit não.
 - `CLAUDE.md`, `AGENTS.md` e `README.md` são mantidos pelo documentador
   (decidido em 06/09/2026). Devs não editam esses arquivos nas branches;
   mandam o conteúdo técnico pelo gerente.
-- A branch de auth não entra na `main` antes das telas de login existirem —
-  ver "Escopo atual".
+- Nada que exija uma tela entra na `main` sem a tela — senão o ambiente local
+  do time para de funcionar.
 
 ## Stack
 
@@ -80,16 +86,19 @@ Estrutura da `main` hoje:
 
 ```
 app/
-  api/          route handlers (members, visitors, cells, ministries,
-                events, financeiro, activities, dashboard, health)
-  atividades/ calendario/ celulas/ configuracoes/ financeiro/
-  membros/ ministerios/ visitantes/
-  layout.tsx  page.tsx (dashboard)  globals.css  icon.svg
-components/     shell, sidebar, header, diálogos, skeletons, calendário
-lib/            db.ts, models.ts, activities.ts, records.ts,
-                finance-records.ts, pagination.ts
-database/       migrate.mjs, migrations/ (001–003), seeds/
+  (marketing)/  site público: page.tsx (/), faq/, entrar/, cadastro/,
+                convite/[token]/, marketing.css, plans.ts
+  (app)/        sistema logado: painel/ atividades/ calendario/ celulas/
+                configuracoes/ financeiro/ membros/ ministerios/ visitantes/
+  api/          route handlers, incluindo api/auth/ e api/users/
+  layout.tsx  globals.css  icon.svg
+proxy.ts        desvio de navegação no Edge (era middleware.ts)
+components/     shell, sidebar, header, diálogos, skeletons, marketing/
+lib/            db.ts, models.ts, auth.ts, tenant.ts, passwords.ts, http.ts, …
+database/       migrate.mjs, migrations/ (001–007), seeds/
 ```
+
+Os parênteses são route groups e **não** aparecem na URL.
 
 ## Comandos
 
@@ -128,45 +137,41 @@ coerente com o resto). Tudo o mais é `(app)` e exige sessão.
 usa `LOGIN = "/entrar"` e o frontend aponta para lá em
 `components/marketing/routes.ts`.
 
-## Em voo — pronto nas branches, ainda não integrado
+## O que a integração de 06/09/2026 trouxe
 
-Descrito aqui porque já é arquitetura de pé, não projeto. **Nada disso está na
-`main`.**
+As duas branches entraram na `main` sem nenhum conflito de código. Os únicos
+conflitos foram nos arquivos de documentação, resolvidos a favor da versão do
+documentador.
 
-### `feat/auth-multitenant` (backend/DBA) — Fase 1 entregue, 10 commits
+### `feat/auth-multitenant` (backend/DBA) — 10 commits
 
-Validação relatada pelo backend: `typecheck` e `build` limpos, **97 casos
-automatizados contra PostgreSQL 18.6 real, 0 falhas**.
+Validação do backend: `typecheck` e `build` limpos, **97 casos automatizados
+contra PostgreSQL 18.6 real, 0 falhas**.
 
-- Migrations **004** (`organizations`, `users`, `roles`, `permissions`,
-  `role_permissions`, `organization_members`, `sessions`, `invitations`,
-  `plans`, `subscriptions`, `subscription_payments`, `billing_events`),
-  **005** (retrofit de `organization_id` nas 11 tabelas de domínio, com
-  backfill e `NOT NULL` só no fim), **006** (backstop de isolamento no banco)
-  e **007** (planos comerciais). Todas idempotentes e transacionais.
+- Migrations **004** (organizações, usuários, sessões, RBAC, convites, planos e
+  assinaturas), **005** (`organization_id` nas 11 tabelas de domínio, com
+  backfill), **006** (backstop de isolamento no banco) e **007** (planos
+  comerciais). Todas idempotentes e transacionais.
 - `lib/auth.ts` (sessão, `requireSession`/`requirePermission`/`requireRole`),
-  `lib/passwords.ts`, `lib/tenant.ts` (escopo), `lib/http.ts`,
-  `lib/invitations.ts`, `lib/organizations.ts`, `lib/cell-membership.ts`.
+  `lib/passwords.ts`, `lib/tenant.ts`, `lib/http.ts`, `lib/invitations.ts`,
+  `lib/organizations.ts`, `lib/cell-membership.ts`.
 - `proxy.ts` no Edge (era `middleware.ts`): só desvia navegação pela presença
   do cookie `nonia_session`; quem valida de verdade é o handler.
-- **13 endpoints** de autenticação e gestão de usuários, com escopo de tenant
-  aplicado em **todas** as 26 rotas de `app/api`. O contrato está em
-  [`AGENTS.md`](AGENTS.md#autenticação-e-multi-tenancy) — é lá que o frontend
-  deve olhar.
-- Papéis do sistema com nível: `owner` (100), `admin` (80), `secretaria` (60),
-  `lider` (40), `leitura` (20). **24 permissões** no formato `recurso.acao`.
+- **13 endpoints** de autenticação e gestão de usuários; escopo de tenant em
+  todas as rotas de `app/api`. Contrato em [`AGENTS.md`](AGENTS.md).
+- Papéis com nível: `owner` (100), `admin` (80), `secretaria` (60), `lider`
+  (40), `leitura` (20), e 24 permissões `recurso.acao`.
 - Acesso de dev após `npm run db:seed:dev`: `demo@nonia.app` / `demo1234`.
   `npm run auth:owner` cria o proprietário de uma organização órfã.
-- `docker-compose.yml` já alinhado em `postgres:18-alpine` nesta branch.
 
-### `feat/ui-theme` (frontend) — 5 commits
+### `feat/ui-theme` (frontend)
 
-- Route groups `(marketing)` e `(app)` separados, dashboard movida para
-  `/painel`, título próprio por tela.
-- Landing de venda em `/` e FAQ em `/faq`, com `marketing.css` e
-  `components/marketing/`.
-- Referências ao domínio antigo `nonia.io` corrigidas.
-- A proposta de tema índigo foi revertida (reprovada).
+- Route groups `(marketing)` e `(app)`, dashboard em `/painel`, título próprio
+  por tela.
+- Site público: landing em `/`, FAQ em `/faq`, e as telas de sessão `/entrar`,
+  `/cadastro` e `/convite/[token]`.
+- Ajustes de responsividade no celular e correções do tema escuro.
+- Os PNGs placeholder saíram do repositório — não há mais `public/`.
 
 ## Isolamento entre organizações
 
@@ -362,7 +367,6 @@ Datadas para que ninguém as leia como fato consumado.
 | --- | --- |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **Limites de plano não são aplicados.** Os tetos estão cadastrados na tabela `plans` desde a 007 e **nenhuma rota os consulta** — nada impede o 101º membro no Semente nem o 11º usuário no Comunidade. Ver "Planos comerciais" | 06/09/2026 |
-| `/precos` e `/cadastro` **não existem como página** — são só constantes em `components/marketing/routes.ts` na branch de UI. O frontend está montando as duas | 06/09/2026 |
-| `docker-compose.yml` da **`main`** ainda sobe `postgres:17-alpine`; a branch de auth já corrigiu para `18-alpine` e o alinhamento chega pela integração | 06/09/2026 |
-| `.env.example` da **`main`** ainda diz "Em produção (Dokploy)"; a branch de auth já corrige. Não foi tocado aqui para não criar conflito | 06/09/2026 |
-| Nome falso "Pr. Renato" repetido em 3 arquivos (`app/configuracoes/page.tsx`, `components/header.tsx`, `components/sidebar.tsx`) — vira perfil do usuário logado na Fase 3 | 06/09/2026 |
+| **O `Dockerfile` quebra desde que `public/` saiu do repositório.** A linha `COPY --from=builder /app/public ./public` aponta para um diretório que não existe mais — `docker compose up --build`, que o README documenta, falha. Verificado estaticamente; não há Docker nesta máquina para reproduzir | 06/09/2026 |
+| **`/precos` não existe como página** — é só uma constante em `components/marketing/routes.ts`, para onde apontam os CTAs de plano da landing. `/entrar`, `/cadastro` e `/convite/[token]` já existem | 06/09/2026 |
+| **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |

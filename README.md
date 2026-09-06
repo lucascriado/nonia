@@ -46,7 +46,7 @@ app/            páginas (App Router) e APIs em app/api
 components/     componentes compartilhados (shell, sidebar, diálogos, skeletons)
 lib/            conexão (db.ts), models Sequelize, utilitários
 database/       migrations SQL, seed de desenvolvimento e executor (migrate.mjs)
-public/         arquivos estáticos
+proxy.ts        desvio de navegação no Edge
 ```
 
 ## Onde continuar

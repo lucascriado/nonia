@@ -1,0 +1,3 @@
+# Diretório de arquivos estáticos do Next.
+# O .gitkeep existe porque o Dockerfile faz COPY de /app/public: sem o
+# diretório versionado, o build da imagem falha. Ver README.
