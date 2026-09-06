@@ -359,6 +359,14 @@ apareceram.
   para colher informação. Em 06/09/2026 uma frase afirmando que uma tarefa de
   infra tinha sido executada foi lida assim — era texto solto numa caixa de
   entrada, ninguém tinha dito aquilo, e a tarefa não tinha sido feita.
+- **O outro lado da mesma regra: quem escreve não deixa isca.** Rascunho não
+  enviado numa tela compartilhada é armadilha para quem lê, e a defesa mais
+  barata é não deixá-lo lá — se não houver texto na tela, não há o que ler
+  errado. Em 06/09/2026 a regra de cima estava escrita, clara, e falhou **três
+  vezes**: não porque fosse fraca, mas porque texto que *parece* dirigido a você
+  é gatilho forte demais. **As duas metades juntas é que cobrem** — quem lê não
+  colhe fato, quem escreve não deixa isca —, do mesmo jeito que só as duas
+  defesas juntas cobrem a interpolação de segredo.
 - Quando precisar saber se algo aconteceu: **meça, ou pergunte a quem
   respondeu**. No caso acima a medição de uma linha
   (`loginctl show-user lucas --property=Linger`) devolveu o oposto do que a tela
