@@ -1535,8 +1535,6 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .members-pagination > div, .visitor-pagination > div, .activity-pagination div { align-self: center; }
   .visitor-stats, .member-stats { grid-template-columns: 1fr; }
   .visitor-table-toolbar { align-items: flex-start; flex-direction: column; }
-  .visitor-status-cell { max-width: 62%; align-items: flex-end; }
-  .visitor-membership-progress { width: 100%; }
   .membership-progress { grid-template-columns: 1fr; }
   .membership-progress.wide { grid-column: 1; }
   .membership-progress span { display: grid; grid-template-columns: 26px 1fr; align-items: center; text-align: left; }
@@ -1646,6 +1644,22 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .members-table td[data-label="Admissão"] { order: 8; flex: 1 0 auto; color: var(--muted); font-size: 0.75rem; }
   .members-table td[data-label="Admissão"]::before { content: "desde "; color: inherit; font-size: inherit; font-weight: 400; letter-spacing: 0; text-transform: none; }
   .members-table td[data-label="Ações"], .visitors-table td[data-label="Ações"] { order: 9; flex: 0 0 auto; margin-left: auto; }
+
+  /* Visitantes e a listagem mais densa: alem da pessoa, a linha carrega etapa
+     de integracao, quem convidou e data da visita. Sem regra propria, esses
+     tres se espremiam dois a dois e a etapa — que e o assunto da tela — vinha
+     truncada em "Visitou...". Cada um ganha a sua linha. */
+  .visitors-table td[data-label="Progresso"] { order: 3; flex: 1 0 100%; }
+  .visitors-table td[data-label="Quem convidou"] { order: 4; flex: 0 1 auto; color: var(--muted); font-size: 0.75rem; }
+  .visitors-table td[data-label="Data"] { order: 5; flex: 0 1 auto; color: var(--muted); font-size: 0.75rem; }
+  .visitors-table td[data-label="Data"]::before { content: "visita em "; color: inherit; font-size: inherit; font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+  .visitor-status-cell { max-width: none; align-items: stretch; }
+  .visitor-membership-progress { width: 100%; }
+  /* A etapa deixa de ser reticencia: e o dado que a pessoa veio ver. */
+  .visitor-membership-progress span { overflow: visible; color: var(--heading); font-size: 0.75rem; white-space: normal; }
+  .visitor-membership-progress div { gap: 5px; }
+  .visitor-membership-progress i { height: 5px; }
 
   .member-identity, .visitor-identity { gap: 10px; }
   .member-actions { gap: 4px; }
