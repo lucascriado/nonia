@@ -107,6 +107,9 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 
 .mk-header-actions { display: flex; align-items: center; gap: 10px; }
 .mk-link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 8px 12px;
   color: var(--text);
   font-size: 0.875rem;
@@ -115,6 +118,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   transition: color .2s ease;
 }
 .mk-link-button:hover { color: var(--primary); }
+.mk-link-button svg { width: var(--icon-sm); }
 
 .mk-menu-button {
   display: none;
@@ -298,14 +302,19 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 /* --------------------------------------------------------------------------
    Movimento da pagina de vendas
    Tudo aqui vive dentro de [data-motion="on"], que o layout so liga fora de
-   `prefers-reduced-motion` — quem pediu menos movimento nao recebe nenhum
+   `prefers-reduced-motion` - quem pediu menos movimento nao recebe nenhum
    destes, e quem esta sem JavaScript ve a pagina parada e inteira.
+
+   REGRA: movimento de ENTRADA, uma vez, distancia curta. Nada em loop, nada
+   piscando, nada saltando. Movimento que continua enquanto a pessoa le compete
+   com o texto, e a landing e a primeira impressao de uma ferramenta que a
+   secretaria abre todo dia.
    -------------------------------------------------------------------------- */
 
 /* A miniatura do painel entra inclinada e se endireita: e o objeto que o Lucas
    quer vivo, e o movimento acontece uma vez, na entrada. */
 [data-motion="on"] .mk-hero-figure .mk-preview {
-  transform: perspective(1400px) rotateX(9deg) translateY(18px);
+  transform: perspective(1400px) rotateX(4deg) translateY(12px);
   transition: transform 1.1s var(--ease-out);
 }
 [data-motion="on"] .mk-hero-figure.is-visible .mk-preview { transform: perspective(1400px) rotateX(0) translateY(0); }
@@ -336,27 +345,17 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 @keyframes mk-rise { to { opacity: 1; transform: translateY(0); } }
 @keyframes mk-fade { to { opacity: 1; } }
 
-/* O brilho atras do heroi respira devagar. Some por completo com movimento
-   reduzido, porque e decoracao pura. */
-[data-motion="on"] .mk-hero-glow { animation: mk-breathe 9s ease-in-out infinite; }
-@keyframes mk-breathe { 0%, 100% { opacity: .85; scale: 1; } 50% { opacity: 1; scale: 1.06; } }
-
 /* Cartao de recurso e plano ganham uma subida propria ao entrar, alem do
    Reveal, para a secao nao aparecer toda de uma vez. */
 [data-motion="on"] .mk-feature-card { transition: border-color .25s ease, box-shadow .25s ease, transform .35s var(--ease-out); }
 
-/* Numero do passo: gira de leve quando a secao entra. */
-[data-motion="on"] .mk-step .mk-step-number { transition: transform .5s var(--ease-out); }
-[data-motion="on"] .mk-step.is-visible .mk-step-number { transform: rotate(360deg); }
-
-/* Seta do botao principal: um empurrao continuo e discreto, so no repouso. */
-[data-motion="on"] .mk-button-primary svg { animation: mk-nudge 2.4s ease-in-out infinite; }
-[data-motion="on"] .mk-button-primary:hover svg { animation: none; }
-@keyframes mk-nudge { 0%, 70%, 100% { transform: translateX(0); } 82% { transform: translateX(4px); } }
+/* Numero do passo: aparece junto do cartao, sem giro nem salto. */
+[data-motion="on"] .mk-step .mk-step-number { opacity: 0; transition: opacity .5s ease .15s; }
+[data-motion="on"] .mk-step.is-visible .mk-step-number { opacity: 1; }
 
 /* Faixa de beneficios: cada item desliza de baixo, escalonado pelo Reveal. */
 [data-motion="on"] .mk-strip-inner span svg { transition: transform .3s var(--ease-out); }
-[data-motion="on"] .mk-strip-inner span:hover svg { transform: scale(1.25); }
+[data-motion="on"] .mk-strip-inner span:hover svg { transform: scale(1.1); }
 
 /* --------------------------------------------------------------------------
    Faixa de beneficios

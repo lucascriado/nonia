@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Church, Menu, X } from "lucide-react";
+import { Church, LogIn, Menu, UserRoundPlus, X } from "lucide-react";
 import { marketingRoutes, signupHref } from "@/components/marketing/routes";
 
 // Tudo em minúsculo, acompanhando o "nonia" da marca.
@@ -54,13 +54,15 @@ export function SiteHeader() {
         </nav>
 
         <div className="mk-header-actions">
-          {/* O emoji é decorativo: `aria-hidden` para o leitor de tela não ler
-              "porta" antes de "entrar". */}
+          {/* Glifo monocromático em vez de emoji: o emoji do sistema vem
+              colorido (chave dourada, brilho amarelo) e puxava o olho antes do
+              texto, numa paleta que é contida de propósito. O ícone herda a
+              cor do texto e fica no mesmo tom. */}
           <Link className="mk-link-button" href={marketingRoutes.login}>
-            <span aria-hidden>🔑</span> entrar
+            <LogIn aria-hidden /> entrar
           </Link>
           <Link className="mk-button mk-button-primary mk-button-sm" href={signupHref()}>
-            <span aria-hidden>✨</span> criar conta
+            <UserRoundPlus aria-hidden /> criar conta
           </Link>
         </div>
 
@@ -84,10 +86,10 @@ export function SiteHeader() {
         </nav>
         <div className="mk-mobile-actions">
           <Link className="mk-button mk-button-ghost" href={marketingRoutes.login}>
-            <span aria-hidden>🔑</span> entrar
+            <LogIn aria-hidden /> entrar
           </Link>
           <Link className="mk-button mk-button-primary" href={signupHref()}>
-            <span aria-hidden>✨</span> criar conta
+            <UserRoundPlus aria-hidden /> criar conta
           </Link>
         </div>
       </div>
