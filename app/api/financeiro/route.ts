@@ -21,8 +21,30 @@ export async function GET(request: Request) {
     const { page, pageSize, offset } = paginacao(searchParams);
     const where = filtro.where.join(" AND ");
 
-    const contagem = await query<{ total: number }>(
-      `SELECT count(*)::int AS total FROM financial_transactions WHERE ${where}`,
+    // Total E somatório na mesma consulta, com o MESMO filtro.
+    //
+    // O somatório vem daqui, e não da soma da lista na tela, porque com
+    // paginação a lista é uma página: somar 25 de 137 daria um saldo errado
+    // que continua parecendo certo. É o único ponto desta mudança que quebra
+    // em silêncio -- os outros quebram alto, porque a resposta deixou de ser
+    // array e a tela explode na hora.
+    const resumo = await query<{
+      total: number;
+      income: string;
+      expense: string;
+      balance: string;
+      pendingCount: number;
+      pendingAmount: string;
+    }>(
+      `SELECT
+         count(*)::int AS total,
+         COALESCE(sum(amount) FILTER (WHERE type = 'income'  AND status = 'paid'), 0)::text AS income,
+         COALESCE(sum(amount) FILTER (WHERE type = 'expense' AND status = 'paid'), 0)::text AS expense,
+         (COALESCE(sum(amount) FILTER (WHERE type = 'income'  AND status = 'paid'), 0)
+        - COALESCE(sum(amount) FILTER (WHERE type = 'expense' AND status = 'paid'), 0))::text AS balance,
+         count(*) FILTER (WHERE status = 'pending')::int AS "pendingCount",
+         COALESCE(sum(amount) FILTER (WHERE status = 'pending'), 0)::text AS "pendingAmount"
+       FROM financial_transactions WHERE ${where}`,
       filtro.valores,
     );
 
@@ -42,7 +64,8 @@ export async function GET(request: Request) {
       LIMIT $${filtro.valores.length + 1} OFFSET $${filtro.valores.length + 2}
     `, [...filtro.valores, pageSize, offset]);
 
-    return Response.json({ records: rows, total: contagem.rows[0].total, page, pageSize });
+    const { total, ...summary } = resumo.rows[0];
+    return Response.json({ records: rows, total, page, pageSize, summary });
   } catch (error) {
     return apiError(error);
   }
