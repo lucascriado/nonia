@@ -10,6 +10,7 @@ import { cookies } from "next/headers";
 import { QueryTypes, type Transaction } from "sequelize";
 import { db } from "@/lib/db";
 import { forbidden, unauthorized } from "@/lib/http";
+import { assertWritable } from "@/lib/subscription-state";
 
 export const SESSION_COOKIE = "nonia_session";
 export const SESSION_TTL_DAYS = 30;
@@ -260,11 +261,27 @@ export function hasRole(auth: AuthContext, ...slugs: string[]): boolean {
   return slugs.includes(auth.role.slug);
 }
 
-/** Exige sessão e uma das permissões informadas. */
+/**
+ * Exige sessão e uma das permissões informadas.
+ *
+ * É também o gargalo do modo somente leitura: quando TODAS as permissões
+ * pedidas são de escrita, a chamada é uma escrita, e uma igreja com pagamento
+ * vencido além da carência é recusada aqui. Rotas de leitura passam intactas,
+ * porque pedem uma permissão `.read` -- inclusive as que aceitam as duas, como
+ * a listagem de papéis.
+ *
+ * Ficar aqui, e não em cada rota, é o que garante que uma rota nova não nasça
+ * furando o modo somente leitura por esquecimento.
+ */
+const isWrite = (permission: string) => permission.endsWith(".write");
+
 export async function requirePermission(...permissions: string[]): Promise<AuthContext> {
   const auth = await requireSession();
   if (!canAny(auth, ...permissions)) {
     throw forbidden(`Seu papel (${auth.role.name}) não permite esta ação.`, "missing_permission");
+  }
+  if (permissions.length > 0 && permissions.every(isWrite)) {
+    await assertWritable(auth.organization.id);
   }
   return auth;
 }

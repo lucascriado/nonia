@@ -136,6 +136,40 @@ vale **agora**, e só esta função precisa saber a diferença.
 `status = 'incomplete'` é cobrança ainda não confirmada e **não** libera o
 plano pago: cai para a avaliação ou para o gratuito.
 
+### Estado da assinatura e somente leitura
+
+`lib/subscription-state.ts` é o único lugar com os estados, as transições
+permitidas e a carência. Nada de `if (status === "past_due")` espalhado.
+
+Dois conceitos que não se misturam: o **estado** é o que está contratado
+(`subscriptions.status`); o **nível de acesso** é o que a igreja pode fazer
+agora, derivado do estado mais a data — calculado na leitura, como o plano
+efetivo, porque não há tarefa agendada.
+
+| Situação | Acesso |
+| --- | --- |
+| `active`, `trialing` no prazo, `incomplete` | `full` |
+| `past_due` até 7 dias após o vencimento | `grace` — escreve, e a tela avisa |
+| `past_due` depois disso | `read_only` |
+| `canceled`, `expired`, sem assinatura | `full`, no plano gratuito |
+| `past_due` sem data de vencimento | `grace` — nunca tranca por falta de dado nosso |
+
+Somente leitura vem de **dívida**, não de ausência de plano pago: quem cancela
+ou deixa a avaliação vencer cai para o gratuito e continua escrevendo dentro do
+teto dele.
+
+O bloqueio fica em `requirePermission`, e não em cada rota: quando **todas** as
+permissões pedidas terminam em `.write`, a chamada é uma escrita. Estar nesse
+gargalo é o que impede uma rota nova de nascer furando o modo somente leitura
+por esquecimento. Consultar, buscar e exportar continuam valendo, e autenticar
+também — login e troca de senha não passam por `requirePermission`.
+
+Quem esbarra recebe **402** com `code: "subscription_read_only"` e uma mensagem
+deliberadamente diferente da de teto de plano: são situações distintas, e
+misturá-las faria a pessoa tentar a solução errada. `GET /api/auth/session`
+devolve `plan.access` com `level`, `graceEndsAt` e `graceDaysLeft`, para a tela
+avisar **durante** a carência — avisar depois é tarde.
+
 ### Como os tetos são aplicados
 
 O teto sai sempre do plano efetivo; `NULL` é ilimitado; papel não interfere,
@@ -168,6 +202,37 @@ para não custar uma consulta a mais em toda requisição autenticada. A mensage
 diz o teto, onde a igreja está e qual plano resolve — quem esbarra é quem a
 gente quer que assine. O plano sugerido sai do banco (`trial_days = 0`, o mais
 barato que resolve), então `avaliacao` nunca é sugerido como upgrade.
+
+## Contratação sem gateway (bypass)
+
+Não há integração de pagamento. A igreja escolhe um plano, clica, e a
+assinatura passa a valer na hora — é atalho de desenvolvimento, porque o
+produto roda localmente e não há URL pública para receber webhook.
+
+| Rota | Papel | O que faz |
+| --- | --- | --- |
+| `GET /api/billing/plans` | `billing.read` | planos contratáveis, o atual e `canSubscribe` |
+| `POST /api/billing/subscribe` | `billing.write` | ativa o plano na hora |
+| `POST /api/billing/cancel` | `billing.write` | cancela; a igreja volta ao gratuito |
+
+**Só existe com `BILLING_BYPASS=1` no ambiente, e nunca em produção.** Sem a
+variável as rotas respondem 404. Com ela e `NODE_ENV=production`, as rotas
+continuam respondendo 404 e o servidor grita no log — porque o que isto faz é,
+literalmente, "clicar e ganhar o plano pago", e num ambiente hospedado seria
+uma falha de cobrança.
+
+A assinatura nasce com status `active` direto, sem passar por `trialing`,
+porque o efeito pedido é "clicou, adquiriu". A consequência é que a regra 1 do
+plano efetivo passa a valer sem que pagamento nenhum tenha existido: **o status
+não distingue uma assinatura paga de uma assinatura dada.** `provider =
+'bypass'`, o `provider_subscription_id` prefixado e a linha em `billing_events`
+são a única coisa que separa as duas no banco, e é disso que depende quem for
+somar faturamento um dia. Nenhuma linha é criada em `subscription_payments`,
+porque não houve pagamento.
+
+Quando a integração real entrar, `lib/billing-bypass.ts` e `app/api/billing/`
+são apagados inteiros. `lib/subscription-state.ts` não sabe que o bypass
+existe, e continua igual.
 
 ## Valores persistidos
 
