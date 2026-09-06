@@ -1326,20 +1326,29 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .calendar { min-width: 0; }
   .calendar > div { min-height: 46px; padding: 5px 3px; font-size: 0.75rem; text-align: center; }
   .calendar .weekday { min-height: 26px; padding: 6px 0; font-size: 0.5rem; letter-spacing: .04em; }
+  /* O ponto e so o desenho: quem recebe o toque e a celula inteira do dia.
+     Um alvo de 6px seria impossivel de acertar com o dedo. */
   .calendar .tag {
-    right: 50%;
-    bottom: 5px;
-    left: auto;
-    width: 6px;
-    height: 6px;
+    inset: 0;
     padding: 0;
     border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: transparent;
+  }
+  .calendar .tag::after {
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: var(--primary);
-    color: transparent;
-    translate: 50% 0;
+    content: "";
+    translate: -50% 0;
   }
-  .calendar .green-day .tag { background: var(--info); }
+  .calendar .tag:hover { background: transparent; }
+  .calendar .green-day .tag::after { background: var(--info); }
   .calendar-month-grid { grid-template-columns: repeat(7, minmax(84px, 1fr)); }
   .calendar-page-title { align-items: flex-start; flex-direction: column; }
   .event-form-grid { grid-template-columns: 1fr; }
