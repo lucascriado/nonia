@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `154cacc`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `ed865cd`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -139,8 +139,10 @@ primeira.
 | **Pagamento: Mercado Pago** | Escolhido pelo requisito de CPF (Pix/boleto). O schema de planos/assinaturas é **agnóstico ao gateway**: colunas `provider*` guardam o id externo, nenhuma regra de domínio depende do MP. **Reabrir se** o requisito de CPF com Pix/boleto cair — é ele que escolheu o gateway, e o schema já não amarra | 06/09/2026 |
 | **Route groups** | `app/(marketing)/` para o site público e `app/(app)/` para o sistema logado. Route group não entra na URL; a única rota que mudou foi a dashboard, de `/` para **`/painel`** | 06/09/2026 |
 | **Cadastro nasce em avaliação e cai para o Semente** | Quem se cadastra entra em **avaliação de 14 dias**; terminado o prazo sem assinar, cai para o **Semente gratuito, sem expirar**. Resolve a divergência entre o `register`, que atribuía `avaliacao`, e a landing, que promete gratuito para até 100 membros sem prazo — as duas frases passam a ser verdadeiras. Ver "Plano efetivo" | 06/09/2026 |
-| **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. *Ainda não implementado* | 06/09/2026 |
-| **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura. *Ainda não implementado* | 06/09/2026 |
+| **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. Ver "Assinatura e acesso" | 06/09/2026 |
+| **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura | 06/09/2026 |
+| **Somente leitura vem de DÍVIDA, não de ausência de plano pago** | Cancelar leva ao gratuito, com o teto do gratuito; **atrasar** leva a somente leitura. Sem essa distinção, cancelar seria melhor que atrasar e o somente leitura seria contornável em um clique | 06/09/2026 |
+| **Exportar entra no MVP** | A promessa "quem quiser sair leva o que é seu" só era verdadeira pela API — não havia botão de exportar em lugar nenhum. Decidido implementar em vez de recuar a promessa. Formato e cuidados em [`AGENTS.md`](AGENTS.md) | 06/09/2026 |
 | **Bypass de contratação no lugar do gateway** | A igreja clica e a assinatura vale na hora, sem pagamento real. Atalho de desenvolvimento, **não é produto**, e nasce com guarda-corpo obrigatório. Ver "Cobrança" | 06/09/2026 |
 | **Mercado Pago: API de Pagamentos, não recorrência** | `POST /v1/payments`, Checkout Transparente. **Decisão suspensa**, não revogada: vale para quando o pagamento real entrar. **Retomar quando** houver hospedagem com URL pública. Ver "Cobrança" | 06/09/2026 |
 | **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
@@ -223,6 +225,15 @@ migration **008**, que renomeia `plans.max_people` para `plans.max_members`. A
 verificação entrou em `app/api/members`, `app/api/users` e na conversão de
 visitante em membro, e trava a linha da assinatura dentro da transação para que
 duas criações simultâneas não furem o teto juntas.
+
+### Quinta a sétima levas — `a0a3fb7`, `c29dc74`, `ed865cd`
+
+- **Somente leitura e contratação sem gateway** (`a0a3fb7`):
+  `lib/subscription-state.ts` e `lib/billing-bypass.ts`, com as rotas de
+  `app/api/billing`.
+- **Conserto de sobreposição, escala de espaço e centralização** (`c29dc74`).
+- **Exportação em CSV** (`ed865cd`): `lib/csv.ts` e `app/api/export/{members,
+  visitors,financeiro}`. **A API está pronta; o botão ainda não existe.**
 
 ## Isolamento entre organizações
 
@@ -350,12 +361,24 @@ de pagamento; ele existe para destravar o fluxo enquanto não há hospedagem.
 >
 > - atrás de variável de ambiente explícita, **desligada por padrão** — sem ela
 >   a rota **não existe**;
-> - recusa categórica se `NODE_ENV` for `production` sem a variável;
+> - **recusa em produção ainda que `BILLING_BYPASS` esteja ligada** — e grita no
+>   log. Variável que pode ser ligada num ambiente hospedado continua sendo a
+>   porta dos fundos, a um `export` de distância. É mais estrito do que o pedido
+>   original, e testado com build de produção real;
 > - nome que denuncia o que faz: **`BILLING_BYPASS`**;
 > - toda assinatura criada assim marcada na origem (`provider = 'bypass'`) e com
 >   `billing_event`, para **nunca** ser confundida com pagamento recebido por
 >   quem ler o banco depois.
 >
+>
+> Ele também **não cria nenhuma linha em `subscription_payments`** — não houve
+> pagamento, e o registro não vai fingir que houve.
+>
+> **Relaxar a recusa em produção é uma linha de código, e é decisão do Lucas.**
+> Fica escrito para não parecer impossível no dia em que for preciso demonstrar
+> o produto num ambiente hospedado — mas é decisão dele, não conveniência de
+> quem estiver implementando.
+
 > **Não ligar em ambiente exposto.** O bypass só sai de cena quando existir
 > pagamento real — enquanto isso, ele é a única forma de contratar, e essa é
 > exatamente a razão do cuidado.
@@ -404,6 +427,29 @@ colunas `provider*` e o `payload jsonb` seguem como estão.
 > gateway real por bypass sem tocar em uma linha do domínio. É a justificativa
 > daquela decisão sendo paga na prática, e o argumento para mantê-la quando o
 > pagamento real chegar.
+
+## Assinatura e acesso
+
+`lib/subscription-state.ts` é o **único** lugar onde os estados da assinatura,
+as transições permitidas e a carência existem — nada de `if (status ===
+"past_due")` espalhado por rota. Dois conceitos que não se misturam:
+
+| | |
+| --- | --- |
+| **Estado da assinatura** | o que está contratado (`subscriptions.status`) |
+| **Nível de acesso** | o que a igreja pode fazer **agora** — `full`, `grace` ou `read_only` — derivado do estado mais a data, calculado na leitura, como o plano efetivo |
+
+Vencida a mensalidade, começam **7 dias de carência** (`GRACE_DAYS`); depois
+disso o acesso vira `read_only`. **Não pagar nunca tranca a igreja para fora dos
+próprios dados**: consultar, buscar e exportar continuam valendo no pior estado.
+
+> **Somente leitura vem de dívida, não de ausência de plano pago.** Cancelar
+> leva ao gratuito, com o teto do gratuito; atrasar leva a somente leitura. Sem
+> essa distinção, cancelar seria melhor que atrasar, e o somente leitura seria
+> contornável em um clique.
+
+Sem data de vencimento a igreja fica na carência e **nunca** é trancada por
+falta de dado nosso — falha para o lado de quem usa.
 
 ## Lacunas conhecidas do MVP
 
@@ -540,7 +586,8 @@ Datadas para que ninguém as leia como fato consumado.
 
 | Pendência | Desde |
 | --- | --- |
-| **Somente leitura na mensalidade vencida e a carência de 7 dias não existem** no código — são decisão de 06/09/2026 sem implementação. Hoje, vencer não muda nada além do plano efetivo cair para o `semente` | 06/09/2026 |
+| **Exportar não tem botão.** A API está pronta (`/api/export/members`, `/visitors`, `/financeiro`), mas nenhuma tela oferece o download — a promessa "quem quiser sair leva o que é seu" ainda depende de chamar a API na mão | 06/09/2026 |
+| **Quando houver cobrança real, cancelar assinatura vencida não pode limpar a dívida.** Levantado pelo backend: hoje não há dívida a preservar, mas o dia em que houver é o dia em que cancelar viraria a saída barata do somente leitura | 06/09/2026 |
 | **SEGURANÇA — o bypass de contratação não pode ser ligado em ambiente exposto.** Ele concede plano pago sem pagamento. Enquanto existir, precisa de `BILLING_BYPASS` desligada por padrão, recusa se `NODE_ENV=production` sem a variável, e toda assinatura marcada com `provider = 'bypass'` mais `billing_event`. **Só sai de cena quando existir pagamento real.** Ver "Cobrança" | 06/09/2026 |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |
