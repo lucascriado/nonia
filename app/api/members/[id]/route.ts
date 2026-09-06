@@ -25,7 +25,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
         address, neighborhood, city, state, avatar_url AS "photoDataUrl", notes,
         ministry, ministry_color AS "ministryColor", role, status,
         baptism_status AS baptism, baptism_date AS "baptismDate",
-        admission_date AS date, is_new AS "isNew", cell_name AS cell
+        admission_date AS date, cell_name AS cell
       FROM member_directory WHERE id = $1 AND organization_id = $2
     `, [id, organizationId(auth)]);
 
