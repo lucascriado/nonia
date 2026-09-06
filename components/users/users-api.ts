@@ -75,3 +75,14 @@ export function updateUser(
 export function removeUser(id: string) {
   return apiRequest<{ ok: true }>(`/api/users/${id}`, { method: "DELETE" });
 }
+
+/**
+ * Revoga um convite pendente. O assento volta na hora.
+ *
+ * Idempotente: revogar de novo devolve 200, então dois cliques não viram erro.
+ * `409 invitation_not_pending` significa que o convite já foi aceito — aí a
+ * pessoa virou usuário e quem some é o convite, não o acesso.
+ */
+export function revokeInvitation(id: string) {
+  return apiRequest<{ ok: true; email: string }>(`/api/invitations/${id}`, { method: "DELETE" });
+}

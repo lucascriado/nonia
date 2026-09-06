@@ -1187,6 +1187,71 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 }
 .users-actions > button:hover:not(:disabled) { border-color: var(--primary-border); color: var(--heading); }
 .users-actions button:disabled { cursor: wait; opacity: .6; }
+.users-reset { display: grid !important; width: 36px; padding: 0 !important; place-items: center; }
+.users-reset svg { width: var(--icon-sm); }
+.users-reset:hover:not(:disabled) { border-color: var(--primary-border) !important; background: var(--primary-soft); color: var(--heading) !important; }
+
+/* Redefinir senha de outra pessoa: diálogo, não linha, porque a ação tem
+   consequência (derruba as sessões dela) e precisa de espaço para explicar. */
+.reset-password-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+  background: var(--overlay);
+  backdrop-filter: blur(4px);
+  animation: fade-in .2s ease;
+}
+.reset-password-card {
+  width: min(440px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  animation: modal-enter .25s var(--ease-out);
+}
+.reset-password-card > header { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.reset-password-card > header > span { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
+.reset-password-card > header svg { width: var(--icon-md); }
+.reset-password-card h3 { margin: 0; color: var(--heading); font-size: 1rem; font-weight: 600; }
+.reset-password-card > header p { margin: 2px 0 0; color: var(--muted); font-size: 0.8125rem; overflow-wrap: anywhere; }
+.reset-password-card .mk-field { margin-bottom: var(--space-4); }
+.reset-password-card input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+.reset-password-card input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.reset-password-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.reset-password-warning svg { width: var(--icon-md); flex: 0 0 var(--icon-md); margin-top: 1px; }
+.reset-password-warning > span { min-width: 0; flex: 1; }
+.reset-password-card > footer { display: flex; justify-content: flex-end; gap: var(--space-3); }
+.reset-password-card > footer button { min-height: 44px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.84375rem; font-weight: 600; }
+.reset-password-card > footer button:disabled { cursor: wait; opacity: .65; }
+
 .users-remove { display: grid !important; width: 36px; padding: 0 !important; place-items: center; }
 .users-remove svg { width: var(--icon-sm); }
 .users-remove:hover:not(:disabled) { border-color: var(--danger-border) !important; background: var(--danger-soft); color: var(--danger) !important; }
@@ -2030,7 +2095,9 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .users-role { margin-left: 54px; }
   .users-actions { width: 100%; flex-wrap: wrap; margin-left: 54px; }
   .users-actions select, .users-actions > button { min-height: 44px; }
-  .users-remove { width: 44px; }
+  .users-remove, .users-reset { width: 44px; }
+  .reset-password-card > footer { flex-direction: column-reverse; }
+  .reset-password-card > footer button { width: 100%; }
   .users-confirm button { min-height: 44px; }
   .invite-link-row { flex-direction: column; }
   .invite-link-row .primary-action { width: 100%; }

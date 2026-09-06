@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, LoaderCircle, MailWarning, ShieldCheck, UserMinus, UserPlus } from "lucide-react";
+import { Check, Copy, KeyRound, LoaderCircle, MailWarning, ShieldCheck, UserMinus, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/avatar";
 import { AuthAlert } from "@/components/auth/auth-alert";
@@ -9,7 +9,8 @@ import { AuthField } from "@/components/auth/auth-field";
 import { AuthError, emailProblem } from "@/components/auth/session";
 import Link from "next/link";
 import { usePermission, useSession } from "@/components/current-user";
-import { createInvitation, getRoles, getUsers, removeUser, updateUser, type OrganizationUser, type PendingInvitation, type Role } from "@/components/users/users-api";
+import { createInvitation, getRoles, getUsers, removeUser, revokeInvitation, updateUser, type OrganizationUser, type PendingInvitation, type Role } from "@/components/users/users-api";
+import { ResetPasswordDialog } from "@/components/users/reset-password-dialog";
 
 const emptyForm = { fullName: "", email: "", roleSlug: "" };
 
@@ -26,6 +27,7 @@ export function UsersPanel() {
   const [submitting, setSubmitting] = useState(false);
   /** Link do convite recém-criado. Só existe aqui: nenhuma listagem o devolve. */
   const [freshInvite, setFreshInvite] = useState<PendingInvitation | null>(null);
+  const [resetTarget, setResetTarget] = useState<OrganizationUser | null>(null);
 
   const refresh = useMemo(
     () => () => {
@@ -125,20 +127,20 @@ export function UsersPanel() {
             isSelf={person.email === currentUser.email}
             key={person.id}
             onChanged={refresh}
+            onResetPassword={() => setResetTarget(person)}
             roles={roles}
             user={person}
           />
         ))}
 
         {invitations.map((invitation) => (
-          <li className="is-pending" key={invitation.id}>
-            <Avatar name={invitation.name ?? invitation.email} size={38} />
-            <span className="users-identity">
-              <strong>{invitation.name ?? invitation.email}</strong>
-              <small>{invitation.email} · convite pendente</small>
-            </span>
-            <span className="users-role">{roles.find((role) => role.slug === invitation.roleSlug)?.name ?? invitation.roleSlug}</span>
-          </li>
+          <InvitationRow
+            canManage={canInvite}
+            invitation={invitation}
+            key={invitation.id}
+            onChanged={refresh}
+            roleName={roles.find((role) => role.slug === invitation.roleSlug)?.name ?? invitation.roleSlug}
+          />
         ))}
       </ul>
 
@@ -201,6 +203,7 @@ export function UsersPanel() {
           </button>
         </form>
       )}
+      {resetTarget && <ResetPasswordDialog onClose={() => setResetTarget(null)} user={resetTarget} />}
     </article>
   );
 }
@@ -274,12 +277,14 @@ function UserRow({
   isSelf,
   canManage,
   onChanged,
+  onResetPassword,
 }: {
   user: OrganizationUser;
   roles: Role[];
   isSelf: boolean;
   canManage: boolean;
   onChanged: () => void;
+  onResetPassword: () => void;
 }) {
   const [working, setWorking] = useState(false);
   const [confirmingRemoval, setConfirmingRemoval] = useState(false);
@@ -340,6 +345,19 @@ function UserRow({
             {suspended ? "Reativar" : "Suspender"}
           </button>
 
+          {/* Sem recuperação por e-mail, redefinir aqui é a única saída de quem
+              perdeu a senha. Não fica escondido atrás de menu. */}
+          <button
+            aria-label={`Redefinir a senha de ${user.name}`}
+            className="users-reset"
+            disabled={working}
+            onClick={onResetPassword}
+            title="Redefinir a senha desta pessoa"
+            type="button"
+          >
+            <KeyRound aria-hidden />
+          </button>
+
           {confirmingRemoval ? (
             <span className="users-confirm">
               <button disabled={working} onClick={() => setConfirmingRemoval(false)} type="button">Voltar</button>
@@ -366,6 +384,84 @@ function UserRow({
         </span>
       ) : (
         <span className="users-role">{user.roleName}</span>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Convite pendente.
+ *
+ * Revogar existe por um motivo prático: convite pendente OCUPA acesso, e no
+ * plano gratuito há um só. Um e-mail digitado errado travaria a igreja inteira
+ * até alguém mexer no banco.
+ */
+function InvitationRow({
+  invitation,
+  roleName,
+  canManage,
+  onChanged,
+}: {
+  invitation: PendingInvitation;
+  roleName: string;
+  canManage: boolean;
+  onChanged: () => void;
+}) {
+  const [working, setWorking] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  async function revoke() {
+    setWorking(true);
+    try {
+      await revokeInvitation(invitation.id);
+      toast.success(`Convite de ${invitation.email} cancelado. O acesso voltou para o plano.`);
+      onChanged();
+    } catch (error) {
+      if (error instanceof AuthError && error.code === "invitation_not_pending") {
+        // O convite foi aceito entre carregar a tela e clicar: a pessoa já é
+        // usuária, e o que some é o convite, não o acesso dela.
+        toast.info(`${invitation.email} já aceitou o convite — agora é usuário desta igreja.`);
+        onChanged();
+      } else {
+        toast.error(error instanceof AuthError ? error.message : "Não foi possível cancelar o convite.");
+      }
+    } finally {
+      setWorking(false);
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <li className="is-pending">
+      <Avatar name={invitation.name ?? invitation.email} size={38} />
+      <span className="users-identity">
+        <strong>{invitation.name ?? invitation.email}</strong>
+        <small>{invitation.email} · convite pendente, ocupando um acesso</small>
+      </span>
+
+      {canManage ? (
+        <span className="users-actions">
+          <span className="users-role">{roleName}</span>
+          {confirming ? (
+            <span className="users-confirm">
+              <button disabled={working} onClick={() => setConfirming(false)} type="button">Voltar</button>
+              <button className="users-remove-confirm" disabled={working} onClick={revoke} type="button">Cancelar convite</button>
+            </span>
+          ) : (
+            <button
+              aria-label={`Cancelar o convite de ${invitation.email}`}
+              className="users-remove"
+              disabled={working}
+              onClick={() => setConfirming(true)}
+              title="Cancelar o convite e liberar o acesso"
+              type="button"
+            >
+              <X aria-hidden />
+            </button>
+          )}
+        </span>
+      ) : (
+        <span className="users-role">{roleName}</span>
       )}
     </li>
   );
