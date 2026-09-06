@@ -103,11 +103,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (payload.roleSlug === "owner" && auth.role.slug !== "owner") {
       throw forbidden("Apenas o proprietário pode conceder o papel de proprietário.", "missing_role");
     }
-    // A organização não pode ficar sem proprietário ativo.
-    if (target.roleSlug === "owner" && (payload.roleSlug || payload.status === "suspended")) {
-      if ((await ownerCount(organizationId(auth))) <= 1) {
-        throw forbidden("A organização precisa de pelo menos um proprietário ativo.", "last_owner");
-      }
+    // Mexer num proprietário NÃO é proibido: com dois donos, rebaixar ou
+    // suspender um deles é legítimo e passa. O que se impede é a organização
+    // ficar SEM NENHUM proprietário ativo.
+    //
+    // A condição está escrita numa linha só porque a versão aninhada se lia
+    // pela metade: o trecho falava de "owner" e parecia proibir mexer em
+    // qualquer proprietário, quando a proibição depende da contagem.
+    const perderiaOUltimoDono =
+      target.roleSlug === "owner" &&
+      (Boolean(payload.roleSlug) || payload.status === "suspended") &&
+      (await ownerCount(organizationId(auth))) <= 1;
+
+    if (perderiaOUltimoDono) {
+      throw forbidden("A organização precisa de pelo menos um proprietário ativo.", "last_owner");
     }
 
     let roleId: string | null = null;
@@ -201,7 +210,11 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
     if (target.userId === auth.user.id) {
       throw forbidden("Você não pode remover o próprio acesso.", "self_delete");
     }
-    if (target.roleSlug === "owner" && (await ownerCount(organizationId(auth))) <= 1) {
+    // Como no PATCH: remover um proprietário é permitido, desde que sobre um.
+    const perderiaOUltimoDono =
+      target.roleSlug === "owner" && (await ownerCount(organizationId(auth))) <= 1;
+
+    if (perderiaOUltimoDono) {
       throw forbidden("A organização precisa de pelo menos um proprietário ativo.", "last_owner");
     }
 
