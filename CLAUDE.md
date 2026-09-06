@@ -82,5 +82,5 @@ resto da infraestrutura. A única variável obrigatória é `DATABASE_URL`;
 
 ## Cuidado
 
-O `metadataBase` do `layout.tsx` ainda aponta para `https://nonia.io`, que não
-é o domínio real (`nonia.app`). Isso afeta URLs absolutas de Open Graph.
+O `metadataBase` do `layout.tsx` já aponta para `https://nonia.app` (o domínio
+real). O aviso anterior sobre `https://nonia.io` estava desatualizado.

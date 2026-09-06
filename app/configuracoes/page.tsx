@@ -56,7 +56,7 @@ export default function SettingsPage() {
               <Image src="/renato.png" alt="Pr. Renato" width={96} height={96} />
               <h3>Pr. Renato Almeida</h3>
               <small>Pastor Titular</small>
-              <div className="profile-info"><span><Mail />E-mail cadastrado</span><strong>contato@nonia.io</strong></div>
+              <div className="profile-info"><span><Mail />E-mail cadastrado</span><strong>contato@nonia.app</strong></div>
               <div className="profile-info"><span><Phone />Telefone</span><strong>(11) 98765-4321</strong></div>
               <button>Editar Informações Básicas</button>
             </article>

@@ -49,7 +49,7 @@ sozinho no primeiro boot.
    DATABASE_URL=postgresql://usuario:senha@host-interno-do-postgres:5432/nonia
    ```
 
-4. **Domínio**: adicione `nonia.io` (ou o subdomínio desejado) com HTTPS.
+4. **Domínio**: adicione `nonia.app` (ou o subdomínio desejado) com HTTPS.
    Health check disponível em `GET /api/health`.
 
 Alternativamente, use o `docker-compose.yml` como projeto **Compose** no

@@ -2,7 +2,7 @@
 
 ## Visao geral
 
-- Nonia (nonia.io) e uma plataforma de gestao ministerial.
+- Nonia (nonia.app) e uma plataforma de gestao ministerial.
 - Aplicacao Next.js 16 com App Router, React 19, TypeScript e CSS global.
 - Backend em Route Handlers Node dentro de `app/api`.
 - PostgreSQL acessado por Sequelize v6, com SQL explicito nas consultas.
