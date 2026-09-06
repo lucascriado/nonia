@@ -192,7 +192,7 @@ export default function CellsPage() {
                   <h3>{cell.name}</h3>
                   <p><MapPin />{cell.address || "Endereço não informado"}</p>
                   <p><Clock />{cell.meetingDay}, {cell.meetingTime}</p>
-                  <div className="avatar-row">{cell.members.slice(0, 3).map((member) => <span key={member.id}>{initials(member.name)}</span>)}{cell.memberCount > 3 && <span className="avatar-more">+{cell.memberCount - 3}</span>}</div>
+                  <div className="avatar-row" data-sobreposicao="intencional">{cell.members.slice(0, 3).map((member) => <span key={member.id}>{initials(member.name)}</span>)}{cell.memberCount > 3 && <span className="avatar-more">+{cell.memberCount - 3}</span>}</div>
                   <footer>
                     <button onClick={() => openForm("view", cell)}><Eye />Visualizar</button>
                     <button onClick={() => openForm("edit", cell)}><Edit3 />Editar</button>
