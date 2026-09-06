@@ -400,6 +400,30 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
 .primary-action svg { width: var(--icon-md); }
 .primary-action:disabled { cursor: not-allowed; opacity: .6; }
 
+/* Exportar e acao secundaria ao lado da primaria — e a unica que continua
+   valendo quando a conta cai para somente leitura, entao ela nao acompanha as
+   outras quando elas somem. */
+.export-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color .2s ease, background .2s ease, color .2s ease, transform .25s var(--ease-out);
+}
+.export-button:hover { border-color: var(--primary-border); background: var(--primary-soft); color: var(--heading); transform: translateY(-1px); }
+.export-button:active { transform: scale(.98); }
+.export-button svg { width: var(--icon-md); color: var(--muted); }
+.export-button:hover svg { color: var(--primary); }
+
 /* --------------------------------------------------------------------------
    Dashboard
    -------------------------------------------------------------------------- */
@@ -1514,6 +1538,11 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   /* A acao principal da tela sai do topo e vira botao flutuante no canto de
      baixo: no celular o topo e justamente a parte que o polegar nao alcanca
      sem trocar a mao de posicao. */
+  /* No celular a acao primaria vira botao flutuante; exportar fica na barra,
+     com largura inteira, porque e link e nao cabe flutuando junto. */
+  .export-button { width: 100%; min-height: 44px; justify-content: center; }
+  .members-heading, .visitors-heading, .resource-heading { gap: var(--space-3); }
+
   .members-heading > .primary-action,
   .visitors-heading > .primary-action,
   .resource-heading > .primary-action {
