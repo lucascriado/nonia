@@ -1,4 +1,9 @@
-// Dados cadastrais da igreja.
+// Dados cadastrais da igreja ATUAL da sessão.
+//
+// NÃO CONFUNDA COM /api/organizations, no plural: aquele é a COLEÇÃO -- as
+// igrejas em que a pessoa entra, e a criação de mais uma. Este aqui é sempre
+// a igreja da sessão, uma só. Os dois existem de propósito e são recursos
+// diferentes; quem abrir um precisa saber que o outro existe.
 //
 // Usa as permissões organization.read e organization.write, que existiam no
 // banco desde a 004 sem nenhuma rota consultando -- permissão declarada e

@@ -4,10 +4,10 @@ import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { createSession, jsonWithCookie, requestMeta, resolveSession, sessionCookie } from "@/lib/auth";
 import { badRequest, conflict, readJson } from "@/lib/http";
-import { Organization, OrganizationMember, User } from "@/lib/models";
+import { User } from "@/lib/models";
 import { hashPassword, validatePasswordStrength } from "@/lib/passwords";
 import { validarDocumento } from "@/lib/documents";
-import { EMAIL_PATTERN, normalizeEmail, uniqueOrganizationSlug } from "@/lib/organizations";
+import { criarOrganizacaoComDono, EMAIL_PATTERN, normalizeEmail } from "@/lib/organizations";
 import { sessionPayload } from "@/lib/auth-payloads";
 import { apiError } from "@/lib/records";
 
@@ -61,19 +61,6 @@ export async function POST(request: Request) {
     const meta = requestMeta(request);
 
     const result = await db.transaction(async (transaction) => {
-      const slug = await uniqueOrganizationSlug(payload.organizationSlug || organizationName, transaction);
-
-      const organization = await Organization.create(
-        {
-          name: organizationName,
-          slug,
-          document: documento,
-          email,
-          phone: payload.phone?.trim() || null,
-        },
-        { transaction },
-      );
-
       const user = await User.create(
         {
           email,
@@ -86,29 +73,19 @@ export async function POST(request: Request) {
         { transaction },
       );
 
-      const roles = await db.query<{ id: string }>(
-        `SELECT id FROM roles WHERE organization_id IS NULL AND slug = 'owner'`,
-        { transaction, type: QueryTypes.SELECT },
-      );
-      if (!roles.length) throw new Error("Papel 'owner' ausente: a migration 004 não foi aplicada.");
-
-      await OrganizationMember.create(
+      // O mesmo miolo que POST /api/organizations usa. A diferença é só a
+      // avaliação: quem chega pelo cadastro está experimentando o produto.
+      const organization = await criarOrganizacaoComDono(
         {
-          organizationId: organization.id,
-          userId: user.id,
-          roleId: roles[0].id,
-          status: "active",
-          isDefault: true,
+          name: organizationName,
+          slug: payload.organizationSlug,
+          document: documento,
+          email,
+          phone: payload.phone?.trim() || null,
         },
-        { transaction },
-      );
-
-      // Toda organização nasce em avaliação; a troca de plano virá com o gateway.
-      await db.query(
-        `INSERT INTO subscriptions (organization_id, plan_id, status, trial_ends_at)
-         SELECT $1, p.id, 'trialing', now() + (p.trial_days || ' days')::interval
-         FROM plans p WHERE p.slug = 'avaliacao'`,
-        { bind: [organization.id], transaction },
+        user.id,
+        { comAvaliacao: true, isDefault: true },
+        transaction,
       );
 
       await addActivity(
