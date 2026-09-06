@@ -6,11 +6,12 @@ import { usePathname } from "next/navigation";
 import { Church, Menu, X } from "lucide-react";
 import { marketingRoutes, signupHref } from "@/components/marketing/routes";
 
+// Tudo em minúsculo, acompanhando o "nonia" da marca.
 const navLinks = [
-  { label: "Recursos", href: "/#recursos" },
-  { label: "Como funciona", href: "/#como-funciona" },
-  { label: "Planos", href: "/#planos" },
-  { label: "Dúvidas", href: marketingRoutes.faq },
+  { label: "recursos", href: "/#recursos" },
+  { label: "como funciona", href: "/#como-funciona" },
+  { label: "planos", href: "/#planos" },
+  { label: "dúvidas", href: marketingRoutes.faq },
 ];
 
 export function SiteHeader() {
@@ -41,7 +42,7 @@ export function SiteHeader() {
   return (
     <header className={`mk-header${scrolled ? " is-scrolled" : ""}`}>
       <div className="mk-header-inner">
-        <Link className="mk-brand" href="/" aria-label="nonia — página inicial">
+        <Link className="mk-brand" href="/" aria-label="nonia - página inicial">
           <span className="mk-brand-icon" aria-hidden><Church /></span>
           <span className="mk-brand-text">nonia</span>
         </Link>
@@ -53,8 +54,14 @@ export function SiteHeader() {
         </nav>
 
         <div className="mk-header-actions">
-          <Link className="mk-link-button" href={marketingRoutes.login}>Entrar</Link>
-          <Link className="mk-button mk-button-primary mk-button-sm" href={signupHref()}>Criar conta</Link>
+          {/* O emoji é decorativo: `aria-hidden` para o leitor de tela não ler
+              "porta" antes de "entrar". */}
+          <Link className="mk-link-button" href={marketingRoutes.login}>
+            <span aria-hidden>🔑</span> entrar
+          </Link>
+          <Link className="mk-button mk-button-primary mk-button-sm" href={signupHref()}>
+            <span aria-hidden>✨</span> criar conta
+          </Link>
         </div>
 
         <button
@@ -76,8 +83,12 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="mk-mobile-actions">
-          <Link className="mk-button mk-button-ghost" href={marketingRoutes.login}>Entrar</Link>
-          <Link className="mk-button mk-button-primary" href={signupHref()}>Criar conta</Link>
+          <Link className="mk-button mk-button-ghost" href={marketingRoutes.login}>
+            <span aria-hidden>🔑</span> entrar
+          </Link>
+          <Link className="mk-button mk-button-primary" href={signupHref()}>
+            <span aria-hidden>✨</span> criar conta
+          </Link>
         </div>
       </div>
     </header>

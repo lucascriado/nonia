@@ -134,7 +134,7 @@ export function RegisterForm() {
         {/* SEM máscara e SEM filtrar para dígito: desde 31/07/2026 a Receita
             emite CNPJ alfanumérico, com letras nas 12 primeiras posições. Uma
             máscara de números recusaria o documento de qualquer igreja aberta
-            de agosto em diante — e recusaria na porta, no cadastro. */}
+            de agosto em diante - e recusaria na porta, no cadastro. */}
         <AuthField
           autoCapitalize="characters"
           error={errors.document}

@@ -31,7 +31,7 @@ const billingFaq = [
   },
   {
     question: "O preço muda conforme o tamanho da igreja?",
-    answer: "Não. O Comunidade custa R$ 89 por mês para qualquer tamanho de congregação — não cobramos por membro cadastrado.",
+    answer: "Não. O Comunidade custa R$ 89 por mês para qualquer tamanho de congregação - não cobramos por membro cadastrado.",
   },
   {
     question: "Posso trocar de plano depois?",
@@ -43,7 +43,7 @@ const billingFaq = [
   },
   {
     question: "Como funciona o plano Rede?",
-    answer: "Ele atende redes e denominações com várias congregações sob o mesmo contrato, cada uma com seu espaço e a liderança enxergando o consolidado. O valor depende do número de congregações — fale com a gente.",
+    answer: "Ele atende redes e denominações com várias congregações sob o mesmo contrato, cada uma com seu espaço e a liderança enxergando o consolidado. O valor depende do número de congregações - fale com a gente.",
   },
 ];
 
@@ -110,12 +110,13 @@ export default function PricingPage() {
               a pessoa no 15º dia. */}
           <Reveal className="mk-trial-note" delay={320}>
             <span className="mk-trial-badge"><Sparkles aria-hidden /> Toda conta começa assim</span>
+            {/* Só a avaliação: o que acontece no 15º dia está no FAQ e dentro
+                do app. Aqui é ponto de decisão, e o plano Semente já aparece
+                como cartão logo acima. */}
             <p>
-              Os <strong>14 primeiros dias são de avaliação</strong>, com 200
-              pessoas e 5 usuários liberados, para a igreja experimentar tudo.
-              Terminado o prazo sem assinar, a conta continua funcionando no{" "}
-              <strong>Semente</strong>, de graça e sem expirar. Não pedimos
-              cartão em nenhum dos dois momentos.
+              Os <strong>14 primeiros dias são de avaliação</strong>, com todos os
+              recursos liberados, 200 pessoas e 5 usuários. Não pedimos cartão
+              para começar.
             </p>
           </Reveal>
         </div>
@@ -126,7 +127,7 @@ export default function PricingPage() {
           <Reveal className="mk-section-head">
             <span className="mk-eyebrow">Comparativo</span>
             <h2>O que entra em cada plano</h2>
-            <p>Tudo o que está marcado já funciona hoje — nada aqui é promessa de roadmap.</p>
+            <p>Tudo o que está marcado já funciona hoje - nada aqui é promessa de roadmap.</p>
           </Reveal>
 
           <Reveal className="mk-compare-scroll" delay={80}>
@@ -225,7 +226,7 @@ export default function PricingPage() {
 
 /**
  * Célula do comparativo. O ícone sozinho não diz nada para quem usa leitor de
- * tela — e, no celular, a tabela vira lista e a coluna deixa de identificar o
+ * tela - e, no celular, a tabela vira lista e a coluna deixa de identificar o
  * plano. Por isso cada célula carrega um texto próprio.
  */
 function ComparisonCell({ value, plan, row }: { value: ComparisonValue; plan: string; row: string }) {

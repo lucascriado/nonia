@@ -8,7 +8,7 @@ import { FaqSections } from "./faq-sections";
 export const metadata: Metadata = {
   title: "Dúvidas frequentes",
   description:
-    "Como funcionam membros, visitantes, células, ministérios, agenda e financeiro no nonia — e as perguntas que toda igreja faz sobre planos, dados e segurança.",
+    "Como funcionam membros, visitantes, células, ministérios, agenda e financeiro no nonia - e as perguntas que toda igreja faz sobre planos, dados e segurança.",
   alternates: { canonical: "/faq" },
 };
 
@@ -24,7 +24,7 @@ export default function FaqPage() {
           <Reveal as="p" delay={120}>
             Cada bloco abaixo explica um módulo do sistema e responde as
             perguntas que a liderança costuma fazer antes de assinar. Role a
-            página — o índice à esquerda acompanha onde você está.
+            página - o índice à esquerda acompanha onde você está.
           </Reveal>
         </div>
       </section>

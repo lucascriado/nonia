@@ -28,13 +28,13 @@ export function SiteFooter() {
     <footer className="mk-footer">
       <div className="mk-container mk-footer-inner">
         <div className="mk-footer-brand">
-          <Link className="mk-brand" href="/" aria-label="nonia — página inicial">
+          <Link className="mk-brand" href="/" aria-label="nonia - página inicial">
             <span className="mk-brand-icon" aria-hidden><Church /></span>
             <span className="mk-brand-text">nonia</span>
           </Link>
           <p>
-            Plataforma de gestão ministerial para igrejas que querem cuidar de
-            pessoas sem se perder em planilhas.
+            O sistema que organiza a sua igreja, do cadastro de membros ao
+            caixa, sem planilha espalhada.
           </p>
         </div>
 
@@ -49,7 +49,7 @@ export function SiteFooter() {
       </div>
 
       <div className="mk-container mk-footer-bottom">
-        <small>© {new Date().getFullYear()} nonia.app — todos os direitos reservados.</small>
+        <small>© {new Date().getFullYear()} nonia.app - todos os direitos reservados.</small>
         <small>Feito no Brasil, em português.</small>
       </div>
     </footer>
