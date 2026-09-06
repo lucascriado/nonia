@@ -48,6 +48,29 @@ git diff --check
 - Sequelize gerencia conexao, pool e transacoes. As migrations SQL continuam
   sendo a fonte de verdade do schema.
 
+## Autenticacao e multi-tenancy
+
+- Cada igreja e uma `organization`; todo dado de dominio tem `organization_id`.
+- A identidade de login e `users` (e-mail unico global); o vinculo com a
+  igreja e o papel ficam em `organization_members`.
+- Sessao propria: token aleatorio opaco no cookie httpOnly `nonia_session`,
+  com o SHA-256 dele em `sessions`. Nao ha JWT nem AUTH_SECRET.
+- Senha com scrypt de `node:crypto` (`lib/passwords.ts`), sem dependencia
+  nativa. O hash guarda os proprios parametros de custo.
+- `middleware.ts` roda no Edge e so desvia navegacao pela presenca do cookie.
+  Quem valida sessao e permissao e o handler, via `lib/auth.ts`.
+- Toda rota de `app/api` comeca com `requirePermission(...)` e usa
+  `organizationId(auth)` em todo SELECT, UPDATE, DELETE e INSERT.
+- Ids vindos do payload (`leaderId`, `memberIds`) passam por
+  `assertBelongsToOrganization`/`filterOwnedMemberIds` de `lib/tenant.ts`.
+- Papeis do sistema: `owner`, `admin`, `secretaria`, `lider`, `leitura`.
+  As permissoes sao pares `recurso.acao` em `permissions`/`role_permissions`.
+- `addActivity` agora recebe o contexto da sessao e grava o tenant e o autor.
+- Acesso de desenvolvimento apos `npm run db:seed:dev`:
+  `demo@nonia.app` / `demo1234`.
+- `npm run auth:owner -- --email ... --name ... --password ...` cria o
+  proprietario de uma organizacao que ficou sem usuario.
+
 ## Banco e migrations
 
 - A variavel obrigatoria e `DATABASE_URL`; nunca versione credenciais reais.

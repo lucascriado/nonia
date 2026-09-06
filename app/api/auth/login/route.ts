@@ -64,7 +64,7 @@ export async function POST(request: Request) {
         `UPDATE users
          SET failed_login_attempts = failed_login_attempts + 1,
              locked_until = CASE
-               WHEN failed_login_attempts + 1 >= $2 THEN now() + ($3 || ' minutes')::interval
+               WHEN failed_login_attempts + 1 >= $2 THEN now() + make_interval(mins => $3::int)
                ELSE locked_until
              END
          WHERE id = $1`,

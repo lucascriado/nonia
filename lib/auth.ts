@@ -198,14 +198,14 @@ async function loadContext(token: string): Promise<AuthContext | null> {
   }
 
   const now = Date.now();
-  const expiresAt = new Date(row.expiresAt);
-  const shouldRenew = expiresAt.getTime() - now < SESSION_RENEW_THRESHOLD_MS;
+  const current = new Date(row.expiresAt);
+  const shouldRenew = current.getTime() - now < SESSION_RENEW_THRESHOLD_MS;
   const shouldTouch = now - new Date(row.lastSeenAt).getTime() > LAST_SEEN_THROTTLE_MS;
+  const expiresAt = shouldRenew ? new Date(now + SESSION_TTL_MS) : current;
 
   if (shouldRenew || shouldTouch) {
-    const nextExpiry = shouldRenew ? new Date(now + SESSION_TTL_MS) : expiresAt;
     await db.query(`UPDATE sessions SET last_seen_at = now(), expires_at = $2 WHERE id = $1`, {
-      bind: [row.sessionId, nextExpiry],
+      bind: [row.sessionId, expiresAt],
     });
   }
 

@@ -1,15 +1,51 @@
 -- Seed de demonstração/desenvolvimento do Nonia.
 -- Idempotente: pode ser executado mais de uma vez sem duplicar registros.
 -- Não use em produção; o banco de produção começa vazio.
+--
+-- Tudo aqui pertence à organização de demonstração (slug 'demo'). O acesso
+-- é demo@nonia.app / demo1234, com papel de proprietário.
 
-INSERT INTO ministries (name, color, description) VALUES
+INSERT INTO organizations (name, slug, email, status)
+VALUES ('Igreja Demonstração', 'demo', 'demo@nonia.app', 'active')
+ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name;
+
+INSERT INTO users (email, full_name, password_hash, status, email_verified_at)
+VALUES (
+  'demo@nonia.app',
+  'Equipe de Demonstração',
+  'scrypt$32768$8$1$M3XpOX9U/FzJvig0Mgn5jg==$3GIoq+rIYwbdo8tXPrFcnhMJN08kP3KEjd5YDDiJcG2km9T9r6pi4N36btDowri5XWyhGRW7xYgluGj6ZoRfnA==',
+  'active',
+  now()
+)
+ON CONFLICT ((lower(email))) DO UPDATE SET full_name = EXCLUDED.full_name, password_hash = EXCLUDED.password_hash;
+
+INSERT INTO organization_members (organization_id, user_id, role_id, status, is_default)
+SELECT o.id, u.id, r.id, 'active', true
+FROM organizations o, users u, roles r
+WHERE o.slug = 'demo' AND lower(u.email) = 'demo@nonia.app'
+  AND r.organization_id IS NULL AND r.slug = 'owner'
+ON CONFLICT (organization_id, user_id) DO UPDATE SET role_id = EXCLUDED.role_id, status = 'active';
+
+INSERT INTO subscriptions (organization_id, plan_id, status, trial_ends_at)
+SELECT o.id, p.id, 'trialing', now() + (p.trial_days || ' days')::interval
+FROM organizations o, plans p
+WHERE o.slug = 'demo' AND p.slug = 'avaliacao'
+  AND NOT EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.organization_id = o.id AND s.status IN ('trialing', 'active', 'past_due', 'incomplete')
+  );
+
+INSERT INTO ministries (organization_id, name, color, description)
+SELECT (SELECT id FROM organizations WHERE slug = 'demo'), * FROM (VALUES
   ('Louvor', 'blue', 'Equipe de música e adoração.'),
   ('Missões', 'green', 'Projetos missionários e evangelismo.'),
   ('Acolhimento', 'purple', 'Recepção e integração de visitantes.'),
   ('Infantil', 'purple', 'Ministério com crianças.')
-ON CONFLICT (name) DO UPDATE SET color = EXCLUDED.color, description = EXCLUDED.description;
+) AS data(name, color, description)
+ON CONFLICT (organization_id, name) DO UPDATE SET color = EXCLUDED.color, description = EXCLUDED.description;
 
-INSERT INTO people (full_name, email, birth_date) VALUES
+INSERT INTO people (organization_id, full_name, email, birth_date)
+SELECT (SELECT id FROM organizations WHERE slug = 'demo'), * FROM (VALUES
   ('Ana Clara Oliveira', 'ana.clara@exemplo.com', '1994-03-12'),
   ('Marcos Santos', 'marcos.santos@exemplo.com', '1988-07-25'),
   ('Julia Pereira', 'julia.p@exemplo.com', '1999-01-30'),
@@ -39,11 +75,12 @@ INSERT INTO people (full_name, email, birth_date) VALUES
   ('Gustavo Melo', 'gustavo.m@exemplo.com', '1981-07-17'),
   ('Tainá Alves', 'taina.a@exemplo.com', '1999-05-25'),
   ('Renata Barbosa', 'renata.b@exemplo.com', '1986-01-19'),
-  ('Diego Nunes', 'diego.n@exemplo.com', '1994-08-28')
-ON CONFLICT ((lower(email))) DO UPDATE SET full_name = EXCLUDED.full_name;
+  ('Diego Nunes', 'diego.n@exemplo.com', DATE '1994-08-28')
+) AS data(full_name, email, birth_date)
+ON CONFLICT (organization_id, lower(email)) DO UPDATE SET full_name = EXCLUDED.full_name;
 
-INSERT INTO members (person_id, ministry_id, status, baptism_status, admission_date, is_new, cell_name)
-SELECT p.id, mi.id, data.status, data.baptism_status, data.admission_date, data.is_new, data.cell_name
+INSERT INTO members (person_id, organization_id, ministry_id, status, baptism_status, admission_date, is_new, cell_name)
+SELECT p.id, p.organization_id, mi.id, data.status, data.baptism_status, data.admission_date, data.is_new, data.cell_name
 FROM (
   VALUES
     ('ana.clara@exemplo.com', 'Louvor', 'active', 'baptized', DATE '2021-05-15', false, 'Célula Esperança'),
@@ -65,8 +102,8 @@ FROM (
     ('isabela.s@exemplo.com', 'Missões', 'active', 'baptized', DATE '2022-08-19', false, 'Célula Graça'),
     ('henrique.o@exemplo.com', 'Acolhimento', 'active', 'waiting', DATE '2024-05-02', true, 'Célula Família')
 ) AS data(email, ministry, status, baptism_status, admission_date, is_new, cell_name)
-JOIN people p ON lower(p.email) = lower(data.email)
-LEFT JOIN ministries mi ON mi.name = data.ministry
+JOIN people p ON lower(p.email) = lower(data.email) AND p.organization_id = (SELECT id FROM organizations WHERE slug = 'demo')
+LEFT JOIN ministries mi ON mi.name = data.ministry AND mi.organization_id = p.organization_id
 ON CONFLICT (person_id) DO UPDATE SET
   ministry_id = EXCLUDED.ministry_id,
   status = EXCLUDED.status,
@@ -75,8 +112,8 @@ ON CONFLICT (person_id) DO UPDATE SET
   is_new = EXCLUDED.is_new,
   cell_name = EXCLUDED.cell_name;
 
-INSERT INTO visitors (person_id, visit_date, invited_by, follow_up_status, membership_stage, is_recent)
-SELECT p.id, data.visit_date, data.invited_by, data.follow_up_status, data.membership_stage, data.is_recent
+INSERT INTO visitors (person_id, organization_id, visit_date, invited_by, follow_up_status, membership_stage, is_recent)
+SELECT p.id, p.organization_id, data.visit_date, data.invited_by, data.follow_up_status, data.membership_stage, data.is_recent
 FROM (
   VALUES
     ('ricardo.lima@exemplo.com', CURRENT_DATE - 3, 'Pr. Anderson', 'waiting_contact', 'visited', true),
@@ -92,7 +129,7 @@ FROM (
     ('renata.b@exemplo.com', CURRENT_DATE - 62, 'Pr. Anderson', 'following_up', 'contacted', false),
     ('diego.n@exemplo.com', CURRENT_DATE - 69, 'Espontâneo', 'integrated', 'member', false)
 ) AS data(email, visit_date, invited_by, follow_up_status, membership_stage, is_recent)
-JOIN people p ON lower(p.email) = lower(data.email)
+JOIN people p ON lower(p.email) = lower(data.email) AND p.organization_id = (SELECT id FROM organizations WHERE slug = 'demo')
 ON CONFLICT (person_id) DO UPDATE SET
   visit_date = EXCLUDED.visit_date,
   invited_by = EXCLUDED.invited_by,
@@ -100,20 +137,21 @@ ON CONFLICT (person_id) DO UPDATE SET
   membership_stage = EXCLUDED.membership_stage,
   is_recent = EXCLUDED.is_recent;
 
-INSERT INTO cells (name, meeting_day, meeting_time, color)
-SELECT DISTINCT cell_name, 'Domingo', '19:30'::time, 'purple'
+INSERT INTO cells (organization_id, name, meeting_day, meeting_time, color)
+SELECT DISTINCT organization_id, cell_name, 'Domingo', '19:30'::time, 'purple'
 FROM members
-WHERE cell_name <> 'Sem célula'
-ON CONFLICT (name) DO NOTHING;
+WHERE cell_name <> 'Sem célula' AND organization_id = (SELECT id FROM organizations WHERE slug = 'demo')
+ON CONFLICT (organization_id, name) DO NOTHING;
 
-INSERT INTO cell_members (cell_id, member_id)
-SELECT c.id, m.person_id
+INSERT INTO cell_members (cell_id, member_id, organization_id)
+SELECT c.id, m.person_id, m.organization_id
 FROM members m
-JOIN cells c ON c.name = m.cell_name
+JOIN cells c ON c.name = m.cell_name AND c.organization_id = m.organization_id
+WHERE m.organization_id = (SELECT id FROM organizations WHERE slug = 'demo')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO events (title, description, location, starts_at, ends_at, color)
-SELECT data.title, data.description, data.location, data.starts_at, data.ends_at, data.color
+INSERT INTO events (organization_id, title, description, location, starts_at, ends_at, color)
+SELECT (SELECT id FROM organizations WHERE slug = 'demo'), data.title, data.description, data.location, data.starts_at, data.ends_at, data.color
 FROM (
   VALUES
     ('Culto de Celebração', 'Encontro semanal da congregação.', 'Templo Principal', date_trunc('day', now()) + interval '2 days 19 hours', date_trunc('day', now()) + interval '2 days 21 hours', 'purple'),
@@ -122,10 +160,10 @@ FROM (
     ('Classe de Batismo', 'Preparação dos candidatos ao batismo.', 'Sala 02', date_trunc('day', now()) + interval '9 days 9 hours', date_trunc('day', now()) + interval '9 days 11 hours', 'green'),
     ('Conferência Missionária', 'Programação especial do ministério de missões.', 'Templo Principal', date_trunc('day', now()) + interval '15 days 18 hours', date_trunc('day', now()) + interval '15 days 22 hours', 'purple')
 ) AS data(title, description, location, starts_at, ends_at, color)
-WHERE NOT EXISTS (SELECT 1 FROM events e WHERE e.title = data.title);
+WHERE NOT EXISTS (SELECT 1 FROM events e WHERE e.title = data.title AND e.organization_id = (SELECT id FROM organizations WHERE slug = 'demo'));
 
-INSERT INTO activities (category, actor, action, subject, details, occurred_at)
-SELECT data.category, data.actor, data.action, data.subject, data.details, data.occurred_at
+INSERT INTO activities (organization_id, category, actor, action, subject, details, occurred_at)
+SELECT (SELECT id FROM organizations WHERE slug = 'demo'), data.category, data.actor, data.action, data.subject, data.details, data.occurred_at
 FROM (
   VALUES
     ('members', 'Ana Silva', 'cadastrou um novo membro', 'Lucas Oliveira', 'Cadastro concluído com ministério e célula definidos.', now() - interval '2 hours'),
@@ -139,12 +177,13 @@ FROM (
 ) AS data(category, actor, action, subject, details, occurred_at)
 WHERE NOT EXISTS (
   SELECT 1 FROM activities a
-  WHERE a.category = data.category AND a.actor = data.actor AND a.action = data.action
+  WHERE a.organization_id = (SELECT id FROM organizations WHERE slug = 'demo')
+    AND a.category = data.category AND a.actor = data.actor AND a.action = data.action
     AND a.subject IS NOT DISTINCT FROM data.subject
 );
 
-INSERT INTO financial_transactions (type, description, category, counterparty, amount, status, transaction_date, payment_method, attachment_url, attachment_name, notes)
-SELECT data.type, data.description, data.category, data.counterparty, data.amount, data.status, data.transaction_date, data.payment_method, data.attachment_url, data.attachment_name, data.notes
+INSERT INTO financial_transactions (organization_id, type, description, category, counterparty, amount, status, transaction_date, payment_method, attachment_url, attachment_name, notes)
+SELECT (SELECT id FROM organizations WHERE slug = 'demo'), data.type, data.description, data.category, data.counterparty, data.amount, data.status, data.transaction_date, data.payment_method, data.attachment_url, data.attachment_name, data.notes
 FROM (
   VALUES
     ('income', 'Dízimos do mês', 'Dízimos', 'Congregação', 18500.00, 'paid', CURRENT_DATE - 2, 'Pix', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'comprovante-dizimos.png', NULL),
@@ -159,5 +198,6 @@ FROM (
 ) AS data(type, description, category, counterparty, amount, status, transaction_date, payment_method, attachment_url, attachment_name, notes)
 WHERE NOT EXISTS (
   SELECT 1 FROM financial_transactions f
-  WHERE f.description = data.description AND f.transaction_date = data.transaction_date
+  WHERE f.organization_id = (SELECT id FROM organizations WHERE slug = 'demo')
+    AND f.description = data.description AND f.transaction_date = data.transaction_date
 );
