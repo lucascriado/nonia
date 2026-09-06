@@ -1,0 +1,139 @@
+// Troca de papel, desativação e remoção de um usuário dentro da organização.
+import { QueryTypes } from "sequelize";
+import { db } from "@/lib/db";
+import { addActivity } from "@/lib/activities";
+import { organizationId, requirePermission } from "@/lib/auth";
+import { badRequest, forbidden, notFound } from "@/lib/http";
+import { apiError } from "@/lib/records";
+
+export const runtime = "nodejs";
+
+type UpdatePayload = { roleSlug?: string; status?: string; personId?: string | null };
+
+async function ownerCount(organization: string) {
+  const rows = await db.query<{ count: number }>(
+    `SELECT count(*)::int AS count
+     FROM organization_members om
+     JOIN roles r ON r.id = om.role_id
+     WHERE om.organization_id = $1 AND om.status = 'active' AND r.slug = 'owner'`,
+    { bind: [organization], type: QueryTypes.SELECT },
+  );
+  return rows[0]?.count ?? 0;
+}
+
+async function membership(organization: string, userId: string) {
+  const rows = await db.query<{ userId: string; roleSlug: string; fullName: string }>(
+    `SELECT om.user_id AS "userId", r.slug AS "roleSlug", u.full_name AS "fullName"
+     FROM organization_members om
+     JOIN roles r ON r.id = om.role_id
+     JOIN users u ON u.id = om.user_id
+     WHERE om.organization_id = $1 AND om.user_id = $2`,
+    { bind: [organization, userId], type: QueryTypes.SELECT },
+  );
+  return rows[0] ?? null;
+}
+
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const auth = await requirePermission("users.write");
+    const { id } = await context.params;
+    const payload = (await request.json()) as UpdatePayload;
+
+    const target = await membership(organizationId(auth), id);
+    if (!target) throw notFound("Usuário não encontrado nesta organização.");
+
+    if (target.userId === auth.user.id && (payload.roleSlug || payload.status)) {
+      throw forbidden("Você não pode alterar o próprio papel ou acesso.", "self_update");
+    }
+    if (payload.roleSlug === "owner" && auth.role.slug !== "owner") {
+      throw forbidden("Apenas o proprietário pode conceder o papel de proprietário.", "missing_role");
+    }
+    // A organização não pode ficar sem proprietário ativo.
+    if (target.roleSlug === "owner" && (payload.roleSlug || payload.status === "suspended")) {
+      if ((await ownerCount(organizationId(auth))) <= 1) {
+        throw forbidden("A organização precisa de pelo menos um proprietário ativo.", "last_owner");
+      }
+    }
+
+    let roleId: string | null = null;
+    if (payload.roleSlug) {
+      const roles = await db.query<{ id: string }>(
+        `SELECT id FROM roles
+         WHERE slug = $1 AND (organization_id IS NULL OR organization_id = $2)
+         ORDER BY organization_id NULLS LAST LIMIT 1`,
+        { bind: [payload.roleSlug, organizationId(auth)], type: QueryTypes.SELECT },
+      );
+      if (!roles.length) throw badRequest("Papel inválido.", "invalid_role");
+      roleId = roles[0].id;
+    }
+
+    if (payload.status && !["active", "suspended"].includes(payload.status)) {
+      throw badRequest("Status inválido.", "invalid_status");
+    }
+
+    await db.transaction(async (transaction) => {
+      await db.query(
+        `UPDATE organization_members
+         SET role_id = COALESCE($3, role_id),
+             status = COALESCE($4, status),
+             person_id = CASE WHEN $5::boolean THEN $6::uuid ELSE person_id END
+         WHERE organization_id = $1 AND user_id = $2`,
+        {
+          bind: [
+            organizationId(auth),
+            id,
+            roleId,
+            payload.status ?? null,
+            payload.personId !== undefined,
+            payload.personId ?? null,
+          ],
+          transaction,
+        },
+      );
+
+      // Acesso suspenso derruba as sessões abertas naquela organização.
+      if (payload.status === "suspended") {
+        await db.query(
+          `UPDATE sessions SET revoked_at = now()
+           WHERE user_id = $1 AND organization_id = $2 AND revoked_at IS NULL`,
+          { bind: [id, organizationId(auth)], transaction },
+        );
+      }
+
+      await addActivity(transaction, auth, "system", "atualizou o acesso de", target.fullName);
+    });
+
+    return Response.json({ ok: true });
+  } catch (error) {
+    return apiError(error);
+  }
+}
+
+export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const auth = await requirePermission("users.write");
+    const { id } = await context.params;
+
+    const target = await membership(organizationId(auth), id);
+    if (!target) throw notFound("Usuário não encontrado nesta organização.");
+    if (target.userId === auth.user.id) {
+      throw forbidden("Você não pode remover o próprio acesso.", "self_delete");
+    }
+    if (target.roleSlug === "owner" && (await ownerCount(organizationId(auth))) <= 1) {
+      throw forbidden("A organização precisa de pelo menos um proprietário ativo.", "last_owner");
+    }
+
+    await db.transaction(async (transaction) => {
+      // Remove só o vínculo: o usuário segue existindo em outras igrejas.
+      await db.query(`DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`, {
+        bind: [organizationId(auth), id],
+        transaction,
+      });
+      await addActivity(transaction, auth, "system", "removeu o acesso de", target.fullName);
+    });
+
+    return Response.json({ ok: true });
+  } catch (error) {
+    return apiError(error);
+  }
+}

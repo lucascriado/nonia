@@ -225,6 +225,12 @@ async function loadContext(token: string): Promise<AuthContext | null> {
   };
 }
 
+/**
+ * Resolve o contexto a partir do token cru. Usado pelo login e pelo cadastro,
+ * que precisam montar a resposta antes de o cookie existir na requisição.
+ */
+export const resolveSession = (token: string) => loadContext(token);
+
 /** Lê o cookie e resolve a sessão. Memoizado por requisição. */
 export const getSession = cache(async (): Promise<AuthContext | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
