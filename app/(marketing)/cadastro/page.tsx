@@ -6,12 +6,13 @@ import { RegisterForm } from "./register-form";
 export const metadata: Metadata = {
   title: "Cadastre sua igreja",
   description:
-    "Crie a conta da sua igreja no nonia em um minuto. Plano gratuito para até 100 membros, sem cartão de crédito.",
+    "Crie a conta da sua igreja no nonia em um minuto. São 14 dias de avaliação e depois o plano Semente gratuito, sem cartão de crédito.",
   alternates: { canonical: "/cadastro" },
 };
 
 const reassurances = [
-  "Plano gratuito para até 100 membros, sem prazo para expirar",
+  "14 dias de avaliação com tudo liberado: 200 pessoas e 5 usuários",
+  "Terminado o prazo, a conta continua de graça no Semente, sem expirar",
   "Sem cartão de crédito e sem taxa de instalação",
   "Membros, visitantes, células, ministérios, agenda e financeiro desde o primeiro dia",
   "Seus dados são da igreja: exportação sempre disponível",
