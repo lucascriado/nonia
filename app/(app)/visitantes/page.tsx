@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
 import { ConfirmConvertDialog, DeleteRecordDialog, PersonRecordDialog, PersonRecordValues } from "@/components/person-record-dialog";
@@ -167,6 +168,7 @@ export default function VisitorsPage() {
       <main className="visitors-main">
         <section className="visitors-heading">
           <div><h2>Gestão de Visitantes</h2><p>Acompanhe e integre novas pessoas à nossa comunidade.</p></div>
+          <ExportButton resource="visitors" permission="visitors.read" filters={{ search, tab, invitedBy }} />
           <button className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>
         </section>
 

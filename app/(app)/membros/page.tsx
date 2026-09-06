@@ -15,6 +15,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
 import { DeleteRecordDialog, PersonRecordDialog, PersonRecordValues } from "@/components/person-record-dialog";
@@ -154,6 +155,7 @@ export default function MembersPage() {
       <main className="members-main">
         <section className="members-heading">
           <div><h2>Gestão de Membros</h2><p>Visualize, filtre e gerencie todos os membros da congregação.</p></div>
+          <ExportButton resource="members" permission="members.read" filters={{ search, ministry, status, baptism }} />
           <button className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>
         </section>
 
