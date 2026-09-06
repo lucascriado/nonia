@@ -14,7 +14,6 @@ export const APP_SCREENS = [
   "/painel",
   "/membros",
   "/visitantes",
-  "/celulas",
   "/ministerios",
   "/financeiro",
   "/atividades",
