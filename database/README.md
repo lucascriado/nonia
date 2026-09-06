@@ -28,7 +28,7 @@ O banco do time roda 18.6.
   organização `demo`, com acesso `demo@nonia.app` / `demo1234`.
 - `migrate.mjs`: executor de migrations multiplataforma (Node).
 
-> As migrations 004–007 chegam à `main` com a integração da branch
+> As migrations 004–008 chegam à `main` com a integração da branch
 > `feat/auth-multitenant`.
 
 ## Executar
@@ -36,9 +36,18 @@ O banco do time roda 18.6.
 Defina `DATABASE_URL` e execute:
 
 ```bash
+npm run db:status        # o que falta aplicar, sem aplicar nada
 npm run db:migrate       # aplica migrations pendentes
 npm run db:seed:dev      # migrations + seed de demonstração
 ```
+
+**`npm run db:status` antes de anunciar que uma integração está verificada.**
+`typecheck` e `build` não tocam o banco: eles passam com o schema desatualizado,
+e o problema só aparece depois, como 500 dizendo que uma coluna não existe —
+uma mensagem que parece bug de código e não é. Já aconteceu uma vez, com a
+`008`: a coluna `max_members` ainda era `max_people` no banco compartilhado
+enquanto o código da `main` já a consultava. `db:status` sai com código 1
+quando há pendência, então serve como verificação automática.
 
 O executor mantém a tabela `schema_migrations` e ignora arquivos já aplicados.
 Rodando pelo container, as migrations são aplicadas na inicialização — por isso
@@ -50,7 +59,7 @@ backfill.
 proprietário de uma organização que ficou sem usuário — o caso da organização
 gerada pelo backfill da `005`.
 
-Para mudar o schema, crie uma nova migration numerada (a próxima é `008_...sql`).
+Para mudar o schema, crie uma nova migration numerada (a próxima é `009_...sql`).
 Não altere migrations já aplicadas.
 
 ## Multi-tenancy no schema

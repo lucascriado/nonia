@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "db:migrate": "node database/migrate.mjs",
+    "db:status": "node database/status.mjs",
     "db:seed:dev": "node database/migrate.mjs --seed-dev",
     "auth:owner": "node database/create-owner.mjs",
     "start": "next start",
