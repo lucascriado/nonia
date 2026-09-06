@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { badRequest, readJson } from "@/lib/http";
+import { validarDocumento } from "@/lib/documents";
 import { EMAIL_PATTERN } from "@/lib/organizations";
 import { apiError } from "@/lib/records";
 
@@ -63,6 +64,14 @@ export async function PATCH(request: Request) {
     const email = payload.email?.trim() || null;
     if (email && !EMAIL_PATTERN.test(email)) throw badRequest("Informe um e-mail válido.");
 
+    // Mesma validação do cadastro. null explícito limpa o campo.
+    let documento: string | null = null;
+    if (payload.document?.trim()) {
+      const validado = validarDocumento(payload.document);
+      if (!validado) throw badRequest("Informe um CNPJ ou CPF válido.", "invalid_document");
+      documento = validado.formatado;
+    }
+
     await db.transaction(async (transaction) => {
       await db.query(
         `UPDATE organizations
@@ -75,7 +84,7 @@ export async function PATCH(request: Request) {
           bind: [
             organizationId(auth),
             name ?? null,
-            payload.document !== undefined, payload.document?.trim() || null,
+            payload.document !== undefined, documento,
             payload.email !== undefined, email,
             payload.phone !== undefined, payload.phone?.trim() || null,
           ],
