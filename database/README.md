@@ -94,7 +94,7 @@ Depois aponte `DATABASE_URL` para `127.0.0.1:15432`.
 Os limites são **dado**, em colunas de `plans`, e não regra espalhada pelo
 código — é neles que o checkout do Mercado Pago vai se ancorar.
 
-| slug | `price_cents` | `max_people` | `max_users` |
+| slug | `price_cents` | `max_members` | `max_users` |
 | --- | --- | --- | --- |
 | `avaliacao` | 0, por 14 dias | 200 | 5 |
 | `semente` | 0 | 100 | 1 |
@@ -105,8 +105,35 @@ Em `price_cents`, **`NULL` é "sob consulta" e `0` é gratuito de verdade** — 
 essa distinção a Rede ficaria indistinguível da Semente. Toda organização nasce
 em `avaliacao`.
 
-**Os tetos não são aplicados por nenhuma rota.** Ver Pendências no
-[`CLAUDE.md`](../CLAUDE.md).
+A coluna se chamava `max_people` e virou `max_members` na `008`: a landing
+promete "até 100 **membros**", e `people` aqui guarda membros **e** visitantes.
+Contar visitante contra esse teto quebraria a promessa comercial.
+
+### Como os tetos são aplicados
+
+`lib/plan-limits.ts` é o único lugar que decide. O teto sai sempre do plano da
+assinatura vigente, lido do banco; `NULL` é ilimitado; papel não interfere,
+porque teto é comercial e não permissão.
+
+| Teto | Conta | Verificado em |
+| --- | --- | --- |
+| `max_members` | linhas em `members` | criar membro, converter visitante em membro |
+| `max_users` | vínculos não suspensos **+** convites pendentes | criar usuário, criar convite, reativar suspenso |
+
+Visitante não conta contra `max_members`. Aceitar convite não é verificado: o
+assento já foi reservado quando o convite foi criado, e barrar alguém que
+acabou de definir a senha seria pior do que barrar quem convidou.
+
+A verificação é `uso >= teto` **na criação**. Uma organização acima do teto —
+porque o plano mudou, ou porque os dados vieram antes da regra — continua
+lendo e editando tudo que tem; ela só não cresce mais. Nada é apagado e
+ninguém perde acesso.
+
+Quem esbarra recebe **402** com `code: "plan_limit_reached"` e, no corpo,
+`resource`, `limit`, `current`, `plan` e `suggestedPlan`. A mensagem em pt-BR
+diz o teto, onde a igreja está e qual plano resolve — quem esbarra é quem a
+gente quer que assine. O plano sugerido sai do banco (`trial_days = 0`, o mais
+barato que resolve), então `avaliacao` nunca é sugerido como upgrade.
 
 ## Valores persistidos
 

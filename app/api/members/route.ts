@@ -4,6 +4,7 @@ import { organizationId, requirePermission } from "@/lib/auth";
 import { Member, Ministry, Person } from "@/lib/models";
 import { apiError, nullable, personAttributes, RecordPayload, validateRecordPayload } from "@/lib/records";
 import { syncCellMembership } from "@/lib/cell-membership";
+import { assertWithinPlanLimit } from "@/lib/plan-limits";
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,8 @@ export async function POST(request: Request) {
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
     const id = await db.transaction(async (transaction) => {
+      await assertWithinPlanLimit(auth, "members", transaction);
+
       const person = await Person.create(
         { ...personAttributes(payload), organizationId: organizationId(auth) },
         { transaction },

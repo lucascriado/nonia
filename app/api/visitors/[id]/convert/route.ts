@@ -3,6 +3,7 @@ import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { notFound } from "@/lib/http";
 import { Member, Person, Visitor } from "@/lib/models";
+import { assertWithinPlanLimit } from "@/lib/plan-limits";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -25,6 +26,10 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       });
 
       if (!existingMember) {
+        // A conversão é o outro caminho que aumenta a contagem de membros.
+        // Reconverter quem já é membro não cria nada, então não é verificado.
+        await assertWithinPlanLimit(auth, "members", transaction);
+
         await Member.create({
           personId: id,
           organizationId: organizationId(auth),
