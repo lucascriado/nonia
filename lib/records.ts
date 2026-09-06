@@ -47,15 +47,19 @@ export function personAttributes(payload: RecordPayload) {
   };
 }
 
+/** PNG ou JPG em base64, dentro do limite. Devolve a mensagem de erro ou null. */
+export function validatePhoto(dataUrl: string | null | undefined): string | null {
+  if (!dataUrl?.trim()) return null;
+  if (!photoDataUrlPattern.test(dataUrl)) return "A foto deve ser PNG ou JPG.";
+  if (Buffer.byteLength(dataUrl, "utf8") > PHOTO_MAX_BYTES) return "A foto deve ter no máximo 120 KB.";
+  return null;
+}
+
 export function validateRecordPayload(payload: RecordPayload) {
   if (!payload.name?.trim()) return "Nome completo é obrigatório.";
   if (!payload.email?.trim()) return "E-mail é obrigatório.";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email.trim())) return "Informe um e-mail válido.";
-  if (payload.photoDataUrl?.trim()) {
-    if (!photoDataUrlPattern.test(payload.photoDataUrl)) return "A foto deve ser PNG ou JPG.";
-    if (Buffer.byteLength(payload.photoDataUrl, "utf8") > PHOTO_MAX_BYTES) return "A foto deve ter no máximo 120 KB.";
-  }
-  return null;
+  return validatePhoto(payload.photoDataUrl);
 }
 
 export function apiError(error: unknown) {

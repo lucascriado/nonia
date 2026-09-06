@@ -8,6 +8,7 @@ export function sessionPayload(auth: AuthContext) {
       id: auth.user.id,
       name: auth.user.fullName,
       email: auth.user.email,
+      phone: auth.user.phone,
       avatarUrl: auth.user.avatarUrl,
       personId: auth.personId,
     },

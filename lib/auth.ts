@@ -26,7 +26,7 @@ export type Role = { slug: string; name: string; level: number };
 export type AuthContext = {
   sessionId: string;
   expiresAt: Date;
-  user: { id: string; email: string; fullName: string; avatarUrl: string | null };
+  user: { id: string; email: string; fullName: string; phone: string | null; avatarUrl: string | null };
   organization: { id: string; name: string; slug: string; status: string };
   role: Role;
   personId: string | null;
@@ -131,6 +131,7 @@ type SessionRow = {
   userId: string;
   email: string;
   fullName: string;
+  phone: string | null;
   avatarUrl: string | null;
   userStatus: string;
   organizationId: string;
@@ -153,6 +154,7 @@ const SESSION_QUERY = `
     u.id AS "userId",
     u.email,
     u.full_name AS "fullName",
+    u.phone,
     u.avatar_url AS "avatarUrl",
     u.status AS "userStatus",
     o.id AS "organizationId",
@@ -213,7 +215,13 @@ async function loadContext(token: string): Promise<AuthContext | null> {
   return {
     sessionId: row.sessionId,
     expiresAt,
-    user: { id: row.userId, email: row.email, fullName: row.fullName, avatarUrl: row.avatarUrl },
+    user: {
+      id: row.userId,
+      email: row.email,
+      fullName: row.fullName,
+      phone: row.phone,
+      avatarUrl: row.avatarUrl,
+    },
     organization: {
       id: row.organizationId,
       name: row.organizationName,
@@ -278,7 +286,11 @@ const isWrite = (permission: string) => permission.endsWith(".write");
 export async function requirePermission(...permissions: string[]): Promise<AuthContext> {
   const auth = await requireSession();
   if (!canAny(auth, ...permissions)) {
-    throw forbidden(`Seu papel (${auth.role.name}) não permite esta ação.`, "missing_permission");
+    throw forbidden(
+      `Seu papel (${auth.role.name}) não permite esta ação. ` +
+        "Peça a um responsável pela conta (proprietário ou administrador).",
+      "missing_permission",
+    );
   }
   if (permissions.length > 0 && permissions.every(isWrite)) {
     await assertWritable(auth.organization.id);
@@ -311,7 +323,12 @@ export async function requirePermission(...permissions: string[]): Promise<AuthC
 export async function requireBillingWriteEvenWhenReadOnly(): Promise<AuthContext> {
   const auth = await requireSession();
   if (!can(auth, "billing.write")) {
-    throw forbidden(`Seu papel (${auth.role.name}) não permite esta ação.`, "missing_permission");
+    // Aqui é o proprietário, e só ele: nem o administrador contrata.
+    throw forbidden(
+      `Seu papel (${auth.role.name}) não permite esta ação. ` +
+        "Só o proprietário da conta contrata ou cancela um plano.",
+      "missing_permission",
+    );
   }
   return auth;
 }
