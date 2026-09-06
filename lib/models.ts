@@ -63,7 +63,7 @@ export class Member extends Model<InferAttributes<Member>, InferCreationAttribut
   declare baptismStatus: string;
   declare baptismDate: string | null;
   declare admissionDate: CreationOptional<string>;
-  declare isNew: boolean;
+  declare isNew: CreationOptional<boolean>;
   declare cellName: CreationOptional<string>;
 }
 
@@ -76,7 +76,8 @@ Member.init({
   baptismStatus: { type: DataTypes.STRING(20), allowNull: false, field: "baptism_status" },
   baptismDate: { type: DataTypes.DATEONLY, field: "baptism_date" },
   admissionDate: { type: DataTypes.DATEONLY, field: "admission_date" },
-  isNew: { type: DataTypes.BOOLEAN, allowNull: false, field: "is_new" },
+  // Coluna sem leitor: ver o comentário de DIAS_VISITA_RECENTE em lib/listings.ts.
+  isNew: { type: DataTypes.BOOLEAN, allowNull: false, field: "is_new", defaultValue: false },
   cellName: { type: DataTypes.STRING(120), allowNull: false, field: "cell_name", defaultValue: "Sem célula" },
 }, { sequelize: db, tableName: "members", createdAt: "created_at", updatedAt: "updated_at" });
 
@@ -87,7 +88,7 @@ export class Visitor extends Model<InferAttributes<Visitor>, InferCreationAttrib
   declare invitedBy: string;
   declare followUpStatus: string;
   declare membershipStage: string;
-  declare isRecent: boolean;
+  declare isRecent: CreationOptional<boolean>;
 }
 
 Visitor.init({
@@ -97,7 +98,8 @@ Visitor.init({
   invitedBy: { type: DataTypes.STRING(160), allowNull: false, field: "invited_by" },
   followUpStatus: { type: DataTypes.STRING(30), allowNull: false, field: "follow_up_status" },
   membershipStage: { type: DataTypes.STRING(30), allowNull: false, field: "membership_stage" },
-  isRecent: { type: DataTypes.BOOLEAN, allowNull: false, field: "is_recent" },
+  // Idem: existe no schema, ninguém lê, e não é mais gravada.
+  isRecent: { type: DataTypes.BOOLEAN, allowNull: false, field: "is_recent", defaultValue: true },
 }, { sequelize: db, tableName: "visitors", createdAt: "created_at", updatedAt: "updated_at" });
 
 export class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {

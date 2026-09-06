@@ -22,7 +22,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
         gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
         address, neighborhood, city, state, avatar_url AS "photoDataUrl", notes,
         visit_date AS date, invited_by AS "invitedBy",
-        membership_stage AS "membershipStage", is_recent AS recent
+        membership_stage AS "membershipStage"
       FROM visitor_directory WHERE id = $1 AND organization_id = $2
     `, [id, organizationId(auth)]);
 

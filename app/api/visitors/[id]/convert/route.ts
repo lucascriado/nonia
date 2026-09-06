@@ -39,7 +39,6 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
           status: "active",
           baptismStatus: "waiting",
           baptismDate: null,
-          isNew: true,
         }, { transaction });
       }
 

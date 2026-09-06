@@ -58,7 +58,7 @@ export async function GET(request: Request) {
         -- por id quando precisa da foto.
         avatar_url IS NOT NULL AS "hasPhoto",
         role, status, baptism_status AS baptism, baptism_date AS "baptismDate",
-        admission_date AS date, is_new AS "isNew", cell_name AS cell
+        admission_date AS date, cell_name AS cell
       FROM member_directory
       WHERE ${where}
       ORDER BY admission_date DESC, full_name
@@ -102,7 +102,6 @@ export async function POST(request: Request) {
         status: payload.status === "Inativo" ? "inactive" : "active",
         baptismStatus: payload.baptismDate ? "baptized" : "waiting",
         baptismDate: nullable(payload.baptismDate),
-        isNew: true,
         cellName: payload.cell || "Sem célula",
       }, { transaction });
       await syncCellMembership(auth, person.id, payload.cell, transaction);
