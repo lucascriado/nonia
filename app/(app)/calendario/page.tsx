@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, Plus, Trash2, X } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { usePermission, useReadOnly } from "@/components/current-user";
 import { toast } from "sonner";
 import { DeleteRecordDialog } from "@/components/person-record-dialog";
 
@@ -38,6 +39,8 @@ const categoryOptions = [
 const emptyForm: EventFormValues = { title: "", description: "", location: "", date: "", time: "", color: "purple" };
 
 export default function CalendarPage() {
+  const readOnly = useReadOnly();
+  const canWrite = usePermission("events.write");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleDate, setVisibleDate] = useState(() => new Date());
@@ -173,7 +176,7 @@ export default function CalendarPage() {
                   <button className={calendarView === "week" ? "active" : undefined} onClick={() => setCalendarView("week")}>Semana</button>
                   <button className={calendarView === "day" ? "active" : undefined} onClick={() => setCalendarView("day")}>Dia</button>
                 </div>
-                <button className="primary-action calendar-new-event" onClick={() => setCreating(true)}><Plus />Novo Evento</button>
+                {canWrite && <button className="primary-action calendar-new-event" onClick={() => setCreating(true)}><Plus />Novo Evento</button>}
               </div>
             </header>
 

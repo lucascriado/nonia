@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, ListChecks, Settings, UserPlus, Users } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, History, ListChecks, Settings, UserPlus, Users } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FirstRun } from "@/components/first-run";
+import { HttpError, LoadFailure } from "@/components/load-failure";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { toast } from "sonner";
 import { ActivitySkeleton } from "@/components/skeleton";
@@ -20,20 +22,42 @@ export default function ActivitiesPage() {
   const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  /** Status HTTP da última leitura que falhou, ou `null`. Ver LoadFailure. */
+  const [failed, setFailed] = useState<number | null>(null);
+  /** Muda para refazer a leitura com os mesmos filtros. `setPage(page)` não
+      serviria: valor igual, React não reexecuta, e o botão não faria nada. */
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page), limit: String(pageSize), date, category, search });
     setLoading(true);
-    fetch(`/api/activities?${params}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : Promise.reject()).then((data) => { setRecords(data.records); setTotal(data.total); }).catch(() => toast.error("Não foi possível carregar as atividades")).finally(() => setLoading(false));
-  }, [category, date, page, search]);
+    fetch(`/api/activities?${params}`, { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : Promise.reject(new HttpError(response.status, "Falha ao carregar atividades")))
+      .then((data) => { setRecords(data.records); setTotal(data.total); setFailed(null); })
+      .catch((error) => { setFailed(error instanceof HttpError ? error.status : 0); toast.error("Não foi possível carregar as atividades"); })
+      .finally(() => setLoading(false));
+  }, [category, date, page, reloadToken, search]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const activeFilters = [search.trim() !== "", date !== "all", category !== "all"].filter(Boolean).length;
 
+  /** Igreja sem nenhuma atividade e sem filtro: nada a listar nem a filtrar. */
+  const firstRun = !loading && failed === null && total === 0 && activeFilters === 0;
+
   return (
     <DashboardShell title="Atividades">
       <main className="activities-main">
-        <section className="activities-heading"><h2>Atividades Recentes</h2><p>Visualize o histórico completo de ações e eventos do ministério.</p></section>
+        <section className="activities-heading"><h2>Atividades Recentes</h2><p>Tudo o que mudou na igreja: quem alterou, o que alterou e quando.</p></section>
+        {failed !== null ? (
+          <LoadFailure onRetry={() => setReloadToken((value) => value + 1)} status={failed} />
+        ) : firstRun ? (
+          <FirstRun
+            icon={History}
+            text="Cada cadastro, alteração e exclusão vira um registro aqui, com autor e data. A lista começa a se preencher assim que a igreja for usada."
+            title="Nenhuma atividade registrada ainda"
+          />
+        ) : (
+        <section className="activities-content">
         <FilterDisclosure activeCount={activeFilters}>
           <section className="activities-filters">
             <label><span>Busca</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Pesquisar atividades..." /></label>
@@ -45,10 +69,21 @@ export default function ActivitiesPage() {
           <div className="activity-timeline">
             {loading && <ActivitySkeleton count={pageSize} />}
             {!loading && records.map((activity, index) => <ActivityItem activity={activity} key={activity.id} showLine={index < records.length - 1} />)}
-            {!loading && !records.length && <p className="data-empty">Nenhuma atividade encontrada.</p>}
+            {!loading && !records.length && !firstRun && <p className="data-empty">Nenhuma atividade encontrada com esses filtros.</p>}
           </div>
-          <footer className="activity-pagination"><span>Mostrando {records.length ? (page - 1) * pageSize + 1 : 0}-{Math.min(page * pageSize, total)} de {total} atividades</span><div><button disabled={page === 1} onClick={() => setPage(page - 1)}><ChevronLeft /></button>{visiblePageNumbers(page, pageCount).map((number) => <button className={number === page ? "current" : undefined} key={number} onClick={() => setPage(number)}>{number}</button>)}<button disabled={page === pageCount} onClick={() => setPage(page + 1)}><ChevronRight /></button></div></footer>
+          {/* Com uma página só, seta e número não levam a lugar nenhum: fica a
+              contagem, que ainda informa. */}
+          {!firstRun && (
+            <footer className="activity-pagination">
+              <span>Mostrando {records.length ? (page - 1) * pageSize + 1 : 0}-{Math.min(page * pageSize, total)} de {total} atividades</span>
+              {pageCount > 1 && (
+                <div><button disabled={page === 1} onClick={() => setPage(page - 1)}><ChevronLeft /></button>{visiblePageNumbers(page, pageCount).map((number) => <button className={number === page ? "current" : undefined} key={number} onClick={() => setPage(number)}>{number}</button>)}<button disabled={page === pageCount} onClick={() => setPage(page + 1)}><ChevronRight /></button></div>
+              )}
+            </footer>
+          )}
         </section>
+        </section>
+        )}
       </main>
     </DashboardShell>
   );

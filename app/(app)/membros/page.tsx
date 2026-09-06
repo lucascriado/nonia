@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Droplets, Eye, HeartHandshake, Landmark, Pencil, Plus, Search, Trash2, UserCheck, Users } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
-import { useReadOnly } from "@/components/current-user";
+import { HttpError, LoadFailure } from "@/components/load-failure";
+import { usePermission, useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -46,6 +47,8 @@ const pageSize = 6;
 
 export default function MembersPage() {
   const readOnly = useReadOnly();
+  /** Sem a permissão de escrita o botão não existe: o servidor recusaria. */
+  const canWrite = usePermission("members.write");
 
   /**
    * Abre a ficha buscando o registro COMPLETO.
@@ -73,6 +76,8 @@ export default function MembersPage() {
   const [ministries, setMinistries] = useState<string[]>([]);
   const [counts, setCounts] = useState({ ativos: 0, batizados: 0, aguardando: 0 });
   const [loading, setLoading] = useState(true);
+  /** Status HTTP da última leitura que falhou, ou `null`. Ver LoadFailure. */
+  const [failed, setFailed] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [ministry, setMinistry] = useState("all");
   const [status, setStatus] = useState("all");
@@ -100,7 +105,7 @@ export default function MembersPage() {
     setLoading(true);
     try {
       const response = await fetch(`/api/members?${query}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Falha ao carregar membros");
+      if (!response.ok) throw new HttpError(response.status, "Falha ao carregar membros");
       const payload = await response.json() as {
         records: Array<Omit<Member, "initials" | "status" | "baptism" | "date"> & { status: string; baptism: string; date: string }>;
         total: number;
@@ -113,7 +118,11 @@ export default function MembersPage() {
         date: formatDate(member.date),
       })));
       setTotal(payload.total);
-    } catch {
+      setFailed(null);
+    } catch (error) {
+      // O motivo fica na tela, não só no toast: quem chegou aqui por troca de
+      // igreja precisa saber que é o papel, e não a lista, que mudou.
+      setFailed(error instanceof HttpError ? error.status : 0);
       toast.error("Não foi possível carregar os membros");
     } finally {
       setLoading(false);
@@ -173,7 +182,7 @@ export default function MembersPage() {
   const activeFilters = [ministry !== "all", status !== "all", baptism !== "all", search.trim() !== ""].filter(Boolean).length;
 
   /** Sem NENHUM membro e sem filtro: a tela vira primeira vez. */
-  const firstRun = !loading && total === 0 && activeFilters === 0;
+  const firstRun = !loading && failed === null && total === 0 && activeFilters === 0;
 
   function clearFilters() {
     setSearch("");
@@ -219,10 +228,12 @@ export default function MembersPage() {
         <section className="members-heading">
           <div><h2>Gestão de Membros</h2><p>Visualize, filtre e gerencie todos os membros da congregação.</p></div>
           <ExportButton resource="members" permission="members.read" filters={{ search, ministry, status, baptism }} />
-          <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>
+          {canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>}
         </section>
 
-        {firstRun ? (
+        {failed !== null ? (
+          <LoadFailure onRetry={() => void loadMembers(listQuery)} status={failed} />
+        ) : firstRun ? (
           <FirstRun
             action={
               readOnly ? undefined : (

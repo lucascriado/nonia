@@ -5,7 +5,8 @@ import { Baby, BookOpenCheck, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, 
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
-import { useReadOnly } from "@/components/current-user";
+import { HttpError, LoadFailure } from "@/components/load-failure";
+import { usePermission, useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -32,10 +33,14 @@ const colorLabels: Record<Ministry["color"], string> = { blue: "Azul", green: "V
 
 export default function MinistriesPage() {
   const readOnly = useReadOnly();
+  /** Sem a permissão de escrita o botão não existe: o servidor recusaria. */
+  const canWrite = usePermission("ministries.write");
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [summary, setSummary] = useState<Summary>({ totalVolunteers: 0, activeMinistries: 0 });
   const [members, setMembers] = useState<MemberOption[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Status HTTP da última leitura que falhou, ou `null`. Ver LoadFailure. */
+  const [failed, setFailed] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [leader, setLeader] = useState("all");
   const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null);
@@ -49,7 +54,10 @@ export default function MinistriesPage() {
         fetch("/api/ministries", { cache: "no-store" }),
         fetch("/api/members?pageSize=100", { cache: "no-store" }),
       ]);
-      if (!ministriesResponse.ok || !membersResponse.ok) throw new Error("Falha ao carregar ministérios");
+      // O status vem do de ministérios: é a leitura desta tela. A de membros
+      // só alimenta o seletor do formulário.
+      if (!ministriesResponse.ok) throw new HttpError(ministriesResponse.status, "Falha ao carregar ministérios");
+      if (!membersResponse.ok) throw new HttpError(membersResponse.status, "Falha ao carregar membros");
       const data = await ministriesResponse.json() as { ministries: Ministry[]; summary: Summary };
       setMinistries(data.ministries);
       setSummary(data.summary);
@@ -57,7 +65,9 @@ export default function MinistriesPage() {
       // membros precisa de TODOS, não de uma página — daí o pageSize no teto.
       const memberPayload = await membersResponse.json() as { records: MemberOption[] };
       setMembers(memberPayload.records.map((member) => ({ id: member.id, name: member.name, email: member.email, ministry: member.ministry })));
-    } catch {
+      setFailed(null);
+    } catch (error) {
+      setFailed(error instanceof HttpError ? error.status : 0);
       toast.error("Não foi possível carregar ministérios");
     } finally {
       setLoading(false);
@@ -79,7 +89,7 @@ export default function MinistriesPage() {
 
   const activeFilters = [leader !== "all", search.trim() !== ""].filter(Boolean).length;
 
-  const firstRun = !loading && !mode && ministries.length === 0 && activeFilters === 0;
+  const firstRun = !loading && failed === null && !mode && ministries.length === 0 && activeFilters === 0;
 
   function clearFilters() {
     setSearch("");
@@ -134,14 +144,16 @@ export default function MinistriesPage() {
             <h2>Gestão de Ministérios</h2>
             <p>Organize equipes, voluntários e chamadas das escolas bíblicas.</p>
           </div>
-          {!mode && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => openForm("create")}><Plus />Novo Ministério</button>}
+          {!mode && canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => openForm("create")}><Plus />Novo Ministério</button>}
         </section>
 
         {mode ? (
           <MinistryForm mode={mode} ministry={selectedMinistry} members={members} onClose={closeForm} onSubmit={saveMinistry} />
         ) : (
           <>
-            {firstRun ? (
+            {failed !== null ? (
+              <LoadFailure onRetry={() => void loadData()} status={failed} />
+            ) : firstRun ? (
               <FirstRun
                 action={
                   readOnly ? undefined : (

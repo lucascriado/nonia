@@ -9,6 +9,7 @@ import { AuthField } from "@/components/auth/auth-field";
 import { AuthError, emailProblem } from "@/components/auth/session";
 import Link from "next/link";
 import { usePermission, useSession } from "@/components/current-user";
+import { LoadFailure } from "@/components/load-failure";
 import { createInvitation, getRoles, getUsers, removeUser, revokeInvitation, updateUser, type OrganizationUser, type PendingInvitation, type Role } from "@/components/users/users-api";
 import { ResetPasswordDialog } from "@/components/users/reset-password-dialog";
 
@@ -21,6 +22,8 @@ export function UsersPanel() {
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Status HTTP da leitura que falhou, ou `null`. Ver LoadFailure. */
+  const [failed, setFailed] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<Partial<Record<keyof typeof emptyForm, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -51,7 +54,11 @@ export function UsersPanel() {
         // O proprietário não é atribuível: quem convida não cria outro dono.
         setRoles(roleList.filter((role) => role.slug !== "owner"));
       })
-      .catch(() => active && toast.error("Não foi possível carregar os usuários."))
+      .catch((error) => {
+        if (!active) return;
+        setFailed(error instanceof AuthError ? error.status : 0);
+        toast.error("Não foi possível carregar os usuários.");
+      })
       .finally(() => active && setLoading(false));
     return () => { active = false; };
   }, []);
@@ -99,6 +106,13 @@ export function UsersPanel() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Falhou a leitura: não desenhe a lista vazia com o formulário de convite.
+  // Sem os dados, "0 de 5 acessos" e um formulário que vai levar 403 dizem
+  // sobre a igreja coisas que ninguém leu.
+  if (failed !== null) {
+    return <article className="users-panel"><LoadFailure onRetry={() => window.location.reload()} status={failed} /></article>;
   }
 
   if (loading) {

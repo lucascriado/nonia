@@ -16,6 +16,8 @@ export type CurrentUser = {
 type SessionState = {
   user: CurrentUser;
   organization: SessionOrganization | null;
+  /** Todas as igrejas da pessoa. Com uma só, o seletor não aparece. */
+  organizations: SessionOrganization[];
   permissions: string[];
   /** Só chega pelo GET sessão; ausente enquanto a sondagem não volta. */
   plan: SessionPlan | null;
@@ -41,6 +43,7 @@ export const placeholderUser: CurrentUser = {
 const initialState: SessionState = {
   user: placeholderUser,
   organization: null,
+  organizations: [],
   permissions: [],
   plan: null,
   loading: true,
@@ -60,6 +63,7 @@ function toState(payload: SessionPayload): SessionState {
       avatarUrl: payload.user.avatarUrl,
     },
     organization: payload.organization,
+    organizations: payload.organizations ?? [],
     permissions: payload.permissions,
     plan: payload.plan ?? null,
     loading: false,
