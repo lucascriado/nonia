@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, ListChecks, Settings, UserPlus, Users } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, History, ListChecks, Settings, UserPlus, Users } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FirstRun } from "@/components/first-run";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { toast } from "sonner";
 import { ActivitySkeleton } from "@/components/skeleton";
@@ -30,10 +31,21 @@ export default function ActivitiesPage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const activeFilters = [search.trim() !== "", date !== "all", category !== "all"].filter(Boolean).length;
 
+  /** Igreja sem nenhuma atividade e sem filtro: nada a listar nem a filtrar. */
+  const firstRun = !loading && total === 0 && activeFilters === 0;
+
   return (
     <DashboardShell title="Atividades">
       <main className="activities-main">
-        <section className="activities-heading"><h2>Atividades Recentes</h2><p>Visualize o histórico completo de ações e eventos do ministério.</p></section>
+        <section className="activities-heading"><h2>Atividades Recentes</h2><p>Tudo o que mudou na igreja: quem alterou, o que alterou e quando.</p></section>
+        {firstRun ? (
+          <FirstRun
+            icon={History}
+            text="Cada cadastro, alteração e exclusão vira um registro aqui, com autor e data. A lista começa a se preencher assim que a igreja for usada."
+            title="Nenhuma atividade registrada ainda"
+          />
+        ) : (
+        <section className="activities-content">
         <FilterDisclosure activeCount={activeFilters}>
           <section className="activities-filters">
             <label><span>Busca</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Pesquisar atividades..." /></label>
@@ -45,10 +57,21 @@ export default function ActivitiesPage() {
           <div className="activity-timeline">
             {loading && <ActivitySkeleton count={pageSize} />}
             {!loading && records.map((activity, index) => <ActivityItem activity={activity} key={activity.id} showLine={index < records.length - 1} />)}
-            {!loading && !records.length && <p className="data-empty">Nenhuma atividade encontrada.</p>}
+            {!loading && !records.length && !firstRun && <p className="data-empty">Nenhuma atividade encontrada com esses filtros.</p>}
           </div>
-          <footer className="activity-pagination"><span>Mostrando {records.length ? (page - 1) * pageSize + 1 : 0}-{Math.min(page * pageSize, total)} de {total} atividades</span><div><button disabled={page === 1} onClick={() => setPage(page - 1)}><ChevronLeft /></button>{visiblePageNumbers(page, pageCount).map((number) => <button className={number === page ? "current" : undefined} key={number} onClick={() => setPage(number)}>{number}</button>)}<button disabled={page === pageCount} onClick={() => setPage(page + 1)}><ChevronRight /></button></div></footer>
+          {/* Com uma página só, seta e número não levam a lugar nenhum: fica a
+              contagem, que ainda informa. */}
+          {!firstRun && (
+            <footer className="activity-pagination">
+              <span>Mostrando {records.length ? (page - 1) * pageSize + 1 : 0}-{Math.min(page * pageSize, total)} de {total} atividades</span>
+              {pageCount > 1 && (
+                <div><button disabled={page === 1} onClick={() => setPage(page - 1)}><ChevronLeft /></button>{visiblePageNumbers(page, pageCount).map((number) => <button className={number === page ? "current" : undefined} key={number} onClick={() => setPage(number)}>{number}</button>)}<button disabled={page === pageCount} onClick={() => setPage(page + 1)}><ChevronRight /></button></div>
+              )}
+            </footer>
+          )}
         </section>
+        </section>
+        )}
       </main>
     </DashboardShell>
   );

@@ -648,6 +648,25 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
 .member-filters .clear-filters:hover { color: var(--primary-strong); }
 .member-filters button:hover, .member-filters select:hover { border-color: var(--border-strong); }
 
+/* Filtros e linha do tempo dentro do MESMO painel, como nas outras listagens.
+   Soltos na pagina, os rotulos ficavam no recuo da borda do cartao e o conteudo
+   do cartao comecava 25px adiante: dois alinhamentos na mesma tela, que e o
+   "desalinhado" que o Lucas sentiu. */
+.activities-content { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); padding: var(--space-5); }
+.activities-content .activity-timeline-card { border: 0; border-radius: 0; background: transparent; box-shadow: none; padding: 0; }
+.activities-content .activities-filters { padding: 0 0 var(--space-4); }
+/* A linha do tempo tinha recuo proprio de 24px, herdado de quando ela era o
+   painel. Dentro do painel novo isso criava um TERCEIRO alinhamento. */
+.activities-content .activity-timeline { padding-inline: 0; }
+/* Trocar de aba mudava a altura do cartao (740px para 542px, medido), e o
+   conteudo saltava debaixo do cursor - era isso o "desalinhado ao mudar as
+   abas", e nao a pilula, que nao muda de largura nenhuma. Uma altura minima do
+   tamanho de uma pagina mantem o cartao parado enquanto o filtro muda. */
+@media (min-width: 801px) {
+  .activities-content .activity-timeline { min-height: 470px; }
+}
+.activities-content .activity-pagination { padding-inline: 0; }
+
 .members-table-card, .visitors-table-card, .activity-timeline-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
 .members-table-scroll, .visitors-table-scroll { overflow-x: auto; }
 .members-table, .visitors-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
