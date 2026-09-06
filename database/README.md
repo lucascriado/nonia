@@ -234,6 +234,42 @@ Quando a integração real entrar, `lib/billing-bypass.ts` e `app/api/billing/`
 são apagados inteiros. `lib/subscription-state.ts` não sabe que o bypass
 existe, e continua igual.
 
+## Exportação em CSV
+
+`GET /api/export/members`, `/api/export/visitors` e `/api/export/financeiro`
+devolvem CSV como download. Exigem, respectivamente, `members.read`,
+`visitors.read` e `finance.read`, e são escopadas por organização como
+qualquer outra leitura.
+
+**Funcionam em modo somente leitura, e esse é o ponto**: exportar é leitura, e
+a guarda de escrita só dispara quando todas as permissões pedidas terminam em
+`.write`. É a garantia de que uma igreja com pagamento atrasado não fica refém
+do próprio cadastro.
+
+O formato é decidido pelo Excel brasileiro, que é quem vai abrir o arquivo:
+
+| | Escolha | Por quê |
+| --- | --- | --- |
+| Separador | `;` | é o que o Excel pt-BR espera; com `,` tudo cai numa coluna só |
+| Codificação | UTF-8 **com BOM** | sem o BOM, "João" vira "JoÃ£o" |
+| Quebra de linha | CRLF | RFC 4180, e o que o Excel prefere |
+| Datas | `dd/mm/aaaa` | e `"2026-09-06"` é lido como texto, não como instante, senão o fuso atrasa tudo um dia |
+| Valores | vírgula decimal, sem milhar | o separador de milhar atrapalha o Excel a reconhecer a célula como número |
+
+Célula que começa com `=`, `+`, `-` ou `@` é **fórmula** no Excel, e o dado vem
+de formulário aberto. Todo texto exportado leva um apóstrofo à frente nesse
+caso: a célula vira texto, o apóstrofo não aparece na planilha, e ninguém
+executa fórmula alheia ao abrir o arquivo.
+
+O anexo do comprovante não vai no CSV — é base64 e faria a planilha pesar
+megabytes por linha. Vão "Comprovante: Sim/Não" e o nome do arquivo.
+
+Os filtros aceitam os mesmos nomes e a mesma semântica dos filtros da tela,
+para "exportar o que estou vendo" ser verdade: `search`, `ministry`, `status` e
+`baptism` em membros; `search`, `tab` e `invitedBy` em visitantes; `search`,
+`type`, `status`, `category` e `attachment` no financeiro. Os que são lista
+aceitam tanto o rótulo da tela (`Ativo`) quanto o valor do banco (`active`).
+
 ## Valores persistidos
 
 | Banco | Interface |
