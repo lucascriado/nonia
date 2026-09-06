@@ -20,30 +20,42 @@ import type { Ref } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar, initialsFrom } from "@/components/avatar";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { useSession } from "@/components/current-user";
 
 // Novas rotas de menu entram aqui. O campo `section` define em qual grupo o
 // item aparece; a ordem dos grupos segue a primeira ocorrência na lista.
+// Cada item declara a permissão que o sustenta. Sem isso o menu oferecia
+// Financeiro e Usuários para o papel de leitura, que recebe 403 ao abrir - e o
+// defeito só aparecia ao TROCAR de igreja, porque na igreja de origem a mesma
+// pessoa era proprietária.
+// Configurações não pede permissão: o perfil é de quem está logado.
 const primaryLinks = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/painel", section: "Visão geral" },
-  { label: "Calendário", icon: CalendarDays, href: "/calendario", section: "Visão geral" },
-  { label: "Atividades", icon: History, href: "/atividades", section: "Visão geral" },
-  { label: "Membros", icon: Users, href: "/membros", section: "Comunidade" },
-  { label: "Visitantes", icon: UserPlus, href: "/visitantes", section: "Comunidade" },
-  { label: "Ministérios", icon: Puzzle, href: "/ministerios", section: "Comunidade" },
-  { label: "Financeiro", icon: Wallet, href: "/financeiro", section: "Administração" },
-  { label: "Usuários", icon: ShieldCheck, href: "/usuarios", section: "Administração" },
-  { label: "Configurações", icon: Settings, href: "/configuracoes", section: "Administração" },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/painel", section: "Visão geral", permission: "dashboard.read" },
+  { label: "Calendário", icon: CalendarDays, href: "/calendario", section: "Visão geral", permission: "events.read" },
+  { label: "Atividades", icon: History, href: "/atividades", section: "Visão geral", permission: "activities.read" },
+  { label: "Membros", icon: Users, href: "/membros", section: "Comunidade", permission: "members.read" },
+  { label: "Visitantes", icon: UserPlus, href: "/visitantes", section: "Comunidade", permission: "visitors.read" },
+  { label: "Ministérios", icon: Puzzle, href: "/ministerios", section: "Comunidade", permission: "ministries.read" },
+  { label: "Financeiro", icon: Wallet, href: "/financeiro", section: "Administração", permission: "finance.read" },
+  { label: "Usuários", icon: ShieldCheck, href: "/usuarios", section: "Administração", permission: "users.read" },
+  { label: "Configurações", icon: Settings, href: "/configuracoes", section: "Administração", permission: null },
 ];
 
-const navSections = Array.from(new Set(primaryLinks.map((link) => link.section))).map((section) => ({
-  section,
-  links: primaryLinks.filter((link) => link.section === section),
-}));
+function sectionsFor(permissions: string[]) {
+  const allowed = primaryLinks.filter((link) => !link.permission || permissions.includes(link.permission));
+  return Array.from(new Set(allowed.map((link) => link.section))).map((section) => ({
+    section,
+    links: allowed.filter((link) => link.section === section),
+  }));
+}
 
 export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
   const pathname = usePathname();
-  const { user, organization } = useSession();
+  const { user, organization, organizations, permissions, loading } = useSession();
+  // Enquanto a sessão não volta, mostra tudo: esconder e revelar pisca o menu
+  // inteiro a cada carregamento.
+  const navSections = sectionsFor(loading ? primaryLinks.map((link) => link.permission ?? "") : permissions);
 
   return (
     <aside className="sidebar" ref={sidebarRef}>
@@ -61,11 +73,18 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
       </div>
 
       <div className="sidebar-scroll">
-        <Link className="workspace-card" href="/configuracoes" title="Espaço de trabalho">
-          <span className="workspace-avatar" aria-hidden>{initialsFrom(organization?.name ?? "Nonia")}</span>
-          <span><strong>{organization?.name ?? "Sua igreja"}</strong><small>Espaço de trabalho</small></span>
-          <ChevronsUpDown aria-hidden />
-        </Link>
+        {/* Com mais de uma igreja o cartão vira seletor; com uma só ele
+            continua sendo o atalho para as configurações, porque um seletor de
+            um item é ruído. */}
+        {organizations.length > 1 ? (
+          <OrganizationSwitcher />
+        ) : (
+          <Link className="workspace-card" href="/configuracoes" title="Espaço de trabalho">
+            <span className="workspace-avatar" aria-hidden>{initialsFrom(organization?.name ?? "Nonia")}</span>
+            <span><strong>{organization?.name ?? "Sua igreja"}</strong><small>Espaço de trabalho</small></span>
+            <ChevronsUpDown aria-hidden />
+          </Link>
+        )}
 
         {navSections.map(({ section, links }) => (
           <div className="nav-section" key={section}>

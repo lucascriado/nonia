@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
-import { useReadOnly } from "@/components/current-user";
+import { HttpError, LoadFailure } from "@/components/load-failure";
+import { usePermission, useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { ExportButton } from "@/components/export-button";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -52,6 +53,8 @@ const pageSize = 8;
 
 export default function FinancePage() {
   const readOnly = useReadOnly();
+  /** Sem a permissão de escrita o botão não existe: o servidor recusaria. */
+  const canWrite = usePermission("finance.write");
 
   /**
    * Abre a ficha buscando o registro COMPLETO.
@@ -79,6 +82,8 @@ export default function FinancePage() {
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState<Summary>({ income: "0", expense: "0", balance: "0", pendingCount: 0, pendingAmount: "0" });
   const [loading, setLoading] = useState(true);
+  /** Status HTTP da última leitura que falhou, ou `null`. Ver LoadFailure. */
+  const [failed, setFailed] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [type, setType] = useState("all");
   const [status, setStatus] = useState("all");
@@ -109,12 +114,16 @@ export default function FinancePage() {
     setLoading(true);
     try {
       const response = await fetch(`/api/financeiro?${query}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Falha ao carregar lançamentos");
+      if (!response.ok) throw new HttpError(response.status, "Falha ao carregar lançamentos");
       const payload = await response.json() as { records: FinancialTransaction[]; total: number; summary: Summary };
       setTransactions(payload.records);
       setTotal(payload.total);
       setSummary(payload.summary);
-    } catch {
+      setFailed(null);
+    } catch (error) {
+      // O motivo fica na tela, não só no toast: quem chegou aqui por troca de
+      // igreja precisa saber que é o papel, e não a lista, que mudou.
+      setFailed(error instanceof HttpError ? error.status : 0);
       toast.error("Não foi possível carregar os lançamentos");
     } finally {
       setLoading(false);
@@ -164,7 +173,7 @@ export default function FinancePage() {
   const activeFilters = [type !== "all", status !== "all", category !== "all", attachment !== "all", search.trim() !== ""].filter(Boolean).length;
 
   /** Sem NENHUM lançamento e sem filtro: a tela vira primeira vez. */
-  const firstRun = !loading && total === 0 && activeFilters === 0;
+  const firstRun = !loading && failed === null && total === 0 && activeFilters === 0;
 
   function clearFilters() {
     setSearch(""); setType("all"); setStatus("all"); setCategory("all"); setAttachment("all"); setPage(1);
@@ -207,7 +216,7 @@ export default function FinancePage() {
         <section className="resource-heading">
           <div><h2>Gestão Financeira</h2><p>Acompanhe entradas, saídas, pendências e comprovantes das movimentações.</p></div>
           <ExportButton resource="financeiro" permission="finance.read" filters={{ search, type, status, category, attachment }} />
-          <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>
+          {canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>}
         </section>
 
         {!firstRun && (
@@ -231,7 +240,9 @@ export default function FinancePage() {
         </>
         )}
 
-        {firstRun ? (
+        {failed !== null ? (
+          <LoadFailure onRetry={() => void loadTransactions(listQuery)} status={failed} />
+        ) : firstRun ? (
           <FirstRun
             action={
               readOnly ? undefined : (

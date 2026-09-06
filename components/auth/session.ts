@@ -17,6 +17,19 @@ export type SessionUser = {
 };
 
 export type SessionOrganization = { id: string; name: string; slug: string };
+
+/**
+ * Uma igreja da pessoa, como vem do GET /api/organizations. É o mesmo conjunto
+ * que `SessionPayload.organizations`, mais o PAPEL em cada uma — a mesma pessoa
+ * pode ser proprietária numa e leitura noutra, e é isso que muda o que ela vai
+ * encontrar do outro lado da troca.
+ */
+export type MembershipOrganization = SessionOrganization & {
+  roleSlug: string;
+  roleName: string;
+  isDefault: boolean;
+  joinedAt: string;
+};
 export type SessionRole = { slug: string; name: string; level: number };
 
 /**
@@ -196,6 +209,26 @@ export function changePassword(input: { currentPassword: string; newPassword: st
  */
 export function updateProfile(changes: { fullName?: string; phone?: string | null; avatarUrl?: string | null }) {
   return apiRequest<{ ok: true }>("/api/auth/profile", { method: "PATCH", body: JSON.stringify(changes) });
+}
+
+/** As igrejas da pessoa, com o papel em cada uma. Só exige sessão. */
+export function listOrganizations() {
+  return apiRequest<{ organizations: MembershipOrganization[]; current: string }>("/api/organizations");
+}
+
+/**
+ * Cria uma igreja nova para quem já tem uma.
+ *
+ * ATENÇÃO AO EFEITO: o 201 vem com cookie NOVO e A SESSÃO JÁ É DA IGREJA
+ * CRIADA. Quem chama isto está, no instante seguinte, noutra organização —
+ * qualquer tela que continue mostrando dado da anterior está mentindo, e toda
+ * escrita feita dali cai na igreja nova sem erro nenhum. Avise e recarregue.
+ *
+ * A igreja nasce no Semente, sem avaliação e sem linha de assinatura: quem já
+ * tem igreja aqui já experimentou o produto.
+ */
+export function createOrganization(input: { organizationName: string; document?: string; email?: string; phone?: string }) {
+  return apiRequest<SessionPayload>("/api/organizations", json(input));
 }
 
 export function switchOrganization(input: { organizationSlug?: string; organizationId?: string }) {

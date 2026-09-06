@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
-import { useReadOnly } from "@/components/current-user";
+import { HttpError, LoadFailure } from "@/components/load-failure";
+import { usePermission, useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -57,6 +58,8 @@ type Tab = typeof tabs[number];
 
 export default function VisitorsPage() {
   const readOnly = useReadOnly();
+  /** Sem a permissão de escrita o botão não existe: o servidor recusaria. */
+  const canWrite = usePermission("visitors.write");
 
   /**
    * Abre a ficha buscando o registro COMPLETO.
@@ -84,6 +87,8 @@ export default function VisitorsPage() {
   const [inviters, setInviters] = useState<string[]>([]);
   const [counts, setCounts] = useState({ todos: 0, primeiraVisita: 0 });
   const [loading, setLoading] = useState(true);
+  /** Status HTTP da última leitura que falhou, ou `null`. Ver LoadFailure. */
+  const [failed, setFailed] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<Tab>("Todos");
   const [invitedBy, setInvitedBy] = useState("all");
@@ -98,7 +103,7 @@ export default function VisitorsPage() {
   const activeFilters = [invitedBy !== "all", search.trim() !== ""].filter(Boolean).length;
 
   /** Sem NENHUM visitante e sem filtro nem aba: vira primeira vez. */
-  const firstRun = !loading && total === 0 && activeFilters === 0 && tab === "Todos";
+  const firstRun = !loading && failed === null && total === 0 && activeFilters === 0 && tab === "Todos";
 
   /**
    * Filtro, aba e paginação são do SERVIDOR. A lista em memória é uma PÁGINA:
@@ -116,7 +121,7 @@ export default function VisitorsPage() {
     setLoading(true);
     try {
       const response = await fetch(`/api/visitors?${query}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Falha ao carregar visitantes");
+      if (!response.ok) throw new HttpError(response.status, "Falha ao carregar visitantes");
       const payload = await response.json() as {
         records: Array<Omit<Visitor, "initials" | "membershipStage" | "date"> & { membershipStage?: string; date: string }>;
         total: number;
@@ -124,7 +129,11 @@ export default function VisitorsPage() {
       setTotal(payload.total);
       const records = payload.records;
       setVisitors(records.map((visitor) => ({ ...visitor, initials: initialsFrom(visitor.name), membershipStage: membershipStageFromDb(visitor.membershipStage), date: formatDate(visitor.date) })));
-    } catch {
+      setFailed(null);
+    } catch (error) {
+      // O motivo fica na tela, não só no toast: quem chegou aqui por troca de
+      // igreja precisa saber que é o papel, e não a lista, que mudou.
+      setFailed(error instanceof HttpError ? error.status : 0);
       toast.error("Não foi possível carregar os visitantes");
     } finally {
       setLoading(false);
@@ -238,10 +247,12 @@ export default function VisitorsPage() {
         <section className="visitors-heading">
           <div><h2>Gestão de Visitantes</h2><p>Acompanhe e integre novas pessoas à nossa comunidade.</p></div>
           <ExportButton resource="visitors" permission="visitors.read" filters={{ search, tab, invitedBy }} />
-          <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>
+          {canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>}
         </section>
 
-        {firstRun ? (
+        {failed !== null ? (
+          <LoadFailure onRetry={() => void loadVisitors(listQuery)} status={failed} />
+        ) : firstRun ? (
           <FirstRun
             action={
               readOnly ? undefined : (
