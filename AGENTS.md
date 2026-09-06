@@ -24,6 +24,11 @@ npm run build
 git diff --check
 ```
 
+Ao escrever em arquivo que já existe, **leia antes e edite o trecho**; não jogue
+um `cat >` por cima. Sobrescrever às cegas apaga o que outra pessoa acabou de
+pôr ali, e o `git status` só avisa depois. Se acontecer, `git checkout -- <arquivo>`
+antes de commitar.
+
 ## Arquitetura
 
 - O App Router usa dois route groups, que **não** aparecem na URL:
@@ -94,9 +99,22 @@ aceite de convite, troca de organização e `GET /api/auth/session`:
 | `POST /api/auth/invite/accept` | aceita o convite e abre sessão |
 | `GET /api/users` | usuários da organização + convites pendentes |
 | `POST /api/users` | adiciona usuário (com senha) ou gera convite (sem senha) |
-| `PATCH /api/users/[id]` | papel, status e vínculo com pessoa |
+| `PATCH /api/users/[id]` | papel, status, vínculo com pessoa e **redefinição de senha** |
 | `DELETE /api/users/[id]` | remove o vínculo com a organização |
 | `GET /api/roles` | papéis disponíveis |
+
+Redefinir senha por `PATCH /api/users/[id]` **revoga todas as sessões** daquele
+usuário. Códigos de erro dessa rota e de `POST /api/users`:
+
+| Código | Situação |
+| --- | --- |
+| `400 weak_password` | senha abaixo do mínimo |
+| `400 cross_tenant` | id do payload é de outra organização |
+| `403 self_password_reset` | tentativa de **redefinir** a própria senha por aqui. Não confundir com **trocar** a própria senha, que é outra rota e pede a senha atual — as duas coexistem de propósito |
+| `403 insufficient_role_level` | papel do autor não alcança o papel do alvo |
+| `403 user_in_multiple_organizations` | o alvo acessa mais de uma igreja; a senha é da identidade, não do vínculo |
+
+Nenhuma rota de `app/api/auth` mudou payload, resposta ou cookie.
 
 ### Regras ao escrever rota
 
@@ -104,11 +122,14 @@ aceite de convite, troca de organização e `GET /api/auth/session`:
   SELECT, UPDATE, DELETE e INSERT.
 - **Todo id que vem do payload precisa ser validado** com
   `assertBelongsToOrganization` / `filterOwnedMemberIds` de `lib/tenant.ts`,
-  ou resolvido por nome dentro da organização. O banco **não** cobre tudo:
-  `cells.leader_id`, `ministries.leader_id`, `members.ministry_id` e
-  `organization_members.person_id` têm FK simples até a migration 006 entrar.
-  O estado medido dessas colunas está no [`CLAUDE.md`](CLAUDE.md).
-- `middleware.ts` roda no Edge e só desvia navegação pela presença do cookie.
+  ou resolvido por nome dentro da organização. Id que vem na URL passa por
+  `assertOwnedResource`, que devolve 404 em vez de confirmar que o id existe em
+  outra organização.
+- Desde a migration 006 o banco também recusa referência cruzada (FK composta em
+  toda tabela de domínio), **mas isso não dispensa a validação**: sem ela o
+  usuário recebe um erro de FK cru em vez de `400 cross_tenant` com mensagem de
+  negócio. Aplicação é a primeira barreira, banco é a última.
+- `proxy.ts` roda no Edge e só desvia navegação pela presença do cookie.
   Quem valida sessão e permissão é o handler, via `lib/auth.ts`.
 - `addActivity` recebe o contexto da sessão e grava o tenant e o autor.
 - Acesso de desenvolvimento após `npm run db:seed:dev`:
@@ -117,6 +138,16 @@ aceite de convite, troca de organização e `GET /api/auth/session`:
   de uma organização que ficou sem usuário.
 
 ## Armadilhas conhecidas
+
+- **Renomear `middleware.ts` para `proxy.ts` não basta: a função exportada
+  também precisa se chamar `proxy`.** Só o arquivo renomeado faz o Next
+  responder **500 em toda requisição**, com o log dizendo
+  `The file "./proxy.ts" must export a function`. Quem fizer o rename lendo só o
+  aviso de depreciação derruba a aplicação inteira.
+- **`next build` sem `DATABASE_URL` falha** com "Failed to collect page data",
+  porque `lib/db.ts` instancia o Sequelize no import do módulo. É anterior à
+  Fase 1. Por isso o `Dockerfile` injeta uma `DATABASE_URL` fictícia só na etapa
+  de build — **aquela linha não é sobra; quem "limpar" quebra o build.**
 
 - **Não use `DataTypes.NOW` neste projeto.** Quando `lib/models.ts` é
   reavaliado sobre a instância do Sequelize cacheada em `globalThis` (o hot
@@ -163,8 +194,8 @@ aceite de convite, troca de organização e `GET /api/auth/session`:
 ## Navegação
 
 - Adicione novas rotas de menu em `primaryLinks` de `components/sidebar.tsx`.
-- Tela nova do sistema também entra em `APP_PAGES` do `middleware.ts`, senão
-  ela é tratada como página pública.
+- Tela nova do sistema também entra em `APP_PAGES` do `proxy.ts`, senão ela é
+  tratada como página pública.
 - O item ativo deve ser determinado pelo pathname.
 - A sidebar deve permanecer recolhida ao navegar entre páginas.
 - No mobile, a sidebar deve fechar ao clicar fora.
