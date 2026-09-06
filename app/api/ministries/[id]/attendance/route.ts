@@ -1,7 +1,7 @@
 import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { readJson } from "@/lib/http";
+import { readJson, requireUuid } from "@/lib/http";
 import { apiError } from "@/lib/records";
 import { assertOwnedResource, filterOwnedMemberIds } from "@/lib/tenant";
 import { QueryTypes } from "sequelize";
@@ -17,6 +17,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const auth = await requirePermission("attendance.read");
     const { id } = await params;
+    requireUuid(id, "Ministério não encontrado.");
     await assertOwnedResource("ministries", id, organizationId(auth), "Ministério não encontrado.");
 
     const url = new URL(request.url);
@@ -70,6 +71,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const auth = await requirePermission("attendance.write");
     const { id } = await params;
+    requireUuid(id, "Ministério não encontrado.");
     const payload = await readJson<AttendancePayload>(request);
     if (!payload.date) return Response.json({ error: "Data da chamada é obrigatória." }, { status: 400 });
 

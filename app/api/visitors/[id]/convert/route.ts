@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { notFound } from "@/lib/http";
+import { notFound, requireUuid } from "@/lib/http";
 import { Member, Person, Visitor } from "@/lib/models";
 import { assertWithinPlanLimit } from "@/lib/plan-limits";
 import { apiError } from "@/lib/records";
@@ -12,6 +12,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
   try {
     const auth = await requirePermission("members.write");
     const { id } = await context.params;
+    requireUuid(id, "Pessoa não encontrada.");
 
     await db.transaction(async (transaction) => {
       const person = await Person.findOne({

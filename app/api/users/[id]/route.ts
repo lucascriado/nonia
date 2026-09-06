@@ -3,7 +3,7 @@ import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { badRequest, forbidden, notFound, readJson } from "@/lib/http";
+import { badRequest, forbidden, notFound, readJson, requireUuid } from "@/lib/http";
 import { hashPassword, validatePasswordStrength } from "@/lib/passwords";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization } from "@/lib/tenant";
@@ -55,6 +55,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const auth = await requirePermission("users.write");
     const { id } = await context.params;
+    requireUuid(id, "Usuário não encontrado nesta organização.");
     const payload = await readJson<UpdatePayload>(request);
 
     const target = await membership(organizationId(auth), id);
@@ -204,6 +205,7 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
   try {
     const auth = await requirePermission("users.write");
     const { id } = await context.params;
+    requireUuid(id, "Usuário não encontrado nesta organização.");
 
     const target = await membership(organizationId(auth), id);
     if (!target) throw notFound("Usuário não encontrado nesta organização.");

@@ -14,7 +14,9 @@ export async function GET() {
     const { rows } = await query(`
       SELECT id, full_name AS name, email, phone, birth_date AS "birthDate",
         gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
-        address, neighborhood, city, state, avatar_url AS "photoDataUrl", notes, visit_date AS date,
+        address, neighborhood, city, state, notes, visit_date AS date,
+        -- Mesma razão da listagem de membros: a foto não vem aqui.
+        avatar_url IS NOT NULL AS "hasPhoto",
         invited_by AS "invitedBy", membership_stage AS "membershipStage", is_recent AS recent
       FROM visitor_directory
       WHERE organization_id = $1

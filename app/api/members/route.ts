@@ -15,7 +15,12 @@ export async function GET() {
     const { rows } = await query(`
       SELECT id, full_name AS name, email, phone, birth_date AS "birthDate",
         gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
-        address, neighborhood, city, state, avatar_url AS "photoDataUrl", notes, ministry, ministry_color AS "ministryColor",
+        address, neighborhood, city, state, notes, ministry, ministry_color AS "ministryColor",
+        -- A foto NÃO vem na listagem: ela é base64 de até 120 KB por pessoa, e
+        -- 100 membros custavam 8,6 MB por carregamento -- medido. A tela mostra
+        -- iniciais quando não há foto, e o cartão e o formulário buscam a
+        -- pessoa por id quando precisam dela.
+        avatar_url IS NOT NULL AS "hasPhoto",
         role, status, baptism_status AS baptism, baptism_date AS "baptismDate",
         admission_date AS date, is_new AS "isNew", cell_name AS cell
       FROM member_directory
