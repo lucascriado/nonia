@@ -667,6 +667,80 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 }
 
 /* --------------------------------------------------------------------------
+   /precos
+   -------------------------------------------------------------------------- */
+
+.mk-visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.mk-pricing-hero { padding: 76px 0 0; text-align: center; }
+.mk-pricing-hero h1 { max-width: 20ch; margin: 14px auto 0; color: var(--heading); font-size: clamp(2rem, 4.4vw, 3rem); font-weight: 700; letter-spacing: -.035em; line-height: 1.1; }
+.mk-pricing-hero p { max-width: 58ch; margin: 18px auto 0; color: var(--muted); font-size: 1rem; line-height: 1.65; }
+.mk-pricing-cards { padding-top: 52px; }
+.mk-pricing-cards .mk-plan-grid { margin-top: 0; }
+.mk-plan h2 { margin: 16px 0 0; color: var(--heading); font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; }
+
+/* A tabela rola dentro do proprio quadro; a pagina nunca rola de lado. */
+.mk-compare-scroll { overflow-x: auto; margin-top: 52px; border: 1px solid var(--border); border-radius: var(--mk-radius); background: var(--panel); }
+.mk-compare { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.mk-compare col:first-child { width: 42%; }
+
+.mk-compare thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 16px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  text-align: center;
+  vertical-align: bottom;
+}
+.mk-compare thead th:first-child { text-align: left; color: var(--muted); font-size: 0.6875rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.mk-compare thead th strong { display: block; color: var(--heading); font-size: 1rem; font-weight: 700; }
+.mk-compare thead th small { display: block; margin-top: 3px; color: var(--muted); font-size: 0.75rem; font-weight: 500; }
+
+.mk-compare-group th {
+  padding: 14px;
+  border-block: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--heading);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.mk-compare tbody th[scope="row"] { padding: 14px; border-bottom: 1px solid var(--border-soft); color: var(--text); font-weight: 500; text-align: left; }
+.mk-compare tbody th[scope="row"] small { display: block; margin-top: 3px; color: var(--muted); font-size: 0.75rem; font-weight: 400; }
+.mk-compare tbody td { padding: 14px; border-bottom: 1px solid var(--border-soft); text-align: center; }
+.mk-compare tbody tr:last-child th, .mk-compare tbody tr:last-child td { border-bottom: 0; }
+
+/* A coluna do plano em destaque fica marcada de ponta a ponta, para o olho
+   nao precisar voltar ao cabecalho a cada linha. */
+.mk-compare th.is-highlight, .mk-compare td.is-highlight { background: var(--primary-soft); }
+
+.mk-compare-yes { display: inline-grid; place-items: center; color: var(--primary); }
+.mk-compare-yes svg { width: var(--icon-lg); }
+.mk-compare-no { display: inline-grid; place-items: center; color: var(--border-strong); }
+.mk-compare-no svg { width: var(--icon-md); }
+.mk-compare-value { color: var(--heading); font-weight: 600; }
+
+.mk-billing-faq { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 40px; margin-top: 48px; }
+.mk-billing-faq h3 { margin: 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.mk-billing-faq p { margin: 8px 0 0; color: var(--muted); font-size: 0.9375rem; line-height: 1.62; }
+.mk-plan-footnote a { color: var(--primary); font-weight: 600; }
+
+/* --------------------------------------------------------------------------
    Responsivo
    -------------------------------------------------------------------------- */
 
@@ -732,4 +806,60 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 @media (max-width: 480px) {
   .mk-auth { padding: 32px 0 56px; }
   .mk-auth-card { padding: 26px 20px; }
+}
+
+@media (max-width: 760px) {
+  .mk-billing-faq { grid-template-columns: 1fr; gap: 24px; }
+}
+
+/* Comparativo no celular: a tabela vira uma lista por recurso, com o nome do
+   plano em cada valor. Sete colunas de rolagem lateral seriam ilegiveis. */
+@media (max-width: 640px) {
+  .mk-pricing-hero { padding-top: 48px; }
+  .mk-compare-scroll { overflow-x: visible; border: 0; background: transparent; }
+  .mk-compare, .mk-compare tbody, .mk-compare tr, .mk-compare th, .mk-compare td { display: block; }
+  .mk-compare thead { display: none; }
+  .mk-compare col { width: auto; }
+
+  .mk-compare-group th { border-radius: var(--radius-sm); margin-top: 22px; border: 1px solid var(--border); }
+  .mk-compare tbody tr:not(.mk-compare-group) {
+    margin-top: 10px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+  .mk-compare tbody th[scope="row"] { padding: 0 0 10px; border: 0; color: var(--heading); font-weight: 600; }
+  .mk-compare tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    border: 0;
+    text-align: left;
+  }
+  .mk-compare tbody td::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-size: 0.8125rem;
+  }
+  .mk-compare td.is-highlight { margin-inline: -6px; padding-inline: 6px; border-radius: var(--radius-xs); }
+}
+
+/* Alvo de toque no site publico. Fica aqui, e nao no globals.css: esta folha e
+   importada pelo layout do grupo, entao ela vem depois e venceria a regra de
+   la de qualquer jeito. */
+@media (pointer: coarse), (max-width: 800px) {
+  .mk-menu-button { width: 44px; height: 44px; }
+  .mk-field-reveal { width: 44px; height: 44px; }
+  /* "Já tem conta? Entrar" e a troca entre login e cadastro: e navegacao, nao
+     link solto no meio de um paragrafo. Ganha area de toque sem quebrar a
+     frase, que ja esta centralizada em linha propria. */
+  .mk-auth-foot a { display: inline-flex; min-height: 44px; align-items: center; padding-inline: 6px; }
+  .mk-brand { min-height: 44px; }
+  .mk-footer-column a, .mk-footer-column strong { display: flex; min-height: 44px; align-items: center; }
+  .mk-footer-column { gap: 0; }
+  .mk-nav a, .mk-link-button, .mk-link-arrow { min-height: 44px; }
+  .mk-nav a, .mk-link-button { display: inline-flex; align-items: center; }
 }
