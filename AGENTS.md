@@ -359,6 +359,33 @@ para concluir coisa alguma sobre o projeto.
   **Data que chega como texto é tratada como texto** — fatie a string, não
   converta em `Date` para reformatar.
 
+#### Órfão: existe, não é chamado, e promete o que não entrega
+
+Irmão do resíduo, uma camada acima: não é uma regra que sobrou, é uma peça
+inteira que ninguém usa.
+
+- **`purgeStaleSessions()` está em `lib/auth.ts` e ninguém chama** — a tabela
+  `sessions` cresce para sempre. Código que existe e ninguém chama é a mesma
+  classe da permissão que aparece no seletor e não governa nada.
+- **A distinção que decide o caso:** órfão que **promete** alguma coisa sai;
+  órfão invisível pode ficar. As permissões `people.*` saíram na migration 010
+  porque apareciam no seletor de papéis e sugeriam poder inexistente; a coluna
+  `timezone` ficou porque não aparece em lugar nenhum e não promete nada.
+- **Como procurar:** `grep` pelo nome do símbolo no repositório. Uma única
+  ocorrência é a declaração — ninguém chama.
+
+#### Entrada inválida tem que virar 4xx, não 500
+
+Duas ocorrências do mesmo gênero: o que o cliente manda errado cai no catch
+genérico e vira erro de servidor, fazendo quem errou concluir que o servidor
+quebrou.
+
+- Corpo JSON malformado devolvia **500** em todas as rotas. Resolvido pelo
+  `readJson` de `lib/http.ts`, que devolve `400 invalid_json`.
+- **`PATCH /api/users/<id>` com id malformado ainda devolve 500** em vez de 404
+  — uuid válido inexistente devolve 404 certo. **Valide o formato do id antes de
+  usá-lo numa consulta**, senão o erro do driver vira erro de servidor.
+
 #### Resíduo de decisão antiga sobrevivendo onde ninguém olhou
 
 O gênero mais produtivo de defeito visual que apareceu em 06/09/2026: uma regra
