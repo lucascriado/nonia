@@ -1,24 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bell,
   CalendarDays,
   History,
   LayoutDashboard,
   Menu,
-  Moon,
   Network,
   Puzzle,
   Search,
   Settings,
-  Sun,
   UserPlus,
   Users,
   Wallet,
 } from "lucide-react";
-import { readPreferences, savePreferences } from "@/components/app-preferences";
 import { Avatar } from "@/components/avatar";
 import { useCurrentUser } from "@/components/current-user";
 
@@ -46,17 +43,6 @@ export function Header({ title }: { title: string }) {
   const user = useCurrentUser();
   const [search, setSearch] = useState("");
   const [focused, setFocused] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    setTheme(readPreferences().theme);
-  }, []);
-
-  function toggleTheme() {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    savePreferences({ theme: next });
-  }
 
   const subtitle = subtitleFor(title);
   const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
@@ -103,14 +89,6 @@ export function Header({ title }: { title: string }) {
         )}
       </label>
 
-      <button
-        className="icon-button"
-        onClick={toggleTheme}
-        aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}
-        title={theme === "dark" ? "Tema claro" : "Tema escuro"}
-      >
-        {theme === "dark" ? <Sun /> : <Moon />}
-      </button>
       <button className="icon-button has-dot" aria-label="Notificações"><Bell /></button>
       <span className="divider" />
       <div className="user">

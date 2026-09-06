@@ -82,7 +82,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 
 .mk-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--heading); text-decoration: none; }
 .mk-brand-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: var(--radius-sm); background: var(--heading); color: var(--on-primary); transition: transform .3s var(--ease-out); }
-.mk-brand-icon svg { width: var(--icon-lg)px; }
+.mk-brand-icon svg { width: var(--icon-lg); }
 .mk-brand:hover .mk-brand-icon { transform: rotate(-6deg) scale(1.05); }
 .mk-brand-text { font-size: 1.0625rem; font-weight: 700; letter-spacing: -.02em; }
 
@@ -120,7 +120,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   background: var(--panel);
   color: var(--text);
 }
-.mk-menu-button svg { width: var(--icon-xl)px; }
+.mk-menu-button svg { width: var(--icon-xl); }
 
 /* Fica fora do fluxo no desktop e enquanto fechado. A regra de classe venceria
    o `[hidden]` da folha do navegador, então o `display` é ligado só no
@@ -163,12 +163,12 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   white-space: nowrap;
   transition: background .2s ease, border-color .2s ease, color .2s ease, transform .25s var(--ease-out), box-shadow .2s ease;
 }
-.mk-button svg { width: var(--icon-md)px; transition: transform .25s var(--ease-out); }
+.mk-button svg { width: var(--icon-md); transition: transform .25s var(--ease-out); }
 .mk-button:hover svg { transform: translateX(3px); }
 .mk-button:active { transform: scale(.98); }
 
-.mk-button-primary { background: var(--primary); color: var(--on-primary); box-shadow: var(--shadow-xs); }
-.mk-button-primary:hover { background: var(--primary-strong); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.mk-button-primary { background: var(--primary-fill); color: var(--on-primary-fill); box-shadow: var(--shadow-xs); }
+.mk-button-primary:hover { background: var(--primary-strong); color: var(--on-primary); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 
 .mk-button-ghost { border-color: var(--border-strong); background: var(--panel); color: var(--text); }
 .mk-button-ghost:hover { border-color: var(--primary-border); background: var(--primary-soft); color: var(--heading); }
@@ -188,7 +188,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   font-weight: 600;
   text-decoration: none;
 }
-.mk-link-arrow svg { width: var(--icon-md)px; transition: transform .25s var(--ease-out); }
+.mk-link-arrow svg { width: var(--icon-md); transition: transform .25s var(--ease-out); }
 .mk-link-arrow:hover svg { transform: translateX(4px); }
 
 /* --------------------------------------------------------------------------
@@ -223,7 +223,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   font-size: 0.8125rem;
   font-weight: 600;
 }
-.mk-badge svg { width: var(--icon-md)px; color: var(--primary); }
+.mk-badge svg { width: var(--icon-md); color: var(--primary); }
 
 .mk-hero-title {
   max-width: 18ch;
@@ -274,7 +274,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-preview-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .mk-preview-stat { display: flex; flex-direction: column; gap: 5px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
 .mk-preview-stat-icon { display: grid; width: 26px; height: 26px; place-items: center; border-radius: var(--radius-xs); background: var(--primary-soft); color: var(--primary); }
-.mk-preview-stat-icon svg { width: var(--icon-sm)px; }
+.mk-preview-stat-icon svg { width: var(--icon-sm); }
 .mk-preview-stat small { color: var(--muted); font-size: 0.625rem; }
 .mk-preview-stat strong { color: var(--heading); font-size: 1.125rem; letter-spacing: -.02em; }
 
@@ -295,7 +295,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-strip { margin-top: 64px; border-block: 1px solid var(--border); background: var(--panel-soft); }
 .mk-strip-inner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; padding-block: 22px; }
 .mk-strip-inner span { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 0.8125rem; line-height: 1.45; }
-.mk-strip-inner svg { width: var(--icon-md)px; flex: 0 0 16px; color: var(--primary); }
+.mk-strip-inner svg { width: var(--icon-md); flex: 0 0 var(--icon-md); color: var(--primary); }
 
 /* --------------------------------------------------------------------------
    Secoes
@@ -323,7 +323,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 }
 .mk-feature-card:hover { border-color: var(--primary-border); box-shadow: var(--shadow-md); transform: translateY(-3px); }
 .mk-feature-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: var(--radius); background: var(--primary-soft); color: var(--primary); }
-.mk-feature-icon svg { width: var(--icon-xl)px; }
+.mk-feature-icon svg { width: var(--icon-xl); }
 .mk-feature-card h3 { margin: 18px 0 0; color: var(--heading); font-size: 1.0625rem; font-weight: 600; letter-spacing: -.015em; }
 .mk-feature-card p { margin: 9px 0 0; color: var(--muted); font-size: 0.9375rem; line-height: 1.62; }
 
@@ -342,7 +342,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-differentials { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .mk-differential { display: flex; gap: 14px; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); }
 .mk-differential > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); }
-.mk-differential svg { width: var(--icon-lg)px; }
+.mk-differential svg { width: var(--icon-lg); }
 .mk-differential h3 { margin: 4px 0 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
 .mk-differential p { margin: 7px 0 0; color: var(--muted); font-size: 0.875rem; line-height: 1.58; }
 
@@ -375,7 +375,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   text-transform: uppercase;
 }
 .mk-plan-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: var(--radius); background: var(--primary-soft); color: var(--primary); }
-.mk-plan-icon svg { width: var(--icon-xl)px; }
+.mk-plan-icon svg { width: var(--icon-xl); }
 .mk-plan h3 { margin: 16px 0 0; color: var(--heading); font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; }
 .mk-plan-tagline { margin: 8px 0 0; min-height: 44px; color: var(--muted); font-size: 0.875rem; line-height: 1.55; }
 .mk-plan-price { display: flex; align-items: baseline; gap: 3px; margin: 20px 0 0; color: var(--heading); }
@@ -385,7 +385,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-plan .mk-button { width: 100%; }
 .mk-plan-features { display: grid; gap: 11px; margin: 24px 0 0; padding: 24px 0 0; border-top: 1px solid var(--border); list-style: none; }
 .mk-plan-features li { display: flex; align-items: flex-start; gap: 9px; color: var(--text); font-size: 0.875rem; line-height: 1.5; }
-.mk-plan-features svg { width: var(--icon-md)px; flex: 0 0 15px; margin-top: 2px; color: var(--primary); }
+.mk-plan-features svg { width: var(--icon-md); flex: 0 0 var(--icon-md); margin-top: 2px; color: var(--primary); }
 .mk-plan-footnote { margin: 34px 0 0; color: var(--muted); font-size: 0.875rem; text-align: center; }
 .mk-plan-footnote a { color: var(--primary); font-weight: 600; }
 
@@ -394,7 +394,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-faq-list { display: grid; gap: 14px; }
 .mk-faq-item { display: flex; gap: 14px; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); }
 .mk-faq-item > span { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: var(--radius-sm); background: var(--info-soft); color: var(--info); }
-.mk-faq-item svg { width: var(--icon-md)px; }
+.mk-faq-item svg { width: var(--icon-md); }
 .mk-faq-item h3 { margin: 3px 0 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
 .mk-faq-item p { margin: 7px 0 0; color: var(--muted); font-size: 0.875rem; line-height: 1.58; }
 
@@ -403,8 +403,8 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-cta-card {
   padding: 62px 32px;
   border-radius: 24px;
-  background: linear-gradient(140deg, var(--primary-strong), var(--primary));
-  color: var(--on-primary);
+  background: linear-gradient(140deg, var(--primary-strong), var(--primary-fill));
+  color: var(--on-primary-fill);
   text-align: center;
 }
 .mk-cta-card h2 { margin: 0; font-size: clamp(1.625rem, 3.4vw, 2.375rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
@@ -454,7 +454,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   text-decoration: none;
   transition: color .25s ease, background .25s ease;
 }
-.mk-faq-index a svg { width: var(--icon-md)px; flex: 0 0 16px; }
+.mk-faq-index a svg { width: var(--icon-md); flex: 0 0 var(--icon-md); }
 .mk-faq-index a:hover { background: var(--panel-soft); color: var(--text); }
 .mk-faq-index a.is-active { background: var(--primary-soft); color: var(--heading); font-weight: 600; }
 /* A marca do item ativo cresce em vez de aparecer inteira de uma vez. */
@@ -476,7 +476,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-faq-topics { display: flex; flex-direction: column; gap: 72px; }
 .mk-topic { scroll-margin-top: 100px; }
 .mk-topic-icon { display: grid; width: 46px; height: 46px; place-items: center; border-radius: var(--radius); background: var(--primary-soft); color: var(--primary); margin-bottom: 18px; }
-.mk-topic-icon svg { width: var(--icon-2xl)px; }
+.mk-topic-icon svg { width: var(--icon-2xl); }
 .mk-topic-head h2 { margin: 12px 0 0; color: var(--heading); font-size: clamp(1.5rem, 2.8vw, 1.875rem); font-weight: 700; letter-spacing: -.03em; }
 .mk-topic-head p { margin: 14px 0 0; max-width: 66ch; color: var(--muted); font-size: 1rem; line-height: 1.65; }
 
@@ -539,7 +539,7 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   transition: color .2s ease;
 }
 .mk-accordion > button:hover { color: var(--primary); }
-.mk-accordion > button svg { width: var(--icon-lg)px; flex: 0 0 18px; color: var(--muted); transition: rotate .3s var(--ease-out), color .2s ease; }
+.mk-accordion > button svg { width: var(--icon-lg); flex: 0 0 var(--icon-lg); color: var(--muted); transition: rotate .3s var(--ease-out), color .2s ease; }
 .mk-accordion.is-open > button svg { rotate: 180deg; color: var(--primary); }
 
 /* 0fr -> 1fr anima a altura sem medir nada em JavaScript. */
