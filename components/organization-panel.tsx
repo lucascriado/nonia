@@ -7,7 +7,7 @@ import { AuthAlert } from "@/components/auth/auth-alert";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthError, apiRequest } from "@/components/auth/session";
 import { usePermission } from "@/components/current-user";
-import { maskCpf, maskPhone } from "@/components/masks";
+import { maskPhone } from "@/components/masks";
 
 type Organization = {
   id: string;
@@ -107,12 +107,16 @@ export function OrganizationPanel() {
           <AuthAlert message={error} />
 
           <AuthField label="Nome da igreja" onChange={(e) => setValues((c) => ({ ...c, name: e.target.value }))} value={values.name} />
+          {/* SEM máscara e SEM filtrar para dígito: desde 31/07/2026 a Receita
+              emite CNPJ alfanumérico, com letras nas 12 primeiras posições.
+              Uma máscara de números recusaria o documento de qualquer igreja
+              aberta de agosto em diante. Quem valida é o servidor. */}
           <AuthField
-            hint="Opcional."
-            inputMode="numeric"
+            autoCapitalize="characters"
+            hint="Opcional. Aceita CNPJ (inclusive o novo, com letras) ou o CPF do responsável."
             label="CNPJ ou CPF do responsável"
-            maxLength={14}
-            onChange={(e) => setValues((c) => ({ ...c, document: maskCpf(e.target.value) }))}
+            maxLength={18}
+            onChange={(e) => setValues((c) => ({ ...c, document: e.target.value.toUpperCase() }))}
             value={values.document}
           />
           <AuthField

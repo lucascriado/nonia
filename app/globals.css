@@ -1083,6 +1083,20 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .profile-password-actions .primary-action { padding: 0 var(--space-5); }
 .profile-password-actions button:disabled { cursor: wait; opacity: .65; }
 
+.finance-summary-scope {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.finance-summary-scope svg { width: var(--icon-sm); flex: 0 0 var(--icon-sm); color: var(--primary); }
+
 /* --------------------------------------------------------------------------
    Faixa de cobranca
    Fica entre a topbar e o conteudo, em todas as telas do app. Segue a mesma
@@ -1805,6 +1819,15 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 
 @media (max-width: 400px) {
   :root { --gutter: 12px; }
+  /* Sete colunas em 360px dão 41px por dia, abaixo do alvo de 44. Os 12px que
+     faltam saem do recuo do painel: a grade do mês precisa das sete colunas,
+     e estreitar o dia não é opção. */
+  .calendar-panel { padding-inline: 6px; }
+  /* Os 6px dos vãos entre as colunas viram largura do dia: a borda de cada
+     célula já separa visualmente, e o alvo de toque vale mais que a linha. */
+  .calendar { gap: 0; }
+  .calendar > div { border-right: 1px solid var(--border-soft); }
+  .calendar > div:nth-child(7n) { border-right: 0; }
   .topbar h1 { font-size: 1rem; }
   .record-dialog-top { min-height: 60px; }
 }
@@ -2273,6 +2296,15 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 
 @media (pointer: coarse), (max-width: 800px) {
   .icon-button, .calendar-title button, .birthday button, .birthday a { width: 44px; height: 44px; }
+  /* Sem isto o flex-basis de 34px decide a largura e o `width` acima não vale
+     — a mesma armadilha do botão de ações da linha de membro. */
+  .birthday button, .birthday a { flex: 0 0 44px; }
+  /* "Novo Evento" tem altura fixa de 34px na barra do calendário. */
+  .calendar-new-event, .primary-action.calendar-new-event { min-height: 44px; height: auto; }
+  .plan-cancel > button { min-height: 44px; }
+  /* Caixa de seleção de categoria: 13px é o tamanho nativo do controle. */
+  .calendar-categories label { min-height: 44px; }
+  .calendar-categories input { width: 20px; height: 20px; }
   .record-dialog-top button { width: 44px; height: 44px; }
   .mk-field-reveal { width: 44px; height: 44px; }
   .mk-menu-button { width: 44px; height: 44px; }

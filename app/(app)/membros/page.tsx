@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -29,6 +29,8 @@ type Member = {
   initials: string;
   name: string;
   email: string;
+  hasPhoto?: boolean;
+  /** Só vem da ficha individual, nunca da listagem. */
   photoDataUrl?: string;
   ministry: string;
   ministryColor: "blue" | "green" | "gray" | "purple";
@@ -56,7 +58,32 @@ const pageSize = 6;
 
 export default function MembersPage() {
   const readOnly = useReadOnly();
+
+  /**
+   * Abre a ficha buscando o registro COMPLETO.
+   *
+   * A listagem devolve só `hasPhoto` — a foto em si não vem, senão cem
+   * cadastros virariam megabytes. Abrir o formulário com o objeto da lista
+   * mostraria "sem foto" para quem tem uma, e quem salvasse depois de trocar
+   * só o telefone poderia achar que a foto se perdeu.
+   */
+  async function openRecord(record: Member, mode: "view" | "edit") {
+    setSelectedMember(record);
+    setDialogMode(mode);
+    try {
+      const response = await fetch(`/api/members/${record.id}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const full = await response.json();
+      setSelectedMember((current) => (current && current.id === record.id ? { ...current, ...full } : current));
+    } catch {
+      // Sem a ficha completa o formulário abre com o que a lista tem. O
+      // servidor ignora chave ausente, então salvar não apaga a foto.
+    }
+  }
   const [members, setMembers] = useState<Member[]>([]);
+  const [total, setTotal] = useState(0);
+  const [ministries, setMinistries] = useState<string[]>([]);
+  const [counts, setCounts] = useState({ ativos: 0, batizados: 0, aguardando: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [ministry, setMinistry] = useState("all");
@@ -67,45 +94,88 @@ export default function MembersPage() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Member | null>(null);
 
-  async function loadMembers() {
+  /**
+   * Filtro e paginação são do SERVIDOR. A lista em memória é uma PÁGINA, então
+   * nada aqui pode ser contado a partir dela — foi por isso que os indicadores
+   * passaram a vir de consultas de contagem, e não de `members.filter(...)`.
+   */
+  const listQuery = useMemo(() => {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (search.trim()) query.set("search", search.trim());
+    if (ministry !== "all") query.set("ministry", ministry);
+    if (status !== "all") query.set("status", status);
+    if (baptism !== "all") query.set("baptism", baptism);
+    return query.toString();
+  }, [baptism, ministry, page, search, status]);
+
+  const loadMembers = useCallback(async (query: string) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/members", { cache: "no-store" });
+      const response = await fetch(`/api/members?${query}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Falha ao carregar membros");
-      const records = await response.json() as Array<Omit<Member, "initials" | "status" | "baptism" | "date"> & { status: string; baptism: string; date: string }>;
-      setMembers(records.map((member) => ({
+      const payload = await response.json() as {
+        records: Array<Omit<Member, "initials" | "status" | "baptism" | "date"> & { status: string; baptism: string; date: string }>;
+        total: number;
+      };
+      setMembers(payload.records.map((member) => ({
         ...member,
         initials: initialsFrom(member.name),
         status: member.status === "active" ? "Ativo" : "Inativo",
         baptism: member.baptism === "baptized" ? "Batizado" : "Aguardando",
         date: formatDate(member.date),
       })));
+      setTotal(payload.total);
     } catch {
       toast.error("Não foi possível carregar os membros");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void loadMembers(); }, []);
+  // A busca espera a digitação parar; os outros filtros valem na hora.
+  useEffect(() => {
+    const delay = search.trim() ? 300 : 0;
+    const timer = window.setTimeout(() => void loadMembers(listQuery), delay);
+    return () => window.clearTimeout(timer);
+  }, [listQuery, loadMembers, search]);
 
-  const ministries = [...new Set(members.map((member) => member.ministry))];
-  const filteredMembers = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    return members.filter((member) => {
-      const matchesSearch = !term || `${member.name} ${member.email} ${member.cell}`.toLocaleLowerCase("pt-BR").includes(term);
-      return matchesSearch
-        && (ministry === "all" || member.ministry === ministry)
-        && (status === "all" || member.status === status)
-        && (baptism === "all" || member.baptism === baptism);
-    });
-  }, [baptism, members, ministry, search, status]);
+  /**
+   * Contagens dos indicadores. Cada uma é uma consulta que pede UMA linha e lê
+   * o `total`, que já respeita o filtro — barato e exato, ao contrário de
+   * somar a página.
+   */
+  useEffect(() => {
+    let active = true;
+    const count = async (filter: string) => {
+      const response = await fetch(`/api/members?pageSize=1&${filter}`, { cache: "no-store" });
+      if (!response.ok) return 0;
+      return (await response.json()).total as number;
+    };
+    Promise.all([count("status=Ativo"), count("baptism=Batizado"), count("baptism=Aguardando")])
+      .then(([ativos, batizados, aguardando]) => active && setCounts({ ativos, batizados, aguardando }))
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [members]);
 
-  const pageCount = Math.max(1, Math.ceil(filteredMembers.length / pageSize));
+  // A lista de ministérios não pode sair da página: ela viria incompleta.
+  useEffect(() => {
+    let active = true;
+    fetch("/api/ministries", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!active || !payload) return;
+        const list = (payload.ministries ?? payload) as Array<{ name: string }>;
+        setMinistries(list.map((item) => item.name));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount);
-  const visibleMembers = filteredMembers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const start = filteredMembers.length ? (currentPage - 1) * pageSize + 1 : 0;
-  const end = Math.min(currentPage * pageSize, filteredMembers.length);
+  const visibleMembers = members;
+  const start = total ? (currentPage - 1) * pageSize + 1 : 0;
+  const end = Math.min(currentPage * pageSize, total);
 
   function updateFilter(action: () => void) {
     action();
@@ -135,7 +205,7 @@ export default function MembersPage() {
     }
     toast.success(editing ? "Membro alterado com sucesso" : "Membro cadastrado com sucesso");
     setDialogMode(null); setSelectedMember(null); setPage(1);
-    await loadMembers();
+    await loadMembers(listQuery);
     return true;
   }
 
@@ -148,7 +218,7 @@ export default function MembersPage() {
     }
     toast.error("Membro excluído com sucesso");
     setDeleteTarget(null);
-    await loadMembers();
+    await loadMembers(listQuery);
     return true;
   }
 
@@ -195,13 +265,13 @@ export default function MembersPage() {
                 <tbody>
                   {visibleMembers.map((member) => (
                     <tr key={member.email}>
-                      <td data-label="Nome"><div className="member-identity"><span className="member-avatar">{member.photoDataUrl ? <img src={member.photoDataUrl} alt="" /> : member.initials}</span><span><strong>{member.name}</strong><small>{member.email}</small></span></div></td>
+                      <td data-label="Nome"><div className="member-identity"><span className="member-avatar">{member.initials}</span><span><strong>{member.name}</strong><small>{member.email}</small></span></div></td>
                       <td data-label="Ministério"><span className={`ministry-tag ${member.ministryColor}`}>{member.ministry}</span></td>
                       <td data-label="Célula"><span className={`cell-tag ${member.cell === "Sem célula" ? "empty" : ""}`}>{member.cell}</span></td>
                       <td data-label="Status"><span className={`status-tag ${member.status === "Ativo" ? "is-active" : "is-inactive"}`}><i />{member.status}</span></td>
                       <td data-label="Batismo"><span className={`baptism-tag ${member.baptism === "Batizado" ? "is-baptized" : "is-waiting"}`}>{member.baptism}</span></td>
                       <td data-label="Admissão" className="admission-date">{member.date}</td>
-                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${member.name}`} onClick={() => { setSelectedMember(member); setDialogMode("view"); }}><Eye /></button><button aria-label={`Editar ${member.name}`} onClick={() => { setSelectedMember(member); setDialogMode("edit"); }}><Pencil /></button><button aria-label={`Excluir ${member.name}`} onClick={() => setDeleteTarget(member)}><Trash2 /></button></div></td>
+                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${member.name}`} onClick={() => openRecord(member, "view")}><Eye /></button><button aria-label={`Editar ${member.name}`} onClick={() => openRecord(member, "edit")}><Pencil /></button><button aria-label={`Excluir ${member.name}`} onClick={() => setDeleteTarget(member)}><Trash2 /></button></div></td>
                     </tr>
                   ))}
                   {!loading && !visibleMembers.length && <tr><td className="members-empty" colSpan={7}>{members.length ? "Nenhum membro encontrado com esses filtros." : "Nenhum membro cadastrado ainda. Comece pelo botão Novo Membro, no topo da tela."}</td></tr>}
@@ -210,7 +280,7 @@ export default function MembersPage() {
             </div>
             {loading && <TableSkeleton rows={6} columns={5} />}
             <div className="members-pagination">
-              <span>Mostrando {start}-{end} de {filteredMembers.length} membros</span>
+              <span>Mostrando {start}-{end} de {total} membros</span>
               <div>
                 <button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} aria-label="Página anterior"><ChevronLeft /></button>
                 {visiblePageNumbers(currentPage, pageCount).map((number) => <button className={number === currentPage ? "current" : undefined} onClick={() => setPage(number)} key={number}>{number}</button>)}
@@ -220,10 +290,13 @@ export default function MembersPage() {
           </div>
 
           <section className="member-stats" aria-label="Resumo de membros">
-            <MemberStat loading={loading} label="Total ativos" value={members.filter((member) => member.status === "Ativo").length} icon={UserCheck} color="green" />
-            <MemberStat loading={loading} label="Novos este mês" value={members.filter((member) => member.isNew).length} prefix="+" icon={Landmark} color="blue" />
-            <MemberStat loading={loading} label="Batizados" value={members.filter((member) => member.baptism === "Batizado").length} icon={Droplets} color="neutral" />
-            <MemberStat loading={loading} label="Aguardando batismo" value={members.filter((member) => member.baptism === "Aguardando").length} icon={HeartHandshake} color="blue" />
+            <MemberStat loading={loading} label="Total ativos" value={counts.ativos} icon={UserCheck} color="green" />
+            {/* "Novos este mês" sairia da página, não do total: a API não tem
+                filtro para "entrou este mês" e o número seria 25 de 137. Um
+                indicador errado é pior que um indicador a menos — volta quando
+                o backend expuser a contagem. */}
+            <MemberStat loading={loading} label="Batizados" value={counts.batizados} icon={Droplets} color="neutral" />
+            <MemberStat loading={loading} label="Aguardando batismo" value={counts.aguardando} icon={HeartHandshake} color="blue" />
           </section>
         </section>
       </main>

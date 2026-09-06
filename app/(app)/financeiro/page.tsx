@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Filter,
   ArrowDownCircle,
   ArrowUpCircle,
   ChevronLeft,
@@ -37,16 +38,45 @@ type FinancialTransaction = {
   status: "paid" | "pending";
   transactionDate: string;
   paymentMethod?: string;
-  attachmentUrl?: string;
+  hasAttachment?: boolean;
   attachmentName?: string;
+  /** Só vem da ficha individual, nunca da listagem. */
+  attachmentUrl?: string;
   notes?: string;
 };
+
+type Summary = { income: string; expense: string; balance: string; pendingCount: number; pendingAmount: string };
 
 const pageSize = 8;
 
 export default function FinancePage() {
   const readOnly = useReadOnly();
+
+  /**
+   * Abre a ficha buscando o registro COMPLETO.
+   *
+   * A listagem devolve só `hasAttachment` e o nome do arquivo — o comprovante
+   * em si não vem, senão cem lançamentos virariam megabytes. Abrir o
+   * formulário com o objeto da lista mostraria "Anexar comprovante" para um
+   * lançamento que já tem um, e quem anexasse outro substituiria o existente
+   * sem saber.
+   */
+  async function openRecord(item: FinancialTransaction, mode: "view" | "edit") {
+    setSelectedTransaction(item);
+    setDialogMode(mode);
+    try {
+      const response = await fetch(`/api/financeiro/${item.id}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const full = await response.json();
+      setSelectedTransaction((current) => (current && current.id === item.id ? { ...current, ...full } : current));
+    } catch {
+      // Sem a ficha completa o formulário abre com o que a lista tem. O
+      // servidor ignora chave ausente, então salvar não apaga o comprovante.
+    }
+  }
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
+  const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState<Summary>({ income: "0", expense: "0", balance: "0", pendingCount: 0, pendingAmount: "0" });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [type, setType] = useState("all");
@@ -58,45 +88,72 @@ export default function FinancePage() {
   const [selectedTransaction, setSelectedTransaction] = useState<FinancialTransaction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FinancialTransaction | null>(null);
 
-  async function loadTransactions() {
+  /**
+   * Filtro e paginação são do SERVIDOR, e o `summary` vem junto — do conjunto
+   * FILTRADO, na mesma consulta. Somar a partir da lista daria o total da
+   * página, não o da igreja, e sem quebrar nada: os números continuariam
+   * aparecendo, só que errados.
+   */
+  const listQuery = useMemo(() => {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (search.trim()) query.set("search", search.trim());
+    if (type !== "all") query.set("type", type);
+    if (status !== "all") query.set("status", status);
+    if (category !== "all") query.set("category", category);
+    if (attachment !== "all") query.set("attachment", attachment);
+    return query.toString();
+  }, [attachment, category, page, search, status, type]);
+
+  const loadTransactions = useCallback(async (query: string) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/financeiro", { cache: "no-store" });
+      const response = await fetch(`/api/financeiro?${query}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Falha ao carregar lançamentos");
-      setTransactions(await response.json());
+      const payload = await response.json() as { records: FinancialTransaction[]; total: number; summary: Summary };
+      setTransactions(payload.records);
+      setTotal(payload.total);
+      setSummary(payload.summary);
     } catch {
       toast.error("Não foi possível carregar os lançamentos");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void loadTransactions(); }, []);
+  useEffect(() => {
+    const delay = search.trim() ? 300 : 0;
+    const timer = window.setTimeout(() => void loadTransactions(listQuery), delay);
+    return () => window.clearTimeout(timer);
+  }, [listQuery, loadTransactions, search]);
 
-  const categories = useMemo(() => [...new Set(transactions.map((item) => item.category))].sort((a, b) => a.localeCompare(b, "pt-BR")), [transactions]);
+  // As categorias não podem sair da página: viriam só as que aparecem nela.
+  const [categories, setCategories] = useState<string[]>([]);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/financeiro?pageSize=100", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!active || !payload) return;
+        const list = (payload.records as FinancialTransaction[]).map((item) => item.category);
+        setCategories([...new Set(list)].sort((a, b) => a.localeCompare(b, "pt-BR")));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
-  const filteredTransactions = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    return transactions.filter((item) => {
-      const matchesSearch = !term || `${item.description} ${item.counterparty ?? ""}`.toLocaleLowerCase("pt-BR").includes(term);
-      return matchesSearch
-        && (type === "all" || item.type === type)
-        && (status === "all" || item.status === status)
-        && (category === "all" || item.category === category)
-        && (attachment === "all" || (attachment === "with" ? Boolean(item.attachmentUrl) : !item.attachmentUrl));
-    });
-  }, [attachment, category, search, status, transactions, type]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredTransactions.length / pageSize));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount);
-  const visibleTransactions = filteredTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const start = filteredTransactions.length ? (currentPage - 1) * pageSize + 1 : 0;
-  const end = Math.min(currentPage * pageSize, filteredTransactions.length);
+  const visibleTransactions = transactions;
+  const start = total ? (currentPage - 1) * pageSize + 1 : 0;
+  const end = Math.min(currentPage * pageSize, total);
 
-  const totalIncome = useMemo(() => sumAmount(transactions.filter((item) => item.type === "income" && item.status === "paid")), [transactions]);
-  const totalExpense = useMemo(() => sumAmount(transactions.filter((item) => item.type === "expense" && item.status === "paid")), [transactions]);
-  const pendingCount = useMemo(() => transactions.filter((item) => item.status === "pending").length, [transactions]);
-  const availableBalance = totalIncome - totalExpense;
+  // Os valores chegam como string com duas casas, de propósito: converter só
+  // na hora de exibir evita perder centavo em float.
+  const totalIncome = Number(summary.income);
+  const totalExpense = Number(summary.expense);
+  const availableBalance = Number(summary.balance);
+  const pendingCount = summary.pendingCount;
+
 
   function updateFilter(action: () => void) {
     action();
@@ -123,7 +180,7 @@ export default function FinancePage() {
     }
     toast.success(editing ? "Lançamento alterado com sucesso" : "Lançamento cadastrado com sucesso");
     setDialogMode(null); setSelectedTransaction(null); setPage(1);
-    await loadTransactions();
+    await loadTransactions(listQuery);
     return true;
   }
 
@@ -136,7 +193,7 @@ export default function FinancePage() {
     }
     toast.error("Lançamento excluído com sucesso");
     setDeleteTarget(null);
-    await loadTransactions();
+    await loadTransactions(listQuery);
     return true;
   }
 
@@ -149,6 +206,15 @@ export default function FinancePage() {
           <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>
         </section>
 
+        {/* O resumo acompanha o filtro: filtrando por "Aluguel", o saldo é o do
+            Aluguel, não o da igreja. Sem dizer isso, a pessoa vê o saldo mudar
+            e acha que perdeu lançamento. */}
+        {activeFilters > 0 && (
+          <p className="finance-summary-scope">
+            <Filter aria-hidden />
+            Os valores abaixo são do filtro aplicado, não do total da igreja.
+          </p>
+        )}
         <section className="resource-stats finance-summary" aria-label="Resumo financeiro">
           <article><span className="neutral"><Wallet /></span><small>Saldo disponível</small><strong>{loading ? <NumberSkeleton /> : <AnimatedNumber value={Math.abs(availableBalance)} prefix={availableBalance < 0 ? "-R$ " : "R$ "} decimals={2} />}</strong></article>
           <article><span className="green"><ArrowUpCircle /></span><small>Entradas</small><strong>{loading ? <NumberSkeleton /> : <AnimatedNumber value={totalIncome} prefix="R$ " decimals={2} />}</strong></article>
@@ -207,11 +273,14 @@ export default function FinancePage() {
                       <td data-label="Data" className="admission-date">{formatDate(item.transactionDate)}</td>
                       <td data-label="Status"><span className={`status-tag ${item.status === "paid" ? "is-active" : "is-inactive"}`}><i />{item.status === "paid" ? "Pago" : "Pendente"}</span></td>
                       <td data-label="Comprovante">
-                        {item.attachmentUrl
-                          ? <a className="finance-attachment-link" href={item.attachmentUrl} target="_blank" rel="noreferrer" aria-label={`Abrir comprovante de ${item.description}`}><Paperclip /></a>
+                        {/* A listagem não traz mais o arquivo, só se existe e o
+                            nome — 100 registros com anexo embutido eram
+                            megabytes. Abrir o comprovante é pela ficha. */}
+                        {item.hasAttachment
+                          ? <span className="finance-attachment-link" title={item.attachmentName ? `Comprovante: ${item.attachmentName}` : "Tem comprovante"} aria-label={`${item.description} tem comprovante anexado`}><Paperclip /></span>
                           : <span className="finance-attachment-none" aria-label="Sem comprovante"><FileX /></span>}
                       </td>
-                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${item.description}`} onClick={() => { setSelectedTransaction(item); setDialogMode("view"); }}><Eye /></button><button aria-label={`Editar ${item.description}`} onClick={() => { setSelectedTransaction(item); setDialogMode("edit"); }}><Pencil /></button><button aria-label={`Excluir ${item.description}`} onClick={() => setDeleteTarget(item)}><Trash2 /></button></div></td>
+                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${item.description}`} onClick={() => openRecord(item, "view")}><Eye /></button><button aria-label={`Editar ${item.description}`} onClick={() => openRecord(item, "edit")}><Pencil /></button><button aria-label={`Excluir ${item.description}`} onClick={() => setDeleteTarget(item)}><Trash2 /></button></div></td>
                     </tr>
                   ))}
                   {!loading && !visibleTransactions.length && <tr><td className="members-empty" colSpan={8}>{transactions.length ? "Nenhum lançamento encontrado com esses filtros." : "Nenhum lançamento registrado ainda. Comece pelo botão Novo Lançamento."}</td></tr>}
@@ -220,7 +289,7 @@ export default function FinancePage() {
             </div>
             {loading && <TableSkeleton rows={8} columns={6} />}
             <div className="members-pagination">
-              <span>Mostrando {start}-{end} de {filteredTransactions.length} lançamentos</span>
+              <span>Mostrando {start}-{end} de {total} lançamentos</span>
               <div>
                 <button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} aria-label="Página anterior"><ChevronLeft /></button>
                 {visiblePageNumbers(currentPage, pageCount).map((number) => <button className={number === currentPage ? "current" : undefined} onClick={() => setPage(number)} key={number}>{number}</button>)}
@@ -236,9 +305,6 @@ export default function FinancePage() {
   );
 }
 
-function sumAmount(items: FinancialTransaction[]) {
-  return items.reduce((total, item) => total + Number(item.amount), 0);
-}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);

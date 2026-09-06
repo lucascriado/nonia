@@ -64,12 +64,14 @@ export default function CellsPage() {
     try {
       const [cellsResponse, membersResponse] = await Promise.all([
         fetch("/api/cells", { cache: "no-store" }),
-        fetch("/api/members", { cache: "no-store" }),
+        fetch("/api/members?pageSize=100", { cache: "no-store" }),
       ]);
       if (!cellsResponse.ok || !membersResponse.ok) throw new Error("Falha ao carregar células");
       setCells(await cellsResponse.json());
-      const memberRows = await membersResponse.json() as Array<MemberOption>;
-      setMembers(memberRows.map((member) => ({ id: member.id, name: member.name, email: member.email, cell: member.cell })));
+      // /api/members passou a devolver { records, total }. O seletor de
+      // membros precisa de TODOS, não de uma página — daí o pageSize no teto.
+      const memberPayload = await membersResponse.json() as { records: MemberOption[] };
+      setMembers(memberPayload.records.map((member) => ({ id: member.id, name: member.name, email: member.email, cell: member.cell })));
     } catch {
       toast.error("Não foi possível carregar células");
     } finally {
@@ -192,7 +194,7 @@ export default function CellsPage() {
                   <h3>{cell.name}</h3>
                   <p><MapPin />{cell.address || "Endereço não informado"}</p>
                   <p><Clock />{cell.meetingDay}, {cell.meetingTime}</p>
-                  <div className="avatar-row">{cell.members.slice(0, 3).map((member) => <span key={member.id}>{initials(member.name)}</span>)}{cell.memberCount > 3 && <span className="avatar-more">+{cell.memberCount - 3}</span>}</div>
+                  <div className="avatar-row" data-sobreposicao="intencional">{cell.members.slice(0, 3).map((member) => <span key={member.id}>{initials(member.name)}</span>)}{cell.memberCount > 3 && <span className="avatar-more">+{cell.memberCount - 3}</span>}</div>
                   <footer>
                     <button onClick={() => openForm("view", cell)}><Eye />Visualizar</button>
                     <button onClick={() => openForm("edit", cell)}><Edit3 />Editar</button>
