@@ -72,9 +72,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       // Trocar a PRÓPRIA senha é POST /api/auth/password, que exige a senha
       // atual. Este caminho aqui é socorro e não exige nada, então não pode
       // valer para si mesmo -- não unifique os dois.
+      //
+      // A mensagem fala da AÇÃO, não da rota: quem lê isto é a secretaria da
+      // igreja, para quem "POST /api/auth/password" não significa nada. E
+      // nomeia a ação em vez da tela, para não quebrar se a tela mudar de
+      // lugar.
       if (target.userId === auth.user.id) {
         throw forbidden(
-          "Use POST /api/auth/password para trocar a sua própria senha; ela pede a senha atual.",
+          "Para trocar a sua própria senha, use a opção de alterar senha nas " +
+            "configurações da sua conta. Ela pede a senha atual por segurança.",
           "self_password_reset",
         );
       }
