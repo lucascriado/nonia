@@ -122,8 +122,11 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 }
 .mk-menu-button svg { width: 20px; }
 
+/* Fica fora do fluxo no desktop e enquanto fechado. A regra de classe venceria
+   o `[hidden]` da folha do navegador, então o `display` é ligado só no
+   breakpoint mobile e apenas quando o atributo sai. */
 .mk-mobile-nav {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 8px;
   padding: 8px 24px 20px;
@@ -425,12 +428,143 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-footer-bottom small { color: var(--muted); font-size: 0.8125rem; }
 
 /* --------------------------------------------------------------------------
+   Pagina de duvidas
+   -------------------------------------------------------------------------- */
+
+.mk-faq-hero { padding: 76px 0 8px; text-align: center; }
+.mk-faq-hero h1 { max-width: 20ch; margin: 22px auto 0; color: var(--heading); font-size: clamp(2rem, 4.4vw, 3rem); font-weight: 700; letter-spacing: -.035em; line-height: 1.1; }
+.mk-faq-hero p { max-width: 62ch; margin: 18px auto 0; color: var(--muted); font-size: 1rem; line-height: 1.65; }
+
+.mk-faq-section { padding-top: 64px; }
+.mk-faq-layout { display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 56px; align-items: start; }
+
+/* Indice lateral */
+.mk-faq-index { position: sticky; top: 96px; display: flex; flex-direction: column; gap: 2px; }
+.mk-faq-index strong { padding: 0 12px 10px; color: var(--muted); font-size: 0.6875rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.mk-faq-index a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color .25s ease, background .25s ease;
+}
+.mk-faq-index a svg { width: 16px; flex: 0 0 16px; }
+.mk-faq-index a:hover { background: var(--panel-soft); color: var(--text); }
+.mk-faq-index a.is-active { background: var(--primary-soft); color: var(--heading); font-weight: 600; }
+/* A marca do item ativo cresce em vez de aparecer inteira de uma vez. */
+.mk-faq-index a::before {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: 999px;
+  background: var(--primary);
+  content: "";
+  translate: 0 -50%;
+  transition: height .3s var(--ease-out);
+}
+.mk-faq-index a.is-active::before { height: 62%; }
+
+/* Blocos de recurso */
+.mk-faq-topics { display: flex; flex-direction: column; gap: 72px; }
+.mk-topic { scroll-margin-top: 100px; }
+.mk-topic-icon { display: grid; width: 46px; height: 46px; place-items: center; border-radius: var(--radius); background: var(--primary-soft); color: var(--primary); margin-bottom: 18px; }
+.mk-topic-icon svg { width: 23px; }
+.mk-topic-head h2 { margin: 12px 0 0; color: var(--heading); font-size: clamp(1.5rem, 2.8vw, 1.875rem); font-weight: 700; letter-spacing: -.03em; }
+.mk-topic-head p { margin: 14px 0 0; max-width: 66ch; color: var(--muted); font-size: 1rem; line-height: 1.65; }
+
+/* Lista de pontos: a linha da esquerda cresce quando o bloco entra na tela e
+   cada item chega em seguida, escalonado pelo `delay` do Reveal. */
+.mk-topic-points {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  margin: 28px 0 0;
+  padding: 4px 0 4px 26px;
+  list-style: none;
+}
+.mk-topic-points::before {
+  position: absolute;
+  left: 5px;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(var(--primary-border), transparent);
+  content: "";
+  transform-origin: top;
+  transition: scale .9s var(--ease-out);
+}
+/* Só encolhe a linha quando as animações estão ligadas; sem elas ela já nasce
+   inteira, em vez de sumir para sempre. */
+[data-motion="on"] .mk-topic-points::before { scale: 1 0; }
+[data-motion="on"] .mk-topic-points.is-visible::before { scale: 1 1; }
+.mk-topic-points li { position: relative; color: var(--text); font-size: 0.9375rem; line-height: 1.6; }
+.mk-topic-points li::before {
+  position: absolute;
+  left: -25px;
+  top: 8px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--panel-soft);
+  border-radius: 50%;
+  background: var(--primary);
+  content: "";
+}
+
+/* Perguntas */
+.mk-topic-questions { display: grid; gap: 10px; margin-top: 30px; }
+.mk-accordion { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); transition: border-color .25s ease, box-shadow .25s ease; }
+.mk-accordion.is-open { border-color: var(--primary-border); box-shadow: var(--shadow-xs); }
+.mk-accordion > button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 20px;
+  border: 0;
+  background: transparent;
+  color: var(--heading);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-align: left;
+  transition: color .2s ease;
+}
+.mk-accordion > button:hover { color: var(--primary); }
+.mk-accordion > button svg { width: 18px; flex: 0 0 18px; color: var(--muted); transition: rotate .3s var(--ease-out), color .2s ease; }
+.mk-accordion.is-open > button svg { rotate: 180deg; color: var(--primary); }
+
+/* 0fr -> 1fr anima a altura sem medir nada em JavaScript. */
+.mk-accordion-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s var(--ease-out); }
+.mk-accordion.is-open .mk-accordion-panel { grid-template-rows: 1fr; }
+.mk-accordion-panel > p {
+  overflow: hidden;
+  margin: 0;
+  padding-inline: 20px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  opacity: 0;
+  transition: opacity .25s ease, padding .32s var(--ease-out);
+}
+.mk-accordion.is-open .mk-accordion-panel > p { padding-bottom: 19px; opacity: 1; }
+
+/* --------------------------------------------------------------------------
    Responsivo
    -------------------------------------------------------------------------- */
 
 @media (max-width: 1020px) {
   .mk-nav, .mk-header-actions { display: none; }
   .mk-menu-button { display: grid; }
+  .mk-mobile-nav:not([hidden]) { display: flex; }
   .mk-split, .mk-faq-preview { grid-template-columns: 1fr; gap: 36px; }
   .mk-section-head-left { text-align: left; }
   .mk-preview-body { grid-template-columns: 132px 1fr; }
@@ -464,4 +598,19 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
   .mk-hero-actions .mk-button, .mk-cta-actions .mk-button { width: 100%; }
   .mk-hero-title { max-width: none; }
   .mk-preview-stats { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 1020px) {
+  .mk-faq-layout { grid-template-columns: 1fr; gap: 32px; }
+  /* Vira uma barra rolavel no topo: sticky em coluna unica so roubaria altura. */
+  .mk-faq-index { position: static; flex-direction: row; overflow-x: auto; gap: 8px; padding-bottom: 6px; }
+  .mk-faq-index strong { display: none; }
+  .mk-faq-index a { border: 1px solid var(--border); white-space: nowrap; }
+  .mk-faq-index a::before { display: none; }
+}
+
+@media (max-width: 700px) {
+  .mk-faq-hero { padding-top: 48px; }
+  .mk-faq-section { padding-top: 44px; }
+  .mk-faq-topics { gap: 56px; }
 }
