@@ -24,9 +24,28 @@ export async function GET(request: Request) {
     const where = filtro.where.join(" AND ");
 
     // O total é o do conjunto FILTRADO, não o da organização: senão a tela
-    // diria "137 resultados" mostrando 4.
-    const contagem = await query<{ total: number }>(
-      `SELECT count(*)::int AS total FROM member_directory WHERE ${where}`,
+    // diria "137 resultados" mostrando 4. Os indicadores saem da MESMA
+    // consulta e sob o MESMO filtro: indicador que ignora o filtro ao lado de
+    // uma lista que o obedece é o número errado que ninguém questiona.
+    //
+    // "Novos este mês" é admissão dentro do mês corrente, e NÃO a marca
+    // `is_new`: ela nasce true na criação e nunca volta a false, então contá-la
+    // diria "novo este mês" sobre quem entrou em 2022. Medido no nonia_dev em
+    // 06/09/2026: `is_new` dava 7, admitidos no mês davam 1.
+    const contagem = await query<{
+      total: number; newThisMonth: number; active: number;
+      baptized: number; awaitingBaptism: number;
+    }>(
+      `SELECT
+         count(*)::int AS total,
+         count(*) FILTER (
+           WHERE admission_date >= date_trunc('month', CURRENT_DATE)::date
+             AND admission_date <  (date_trunc('month', CURRENT_DATE) + interval '1 month')::date
+         )::int AS "newThisMonth",
+         count(*) FILTER (WHERE status = 'active')::int AS active,
+         count(*) FILTER (WHERE baptism_status = 'baptized')::int AS baptized,
+         count(*) FILTER (WHERE baptism_status = 'waiting')::int AS "awaitingBaptism"
+       FROM member_directory WHERE ${where}`,
       filtro.valores,
     );
 
@@ -46,7 +65,8 @@ export async function GET(request: Request) {
       LIMIT $${filtro.valores.length + 1} OFFSET $${filtro.valores.length + 2}
     `, [...filtro.valores, pageSize, offset]);
 
-    return Response.json({ records: rows, total: contagem.rows[0].total, page, pageSize });
+    const { total, ...summary } = contagem.rows[0];
+    return Response.json({ records: rows, total, page, pageSize, summary });
   } catch (error) {
     return apiError(error);
   }
