@@ -53,12 +53,14 @@ export const plans: Plan[] = [
     id: "rede",
     name: "Rede",
     icon: Building2,
-    tagline: "Para igrejas grandes, com equipe numerosa e necessidades próprias.",
+    tagline: "Para redes e denominações que administram várias congregações.",
     price: null,
     priceNote: "sob consulta",
     cta: "Falar com a gente",
     features: [
       "Tudo do Comunidade",
+      "Várias congregações no mesmo painel",
+      "Consolidação financeira da rede",
       "Usuários ilimitados",
       "Onboarding acompanhado",
       "Suporte prioritário",
@@ -93,6 +95,7 @@ export const planComparison: ComparisonGroup[] = [
     rows: [
       { label: "Pessoas cadastradas", note: "Membros e visitantes somados.", values: ["Até 100", "Ilimitadas", "Ilimitadas"] },
       { label: "Usuários com acesso ao painel", values: ["1", "Até 10", "Ilimitados"] },
+      { label: "Congregações no mesmo contrato", values: ["1", "1", "Várias"] },
     ],
   },
   {
@@ -119,6 +122,7 @@ export const planComparison: ComparisonGroup[] = [
       { label: "Financeiro com entradas, saídas e pendências", values: [false, true, true] },
       { label: "Comprovante anexado ao lançamento", note: "PNG, JPG ou PDF.", values: [false, true, true] },
       { label: "Papéis e permissões por usuário", values: [false, true, true] },
+      { label: "Consolidação financeira da rede", values: [false, false, true] },
       { label: "Exportação dos seus dados", values: [true, true, true] },
     ],
   },
