@@ -32,7 +32,10 @@ const preferencesInitScript = `try{var p=JSON.parse(localStorage.getItem("nonia-
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
+    // Os scripts inline abaixo escrevem tema, fonte e `data-motion` no <html>
+    // antes da hidratação — é justamente o ponto: sem isso a página pisca. O
+    // React compararia esses atributos com o HTML do servidor e avisaria.
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.variable}>
         <script dangerouslySetInnerHTML={{ __html: preferencesInitScript }} />
         <AppPreferences />

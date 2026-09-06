@@ -37,10 +37,6 @@ export function DashboardShell({
   }
 
   useEffect(() => {
-    document.title = `${title} | nonia.app`;
-  }, [title]);
-
-  useEffect(() => {
     function closeSidebarOnOutsideClick(event: PointerEvent) {
       if (!(event.target instanceof Element)) return;
       const target = event.target;
