@@ -56,6 +56,18 @@ antes de commitar.
 - Utilitários e camada de dados ficam em `lib/`.
 - Estilos globais e tokens ficam em `app/globals.css`; os do site público em
   `app/(marketing)/marketing.css`, com prefixo `mk-` e cor sempre por token.
+- **Componente compartilhado nasce com as regras no `globals.css`**, nunca numa
+  folha de escopo como o `marketing.css`. **Onde a regra mora determina onde o
+  componente funciona**: componente que pode ser usado em mais de um escopo
+  precisa das regras no lugar que todos os escopos carregam.
+
+  A regra vem de dois incidentes em 06/09/2026, o mesmo erro nos dois sentidos:
+  o botão de mostrar senha ficou abaixo dos 44px porque a regra estava no
+  `globals.css` e o `marketing.css` vencia por ordem de carregamento; e o
+  `AuthField`, nascido para `/entrar` e `/cadastro`, teve o botão de mostrar
+  senha caindo para fora do campo ao ser reusado dentro do app, porque as regras
+  dele moravam no `marketing.css`. **Nenhum dos dois aparece em `typecheck` nem
+  em `build` — só abrindo a tela.**
 - Use `DashboardShell` nas páginas administrativas.
 - Use `AnimatedNumber` para indicadores carregados.
 - Use os skeletons de `components/skeleton.tsx` durante consultas ao servidor.
@@ -251,6 +263,10 @@ de entrar na documentação como verdade.
   `/cadastro` feita com sessão aberta não valida nada: o `proxy.ts` manda quem
   tem cookie direto para `/painel`, então o que foi inspecionado foi outra
   página. Para validar tela de visitante, esteja deslogado.
+- **Ao documentar um padrão de código, escreva o padrão, não a descrição
+  dele.** `/^[=+\-@\t\r]/` envelhece na cara de quem lê; "começa com `=`, `+`,
+  `-` ou `@`" continua fazendo sentido depois de o código mudar, e por isso
+  passa despercebido.
 - **Antes de escrever uma proibição, cheque o objeto dela.** "Não commite `X`"
   e "não commite a mudança de `X`" são regras diferentes, e a primeira apaga do
   repositório um arquivo que talvez esteja versionado desde sempre — foi o que
