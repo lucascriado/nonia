@@ -191,7 +191,8 @@ export const faqTopics: FaqTopic[] = [
     summary:
       "Uma assinatura por igreja. Sem fidelidade, sem taxa de instalação, sem cobrança por membro cadastrado.",
     points: [
-      "Plano Semente gratuito e sem prazo para expirar, até 100 membros",
+      "14 dias de avaliação em toda conta nova, com 200 pessoas e 5 usuários",
+      "Depois da avaliação, o Semente continua gratuito e sem prazo para expirar",
       "Planos pagos cobrados por mês, com valor fixo independente do tamanho da igreja",
       "Troca de plano a qualquer momento, com ajuste proporcional",
       "Cancelamento pela própria tela de configurações",
@@ -200,7 +201,12 @@ export const faqTopics: FaqTopic[] = [
       {
         question: "Preciso de cartão para começar?",
         answer:
-          "Não. O plano Semente é criado sem nenhum dado de pagamento.",
+          "Não. A conta é criada sem nenhum dado de pagamento, e continua assim depois da avaliação se você ficar no Semente.",
+      },
+      {
+        question: "O que acontece quando terminam os 14 dias de avaliação?",
+        answer:
+          "A conta passa para o plano Semente, que é gratuito e não expira. Nada é apagado e ninguém é cobrado — se a igreja quiser seguir com células, ministérios e financeiro, aí sim assina o Comunidade.",
       },
       {
         question: "Se eu cancelar, perco meus dados?",

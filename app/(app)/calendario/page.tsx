@@ -84,6 +84,11 @@ export default function CalendarPage() {
   }, [filteredEvents, visibleDate]);
   const dayEvents = filteredEvents.filter((event) => sameDay(new Date(event.startsAt), visibleDate));
 
+  function selectDay(date: Date) {
+    setVisibleDate(date);
+    if (window.matchMedia("(max-width: 640px)").matches) setCalendarView("day");
+  }
+
   const days = useMemo(() => {
     const firstWeekday = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -176,8 +181,21 @@ export default function CalendarPage() {
               <div className={`calendar-month-grid month-transition-${monthTransition}`} aria-busy={loading} key={`month-${year}-${month}`}>
                 {weekdays.map((weekday) => <div className="calendar-weekday" key={weekday}>{weekday}</div>)}
                 {days.map((day) => (
-                  <div className={`calendar-day-cell ${day.outside ? "outside" : ""}`} key={day.key}>
-                    <span>{day.number}</span>
+                  <div className={`calendar-day-cell ${day.outside ? "outside" : ""} ${sameDay(day.date, visibleDate) ? "is-selected" : ""}`} key={day.key}>
+                    {/* No celular a célula tem ~45px e nenhum título cabe nela:
+                        o dia vira o alvo de toque, com pontos indicando que há
+                        evento, e a agenda do dia mostra os títulos por extenso. */}
+                    <button className="calendar-day-select" onClick={() => selectDay(day.date)}>
+                      <span className="calendar-day-number">{day.number}</span>
+                      <span className="calendar-day-dots" aria-hidden>
+                        {day.events.slice(0, 3).map((event) => <i className={event.color} key={event.id} />)}
+                      </span>
+                      <span className="mk-visually-hidden">
+                        {day.events.length
+                          ? `Dia ${day.number}, ${day.events.length} evento${day.events.length > 1 ? "s" : ""}`
+                          : `Dia ${day.number}, sem eventos`}
+                      </span>
+                    </button>
                     {day.events.slice(0, 3).map((event) => (
                       <button className={`calendar-event-pill ${event.color}`} key={event.id} onClick={() => openEvent(event.id)}>
                         {event.title}

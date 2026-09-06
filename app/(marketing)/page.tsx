@@ -94,7 +94,7 @@ const differentials = [
 const faqPreview = [
   { question: "Preciso instalar alguma coisa?", answer: "Não. O nonia roda no navegador; a igreja só precisa de internet." },
   { question: "Consigo migrar minha planilha atual?", answer: "Sim. A gente ajuda a importar a lista de membros no começo do plano Comunidade." },
-  { question: "Posso testar antes de pagar?", answer: "O plano Semente é gratuito e não expira, para até 100 membros cadastrados." },
+  { question: "Posso testar antes de pagar?", answer: "Toda igreja começa com 14 dias de avaliação, com 200 pessoas e 5 usuários liberados. Terminado o prazo, a conta continua no plano Semente, que é gratuito e não expira." },
 ];
 
 export default function LandingPage() {
@@ -127,7 +127,8 @@ export default function LandingPage() {
           </Reveal>
 
           <Reveal as="p" className="mk-hero-note" delay={240}>
-            Plano gratuito para até 100 membros. Sem cartão de crédito.
+            14 dias de avaliação com tudo liberado. Depois a igreja continua
+            de graça no plano Semente. Sem cartão de crédito.
           </Reveal>
 
           <Reveal className="mk-hero-figure" delay={300}>
@@ -230,7 +231,12 @@ export default function LandingPage() {
           <Reveal className="mk-section-head">
             <span className="mk-eyebrow">Planos</span>
             <h2>Um plano por igreja, do primeiro cadastro à rede inteira</h2>
-            <p>Assinatura mensal, sem fidelidade. Cancele quando quiser e leve seus dados.</p>
+            <p>
+              Toda igreja começa com 14 dias de avaliação, com 200 pessoas e 5
+              usuários liberados. Depois continua no Semente, de graça, ou
+              assina um plano. Assinatura mensal, sem fidelidade — cancele
+              quando quiser e leve seus dados.
+            </p>
           </Reveal>
 
           <div className="mk-plan-grid">
@@ -311,7 +317,8 @@ export default function LandingPage() {
             <h2>Sua igreja organizada já neste domingo</h2>
             <p>
               Crie a conta, cadastre os primeiros membros e veja o painel ganhar
-              vida. O plano gratuito não expira.
+              vida. São 14 dias de avaliação e, depois deles, o plano Semente
+              gratuito, que não expira.
             </p>
             <div className="mk-cta-actions">
               <Link className="mk-button mk-button-primary mk-button-lg" href={signupHref()}>

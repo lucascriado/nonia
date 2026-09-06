@@ -735,6 +735,35 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-compare-no svg { width: var(--icon-md); }
 .mk-compare-value { color: var(--heading); font-weight: 600; }
 
+/* Faixa da avaliacao, abaixo dos cartoes de plano. Nao e letra miuda: tem o
+   mesmo peso de texto do resto da pagina. */
+.mk-trial-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 20px;
+  margin-top: 24px;
+  padding: 20px 24px;
+  border: 1px solid var(--primary-border);
+  border-radius: var(--mk-radius);
+  background: var(--primary-soft);
+}
+.mk-trial-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--heading);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.mk-trial-badge svg { width: var(--icon-sm); color: var(--primary); }
+.mk-trial-note p { flex: 1 1 320px; margin: 0; color: var(--text); font-size: 0.9375rem; line-height: 1.6; }
+.mk-trial-note strong { color: var(--heading); font-weight: 700; }
+
 .mk-billing-faq { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 40px; margin-top: 48px; }
 .mk-billing-faq h3 { margin: 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
 .mk-billing-faq p { margin: 8px 0 0; color: var(--muted); font-size: 0.9375rem; line-height: 1.62; }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Check, Minus } from "lucide-react";
+import { ArrowRight, Check, Minus, Sparkles } from "lucide-react";
 import { Reveal } from "@/components/marketing/reveal";
 import { marketingRoutes, signupHref } from "@/components/marketing/routes";
 import { planComparison, plans, type ComparisonValue } from "../plans";
@@ -104,6 +104,20 @@ export default function PricingPage() {
               </Reveal>
             ))}
           </div>
+
+          {/* O plano de avaliação não é vendável e por isso não vira cartão,
+              mas é por ele que toda conta começa: esconder isso surpreenderia
+              a pessoa no 15º dia. */}
+          <Reveal className="mk-trial-note" delay={320}>
+            <span className="mk-trial-badge"><Sparkles aria-hidden /> Toda conta começa assim</span>
+            <p>
+              Os <strong>14 primeiros dias são de avaliação</strong>, com 200
+              pessoas e 5 usuários liberados, para a igreja experimentar tudo.
+              Terminado o prazo sem assinar, a conta continua funcionando no{" "}
+              <strong>Semente</strong>, de graça e sem expirar. Não pedimos
+              cartão em nenhum dos dois momentos.
+            </p>
+          </Reveal>
         </div>
       </section>
 
