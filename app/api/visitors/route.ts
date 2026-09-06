@@ -4,25 +4,39 @@ import { organizationId, requirePermission } from "@/lib/auth";
 import { Person, Visitor } from "@/lib/models";
 import { readJson } from "@/lib/http";
 import { apiError, personAttributes, RecordPayload, validateRecordPayload } from "@/lib/records";
+import { filtrosDeVisitantes, paginacao } from "@/lib/listings";
 import { membershipStage, visitorStatus } from "@/lib/visitor-stages";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const auth = await requirePermission("visitors.read");
+    const { searchParams } = new URL(request.url);
+
+    // Ver o comentário em /api/members: filtra no servidor e só então pagina.
+    const filtro = filtrosDeVisitantes(searchParams, organizationId(auth));
+    const { page, pageSize, offset } = paginacao(searchParams);
+    const where = filtro.where.join(" AND ");
+
+    const contagem = await query<{ total: number }>(
+      `SELECT count(*)::int AS total FROM visitor_directory WHERE ${where}`,
+      filtro.valores,
+    );
+
     const { rows } = await query(`
       SELECT id, full_name AS name, email, phone, birth_date AS "birthDate",
         gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
         address, neighborhood, city, state, notes, visit_date AS date,
-        -- Mesma razão da listagem de membros: a foto não vem aqui.
         avatar_url IS NOT NULL AS "hasPhoto",
         invited_by AS "invitedBy", membership_stage AS "membershipStage", is_recent AS recent
       FROM visitor_directory
-      WHERE organization_id = $1
+      WHERE ${where}
       ORDER BY visit_date DESC, full_name
-    `, [organizationId(auth)]);
-    return Response.json(rows);
+      LIMIT $${filtro.valores.length + 1} OFFSET $${filtro.valores.length + 2}
+    `, [...filtro.valores, pageSize, offset]);
+
+    return Response.json({ records: rows, total: contagem.rows[0].total, page, pageSize });
   } catch (error) {
     return apiError(error);
   }
