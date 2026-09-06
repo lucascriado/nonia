@@ -109,6 +109,17 @@ export function useCurrentUser() {
 }
 
 /**
+ * A igreja está em somente leitura por mensalidade em aberto: consultar,
+ * buscar e exportar seguem valendo; cadastrar e editar param.
+ *
+ * A tela usa isto para NÃO oferecer o que o servidor vai recusar — sem isso a
+ * pessoa preenche um cadastro inteiro para descobrir no salvar.
+ */
+export function useReadOnly() {
+  return useSession().plan?.access.level === "read_only";
+}
+
+/**
  * Permissão no formato `recurso.acao`. Enquanto a sondagem não volta devolve
  * `false`, então o padrão é esconder e depois revelar — nunca o contrário.
  */

@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -52,6 +53,7 @@ const membershipStages: Visitor["membershipStage"][] = ["Visitou a igreja", "Con
 type Tab = typeof tabs[number];
 
 export default function VisitorsPage() {
+  const readOnly = useReadOnly();
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -169,7 +171,7 @@ export default function VisitorsPage() {
         <section className="visitors-heading">
           <div><h2>Gestão de Visitantes</h2><p>Acompanhe e integre novas pessoas à nossa comunidade.</p></div>
           <ExportButton resource="visitors" permission="visitors.read" filters={{ search, tab, invitedBy }} />
-          <button className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>
+          <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>
         </section>
 
         <section className="visitor-stats" aria-label="Indicadores de visitantes">
@@ -218,7 +220,7 @@ export default function VisitorsPage() {
                 ))}
               </tbody>
             </table>
-            {!loading && !visible.length && <div className="members-empty">Nenhum visitante encontrado com esses filtros.</div>}
+            {!loading && !visible.length && <div className="members-empty">{visitors.length ? "Nenhum visitante encontrado com esses filtros." : "Nenhum visitante cadastrado ainda. Registre quem visitou a igreja pelo botão Novo Visitante."}</div>}
           </div>
           {loading && <TableSkeleton rows={4} columns={5} />}
           <div className="visitor-pagination">

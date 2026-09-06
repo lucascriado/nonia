@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Baby, BookOpenCheck, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, Music, Plus, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -29,6 +30,7 @@ const emptyMinistry: MinistryFormValues = { name: "", description: "", color: "p
 const colorLabels: Record<Ministry["color"], string> = { blue: "Azul", green: "Verde", gray: "Cinza", purple: "Roxo" };
 
 export default function MinistriesPage() {
+  const readOnly = useReadOnly();
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [summary, setSummary] = useState<Summary>({ totalVolunteers: 0, activeMinistries: 0 });
   const [members, setMembers] = useState<MemberOption[]>([]);
@@ -127,7 +129,7 @@ export default function MinistriesPage() {
             <h2>Gestão de Ministérios</h2>
             <p>Organize equipes, voluntários e chamadas das escolas bíblicas.</p>
           </div>
-          {!mode && <button className="primary-action" onClick={() => openForm("create")}><Plus />Novo Ministério</button>}
+          {!mode && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => openForm("create")}><Plus />Novo Ministério</button>}
         </section>
 
         {mode ? (
@@ -169,7 +171,7 @@ export default function MinistriesPage() {
                   </footer>
                 </article>
               ))}
-              {!loading && !filteredMinistries.length && <p className="data-empty">Nenhum ministério encontrado.</p>}
+              {!loading && !filteredMinistries.length && <p className="data-empty">{ministries.length ? "Nenhum ministério encontrado com esses filtros." : "Nenhum ministério cadastrado ainda. Crie o primeiro pelo botão Novo Ministério."}</p>}
             </section>
 
           </>

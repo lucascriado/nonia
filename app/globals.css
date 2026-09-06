@@ -398,7 +398,7 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
 .primary-action:hover:not(:disabled) { background: var(--primary-strong); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 .primary-action:active:not(:disabled) { transform: scale(.98); }
 .primary-action svg { width: var(--icon-md); }
-.primary-action:disabled { cursor: not-allowed; opacity: .6; }
+.primary-action:disabled { cursor: not-allowed; opacity: .55; }
 
 /* Exportar e acao secundaria ao lado da primaria — e a unica que continua
    valendo quando a conta cai para somente leitura, entao ela nao acompanha as
