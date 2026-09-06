@@ -15,20 +15,25 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 
 | Item | Situação |
 | --- | --- |
-| Produção | **Não existe.** O nonia nunca foi deployado, nunca teve container no ar |
-| Aplicação no Coolify | Criada em 06/09/2026, `fqdn` nulo, auto-deploy **desligado**, nunca publicada (reverificado no Coolify em 06/09/2026) |
-| Banco de produção | A base `postgres` está provisionada e **vazia** (0 tabelas). Baseline em `~/backups/nonia-2026-09-06.sql` |
-| Domínio `nonia.app` | **Não responde.** Zona no Cloudflare, mas o registro A é nuvem cinza e o firewall só aceita faixas do Cloudflare → timeout |
-| `www.nonia.app` | Não existe registro |
+| Produção | **Não existe e está fora de escopo.** O nonia nunca foi deployado; desde 06/09/2026 ele roda **só localmente** — ver "Escopo atual" |
+| Aplicação no Coolify | **Descartada.** Foi criada em 06/09/2026 e nunca publicada; a exclusão ficou a cargo do admin de VPS no mesmo dia — ver "Mudanças de escopo" |
+| Base `postgres` do servidor | Provisionada e **vazia** (0 tabelas). Era a base destinada à produção; segue intocada. Baseline em `~/backups/nonia-2026-09-06.sql` |
+| Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação na `main` | **Não existe.** Todas as rotas de `app/api` e todas as telas estão 100% abertas |
 | Multi-tenancy na `main` | **Não existe.** Nenhuma tabela tem `organization_id` |
 | Fase 1 (backend) | **Entregue na branch `feat/auth-multitenant`, ainda não integrada.** Ver "Em voo" abaixo |
-| Banco de desenvolvimento | `nonia_dev`, no mesmo Postgres do Coolify que a produção: **PostgreSQL 18.6 nos dois**. Não há PostgreSQL instalado nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. É uma base separada da de produção, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
+| Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
-**Nenhum deploy até a Fase 1 estar integrada e revisada.** Publicar hoje expõe
-membros, visitantes e financeiro a qualquer pessoa na internet. Some-se a isso
-que o `CMD` do Dockerfile é `node database/migrate.mjs && node server.js`: um
-deploy acidental roda as migrations sozinho contra o banco.
+### Escopo atual: execução local (06/09/2026)
+
+Decisão do Lucas: **o nonia roda localmente por enquanto.** Sem domínio, sem
+DNS, sem deploy. A única infra que importa é **o banco estar online** — e ele
+está, pelo túnel.
+
+Isso não afrouxa a regra de integração: **a branch de auth não entra na `main`
+antes das telas de login existirem.** O motivo mudou — não é mais "expõe dados
+na internet", é "quebra o ambiente local do time inteiro, que fica sem
+conseguir entrar" —, mas a ordem é a mesma.
 
 > **O PostgreSQL embarcado na porta 54329 não é do nonia.** Ele pertence a
 > outra sessão de agente nesta máquina e não faz parte do projeto — não aponte
@@ -216,15 +221,47 @@ o Lucas reabra o assunto. O caminho `/recuperar-senha` aparece em
 `GUEST_ONLY_PAGES` do middleware sem página correspondente — é resíduo, não
 promessa.
 
-## Deploy e infraestrutura
+## Mudanças de escopo e decisões revertidas
 
-O deploy é **Coolify**, build pack `dockerfile`, porta **3000**, e as
-migrations rodam no boot do container. O healthcheck bate em `/api/health` com
-`--start-period=30s`, então o Coolify espera o healthcheck passar antes de
-trocar o container — ver o container antigo logo depois de um deploy é normal.
+Nada aqui foi esquecido nem apagado: foi feito, estava certo para o contexto de
+então, e o contexto mudou. Está escrito para que ninguém refaça achando que
+faltou.
+
+### Hospedagem, domínio e deploy — fora de escopo em 06/09/2026
+
+Decisão do Lucas: rodar localmente por enquanto, sem domínio nem DNS, e excluir
+a aplicação criada no Coolify. Só importa o banco estar online.
+
+| O que existia | Situação |
+| --- | --- |
+| Aplicação `nonia` no Coolify, criada em 06/09/2026 com `fqdn` nulo e auto-deploy desligado | **Descartada.** Nunca foi publicada, nunca teve container. A exclusão ficou com o admin de VPS. O uuid dela é **histórico** — não recrie a aplicação |
+| Plano de DNS/Cloudflare para `nonia.app` (7 etapas, Origin CA da zona antes da nuvem laranja) | **Arquivado**, não pendente. O levantamento continua correto e está em `/home/lucas/www/FASE0-INFRA.md` para quando o assunto voltar. O domínio segue quebrado de propósito |
+| `www.nonia.app` | Nunca existiu registro, e não vai existir por ora |
+| Env `APP_URL` | **Saiu da lista.** Só servia para montar link de convite com domínio público |
+| "Não deployar enquanto as rotas estiverem abertas" | O raciocínio estava certo e virou **inaplicável**: não há para onde deployar. A regra que sobrevive é a de integração — ver "Escopo atual" |
+
+O `Dockerfile`, o `docker-compose.yml` e o `HEALTHCHECK` em `/api/health`
+continuam no repositório e funcionam localmente. Quando a hospedagem voltar ao
+escopo, o caminho é Coolify com build pack `dockerfile` na porta 3000, e as
+migrations rodam no boot do container — mas isso é plano, não estado.
+
+## Infraestrutura — o que importa hoje
+
+**Só o banco.** Não há aplicação hospedada, domínio nem deploy no escopo atual.
+Cada dev roda o nonia na própria máquina (`npm run dev`) contra o `nonia_dev`,
+alcançado pelo túnel SSH `nonia-db-tunnel.service` em `127.0.0.1:5432`.
+
+Daí a pendência de infra número 1 ser o **`linger`**: sem ele, o túnel morre
+quando o Lucas encerra a sessão e o time inteiro fica sem banco. Antes era um
+incômodo; com tudo rodando local contra um banco remoto, é o ponto único de
+falha do dia a dia.
+
+O `Dockerfile` e o `docker-compose.yml` continuam no repositório e funcionam
+para subir tudo localmente. O que saiu de cena foi a hospedagem — ver
+"Mudanças de escopo".
 
 **Identificadores e pendências de infra (uuids, hosts, senhas, faixas de
-firewall, plano de DNS, `linger` do túnel de desenvolvimento) vivem em um
+firewall, `linger` do túnel de desenvolvimento) vivem em um
 lugar só: `/home/lucas/claude.md`, mantido pelo administrador de VPS.** Este arquivo não os
 repete de propósito — uuid duplicado em dois documentos vira uuid errado em um
 deles, que foi exatamente o que custou tempo em 06/09/2026.
@@ -234,9 +271,9 @@ deles, que foi exatamente o que custou tempo em 06/09/2026.
 | Papel | Versão |
 | --- | --- |
 | Mínimo exigido pelas migrations | **PostgreSQL 13+** (`gen_random_uuid()` nativo, sem `pgcrypto`) |
-| Produção e desenvolvimento | **PostgreSQL 18.6** — a mesma versão nos dois, uma fonte de surpresa a menos |
+| `nonia_dev` e a base `postgres` do mesmo servidor | **PostgreSQL 18.6** |
 
-Usuário e base em produção são `postgres`, não `nonia`.
+No servidor, usuário e base padrão são `postgres`, não `nonia`.
 
 > O piso de 13+ pode subir para **15+** dependendo de como a migration 006
 > fechar as FKs que faltam — ver Pendências.
@@ -248,10 +285,13 @@ Usuário e base em produção são `postgres`, não `nonia`.
 | `DATABASE_URL` | **obrigatória**, única exigida hoje |
 | `PORT` | opcional, padrão 3000 |
 | `MIGRATE_CONNECT_ATTEMPTS` | opcional, tentativas de conexão do `migrate.mjs` (padrão 15) |
-| `APP_URL` | opcional, só para montar o link de convite; sem ela vale o host da requisição *(chega com a Fase 1; só faz sentido com o domínio de pé)* |
 | `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` | Mercado Pago, ainda não referenciadas no código |
 
 Todas são **runtime**. Nenhuma pode virar `NEXT_PUBLIC_*`. Nunca commite valores.
+
+`APP_URL` saiu desta lista em 06/09/2026: ela só servia para montar o link de
+convite com um domínio público, que não existe mais no escopo. Sem ela, vale o
+host da requisição — que localmente é o que se quer.
 
 ## Pendências
 
@@ -259,6 +299,7 @@ Datadas para que ninguém as leia como fato consumado.
 
 | Pendência | Desde |
 | --- | --- |
+| **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **`organization_members.person_id` aceita uuid de outra organização.** `POST /api/users` e `PATCH /api/users/[id]` gravam o campo direto do payload, sem `assertBelongsToOrganization`. Nenhuma rota lida hoje devolve dado da pessoa por esse caminho (só o uuid), mas é escrita cruzada entre tenants e precisa de correção na aplicação, não só da 006 | 06/09/2026 |
 | **Migration 006** — fechar as FKs que faltam (`cells.leader_id`, `ministries.leader_id`, `members.ministry_id`, `organization_members.person_id`). **Ordem decidida em 06/09/2026: a validação de aplicação vem primeiro, a migration no mesmo lote** — a 006 sozinha trocaria uma gravação errada silenciosa por um erro de FK cru na cara do usuário. Se o caminho escolhido exigir `ON DELETE SET NULL` por coluna, o **piso de PostgreSQL sobe de 13+ para 15+** e este arquivo precisa ser corrigido | 06/09/2026 |
 | **`middleware.ts` será renomeado para `proxy.ts`** (o Next 16 depreciou "middleware" em favor de "proxy"). Decidido em 06/09/2026, **ainda não feito** — verificado: só existe `middleware.ts` na branch de auth | 06/09/2026 |
@@ -266,5 +307,4 @@ Datadas para que ninguém as leia como fato consumado.
 | `/precos` e `/cadastro` **não existem como página** — são só constantes em `components/marketing/routes.ts` na branch de UI. O frontend está montando as duas | 06/09/2026 |
 | `docker-compose.yml` da **`main`** ainda sobe `postgres:17-alpine`; a branch de auth já corrigiu para `18-alpine` e o alinhamento chega pela integração | 06/09/2026 |
 | `.env.example` da **`main`** ainda diz "Em produção (Dokploy)"; a branch de auth já corrige. Não foi tocado aqui para não criar conflito | 06/09/2026 |
-| DNS de `nonia.app`: exige Origin CA da zona **antes** da nuvem laranja, senão troca timeout por 526. Plano de 7 etapas em `/home/lucas/www/FASE0-INFRA.md`, aguarda ok do Lucas | 06/09/2026 |
 | Nome falso "Pr. Renato" repetido em 3 arquivos (`app/configuracoes/page.tsx`, `components/header.tsx`, `components/sidebar.tsx`) — vira perfil do usuário logado na Fase 3 | 06/09/2026 |

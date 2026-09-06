@@ -8,13 +8,13 @@ multi-igreja.
 - **Frontend**: CSS global com design tokens (sem Tailwind), fonte Inter, Lucide e Sonner.
 - **Backend**: Route Handlers em `app/api`, banco versionado por migrations SQL.
 
-> **O nonia não está em produção** e não deve ser publicado enquanto as rotas de
-> `app/api` estiverem sem autenticação. Estado do projeto, decisões e pendências
-> em [`CLAUDE.md`](CLAUDE.md).
+> **O nonia roda localmente.** Não há ambiente hospedado, domínio nem deploy —
+> decisão de 06/09/2026. Estado do projeto, decisões e pendências em
+> [`CLAUDE.md`](CLAUDE.md).
 
 ## Desenvolvimento local
 
-Pré-requisitos: Node 22+ e PostgreSQL **13 ou superior** (a produção roda 18.6).
+Pré-requisitos: Node 22+ e PostgreSQL **13 ou superior** (o banco do time roda 18.6).
 
 ```bash
 cp .env.example .env        # ajuste a DATABASE_URL
@@ -53,6 +53,6 @@ public/         arquivos estáticos
 
 | Assunto | Arquivo |
 | --- | --- |
-| Estado real, decisões de arquitetura, worktrees, deploy e pendências | [`CLAUDE.md`](CLAUDE.md) |
+| Estado real, decisões de arquitetura, worktrees, infraestrutura e pendências | [`CLAUDE.md`](CLAUDE.md) |
 | Convenções de código, arquitetura e regras para agentes | [`AGENTS.md`](AGENTS.md) |
 | Banco, migrations e valores persistidos | [`database/README.md`](database/README.md) |

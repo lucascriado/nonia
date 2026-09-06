@@ -22,8 +22,8 @@ npm run db:seed:dev      # migrations + seed de demonstração
 ```
 
 O executor mantém a tabela `schema_migrations` e ignora arquivos já aplicados.
-Em produção (container Docker no Coolify), as migrations rodam automaticamente na
-inicialização do container — não é preciso rodar nada manualmente.
+Rodando pelo container (`Dockerfile`/`docker compose`), as migrations são
+aplicadas na inicialização — não é preciso rodar nada manualmente.
 
 Para mudar o schema, crie uma nova migration numerada, seguindo a sequência.
 Não altere migrations já aplicadas.
