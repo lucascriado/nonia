@@ -14,6 +14,8 @@
 import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
 import { organizationId, requirePermission } from "@/lib/auth";
+import { nomeDeArquivo } from "@/lib/csv";
+import { csvDoFinanceiro } from "@/lib/finance-csv";
 import { filtrosDeFinanceiro } from "@/lib/listings";
 import { notFound, HttpError } from "@/lib/http";
 import { anexoParaBytes, ZipEmFluxo } from "@/lib/zip";
@@ -112,11 +114,37 @@ export async function GET(request: Request) {
     // comprovantes: enfileirando tudo, o processo subiu 1,3 GB; devolvendo
     // um por vez, sobe algumas dezenas de MB, porque o fluxo só pede o
     // próximo quando o cliente consumiu o anterior.
+    // A planilha vai DENTRO do zip, do MESMO gerador do download avulso.
+    //
+    // O caso de uso é entregar a prestação de contas: a pasta de comprovantes
+    // junto da planilha, num arquivo só. Duas versões do CSV divergiriam no
+    // dia em que alguém mexesse numa coluna, e a divergência apareceria só
+    // para quem baixou pelo outro caminho -- por isso vem de lib/finance-csv.
+    //
+    // Ela reflete o MESMO filtro do usuário, mas SEM a restrição de "tem
+    // anexo": a planilha da prestação de contas precisa mostrar TODOS os
+    // lançamentos do período, inclusive os SEM comprovante. A coluna
+    // "Comprovante: Não" é justamente o que o conselho procura -- esconder
+    // essas linhas esconderia a lacuna que se está prestando contas sobre.
+    const planilha = Buffer.from(await csvDoFinanceiro(filtro), "utf8");
+    let planilhaEnviada = false;
     let indice = 0;
 
     const fluxo = new ReadableStream<Uint8Array>({
       async pull(controller) {
         try {
+          if (!planilhaEnviada) {
+            planilhaEnviada = true;
+            controller.enqueue(
+              zip.escrever({
+                nome: nomeDeArquivo("financeiro", auth.organization.slug),
+                conteudo: planilha,
+                data: new Date(),
+              }),
+            );
+            return;
+          }
+
           while (indice < linhas.length) {
             const linha = linhas[indice];
             indice += 1;
@@ -143,7 +171,9 @@ export async function GET(request: Request) {
             // Dois lançamentos no mesmo dia com a mesma descrição existem
             // (duas ofertas, dois aluguéis). O sufixo resolve sem esconder
             // nenhum dos dois.
-            const nome = `${base}${vezes > 1 ? ` (${vezes})` : ""}.${bytes.extensao}`;
+            // Numa subpasta: ao abrir o zip a pessoa vê UMA planilha e UMA
+            // pasta, em vez da planilha perdida no meio de 200 arquivos.
+            const nome = `comprovantes/${base}${vezes > 1 ? ` (${vezes})` : ""}.${bytes.extensao}`;
 
             controller.enqueue(
               zip.escrever({ nome, conteudo: bytes.conteudo, data: new Date(linha.transactionDate) }),
