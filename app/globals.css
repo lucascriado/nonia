@@ -1571,6 +1571,22 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    -------------------------------------------------------------------------- */
 
 @media (max-width: 640px) {
+  /* O nome da tela aparecia duas vezes na primeira dobra: na barra de cima e
+     de novo como titulo da pagina. Some do olho e FICA no leitor de tela — a
+     regiao de conteudo continua rotulada, e o espaco volta para o conteudo. */
+  .resource-heading h2, .members-heading h2, .visitors-heading h2,
+  .activities-heading h2, .settings-heading h2 {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    margin: -1px;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .cell-grid, .ministries-grid { gap: var(--space-4); }
   .cell-card, .ministry-card, .resource-card { padding: var(--space-5); gap: var(--space-3); }
   .resource-card header { gap: var(--space-3); }
