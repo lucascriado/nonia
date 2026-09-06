@@ -286,6 +286,29 @@ apareceram.
 - **Rota dando 500 e falando de coluna que não existe: o primeiro palpite é
   migration não aplicada, não bug de código.** Custa um `SELECT` em
   `schema_migrations`.
+- **Relatório com crase, cifrão ou aspas embutido na linha de comando chega
+  adulterado.** Dentro de aspas duplas no bash, a crase é **substituição de
+  comando**: o shell executa o que está entre elas e põe o resultado no lugar
+  das palavras; `$` expande variável. Em 06/09/2026 duas palavras sumiram de um
+  relatório desse jeito, **e a frase continuou parecendo uma frase** — dizendo
+  outra coisa. É a mesma classe silenciosa e plausível da migration que não
+  aplicou com o build passando: o texto não fica quebrado, fica diferente.
+
+  **Como evitar:** escreva num arquivo com heredoc de delimitador **entre aspas
+  simples**, que desliga toda substituição, e mande o arquivo.
+
+  ```bash
+  cat > /tmp/relatorio.txt <<'FIM'
+  texto com `crase`, $cifrão e "aspas" à vontade
+  FIM
+  maestri ask "Claude Code" "$(cat /tmp/relatorio.txt)"
+  ```
+
+  O detalhe que faz funcionar são as aspas simples no delimitador: `<<'FIM'` não
+  interpreta nada, `<<FIM` interpreta. Heredoc sem as aspas não resolve.
+
+  **E o hábito:** se uma frase que você mandou ficou estranha, assuma que foi
+  isso antes de assumir distração.
 - **Revisar uma tabela não é o mesmo que percorrer o caminho com ela.** Uma
   configuração pode parecer sensata lida como lista e ser absurda em uso: a
   permissão da secretaria foi decidida no abstrato e parecia razoável na tabela
