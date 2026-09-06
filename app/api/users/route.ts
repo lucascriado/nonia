@@ -15,6 +15,7 @@ import {
 } from "@/lib/invitations";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization } from "@/lib/tenant";
+import { assertWithinPlanLimit } from "@/lib/plan-limits";
 
 export const runtime = "nodejs";
 
@@ -106,6 +107,8 @@ export async function POST(request: Request) {
       const passwordHash = await hashPassword(payload.password);
 
       const created = await db.transaction(async (transaction) => {
+        await assertWithinPlanLimit(auth, "users", transaction);
+
         // A ficha de pessoa vinculada ao usuário tem que ser desta igreja: o
         // uuid vem do payload e a FK composta da 006 recusaria depois, com
         // erro de banco cru no meio do cadastro.
@@ -147,6 +150,11 @@ export async function POST(request: Request) {
     const expiresAt = new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000);
 
     const invitation = await db.transaction(async (transaction) => {
+      // O convite pendente já ocupa assento, então é verificado na criação
+      // dele e não no aceite -- quem foi convidado dentro do teto não leva
+      // porta na cara depois de definir a senha.
+      await assertWithinPlanLimit(auth, "users", transaction);
+
       // Reenviar convite substitui o pendente anterior (índice único parcial).
       await db.query(
         `UPDATE invitations SET status = 'revoked'

@@ -3,7 +3,13 @@
 // arrastar `next/headers` (que não pode ser importado por componentes client).
 
 export class HttpError extends Error {
-  constructor(readonly status: number, message: string, readonly code: string = "error") {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly code: string = "error",
+    /** Campos extras que vão junto no corpo da resposta. */
+    readonly details?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "HttpError";
   }

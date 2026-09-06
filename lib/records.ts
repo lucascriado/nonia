@@ -62,7 +62,7 @@ export function apiError(error: unknown) {
   // Guardas de sessão e permissão lançam HttpError; o catch de cada rota
   // continua sendo um `apiError(error)` só, e o status certo sai daqui.
   if (error instanceof HttpError) {
-    return Response.json({ error: error.message, code: error.code }, { status: error.status });
+    return Response.json({ error: error.message, code: error.code, ...error.details }, { status: error.status });
   }
   console.error(error);
   return Response.json({ error: "Não foi possível concluir a operação." }, { status: 500 });

@@ -7,6 +7,7 @@ import { badRequest, forbidden, notFound } from "@/lib/http";
 import { hashPassword, validatePasswordStrength } from "@/lib/passwords";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization } from "@/lib/tenant";
+import { assertWithinPlanLimit } from "@/lib/plan-limits";
 
 export const runtime = "nodejs";
 
@@ -35,10 +36,11 @@ async function membership(organization: string, userId: string) {
     roleSlug: string;
     roleLevel: number;
     fullName: string;
+    status: string;
     organizationCount: number;
   }>(
     `SELECT om.user_id AS "userId", r.slug AS "roleSlug", r.level AS "roleLevel",
-            u.full_name AS "fullName",
+            u.full_name AS "fullName", om.status,
             (SELECT count(*)::int FROM organization_members o2 WHERE o2.user_id = om.user_id) AS "organizationCount"
      FROM organization_members om
      JOIN roles r ON r.id = om.role_id
@@ -125,6 +127,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     await db.transaction(async (transaction) => {
+      // Reativar um suspenso volta a ocupar assento, então passa pelo teto
+      // como se fosse um usuário novo. Suspender nunca é bloqueado.
+      if (payload.status === "active" && target.status === "suspended") {
+        await assertWithinPlanLimit(auth, "users", transaction);
+      }
+
       // Mesmo motivo do POST: o uuid vem do payload e precisa ser desta igreja.
       if (payload.personId) {
         await assertBelongsToOrganization("people", "id", payload.personId, organizationId(auth), transaction);
