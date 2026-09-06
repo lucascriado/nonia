@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e não vai passar a responder.** O DNS foi **dispensado**, não adiado — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `3c0c153`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `fc81ff0`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -624,6 +624,45 @@ equipe; quando a avaliação vence, os convites param.
 Isso é a promessa da landing sendo cumprida, não defeito — mas muda o que o
 produto entrega no plano gratuito, e está com o Lucas.
 
+## Multi-congregação
+
+**Entrou no escopo em 06/09/2026.** O plano Rede vendia "várias congregações no
+mesmo painel", isso não existia na interface, e a decisão do Lucas foi
+**construir em vez de tirar a copy**. Manutenção do assunto na nota
+`multi-congregacao` da canvas.
+
+O que existe:
+
+| | |
+| --- | --- |
+| `POST /api/organizations` | cria uma segunda igreja para quem já está logado |
+| `GET /api/organizations` | lista as igrejas da pessoa, com o papel em cada uma |
+| `POST /api/auth/switch` | troca a igreja ativa |
+
+O caminho por convite **já funcionava** e foi medido: pessoa com conta aceita
+convite de outra igreja e fica com duas organizações, papéis diferentes,
+isolamento intacto. **Isolamento reverificado** com a mesma pessoa dona de duas
+igrejas: cada uma só vê os próprios dados, e a gravação cruzada continua
+recusada pelo banco com **23503**. Criar segunda igreja não abriu caminho nenhum.
+
+> Não confunda `/api/organization` (singular — a igreja **atual** da sessão) com
+> `/api/organizations` (plural — a **coleção** de igrejas da pessoa). São
+> recursos diferentes de propósito.
+
+### Decisões
+
+| Decisão | Motivo |
+| --- | --- |
+| Segunda igreja em diante nasce no **Semente, sem avaliação** | a avaliação existe para a igreja **experimentar** o produto; quem já tem uma aqui já experimentou, e a segunda é **expansão**. Fecha a avaliação infinita sem precisar de contador — e quem planta congregação nova é o público do **Rede**: dar avaliação infinita a esse perfil é dar de graça o caso de uso que se quer vender |
+| Nasce com **zero linhas em `subscriptions`**, não com uma assinatura `active` de preço zero | inventar assinatura ativa num plano gratuito diria **no banco** que alguém pagou. Mesma disciplina do `provider = 'bypass'`: o banco não afirma pagamento que não houve |
+| **Criar troca a sessão** para a igreja nova | quem acabou de criar vai configurar, **toda configuração é escrita**, e escrita vai para a organização da sessão. Ficando na antiga, cada cadastro entra certinho **na igreja errada**, sem erro nenhum. **Surpresa se resolve avisando; gravação silenciosa no lugar errado, não** |
+
+> **Consolidação financeira da rede continua sendo promessa**, mesmo com o
+> seletor pronto. Consolidar é somar dados de **várias** igrejas numa visão só, e
+> tudo hoje — sessão, filtro, FK — é de **uma** organização por vez. Não é
+> adaptação do seletor, é desenho próprio. **Chame o backend antes:** é o tipo de
+> coisa em que a pressa custa a garantia mais forte do produto.
+
 ## O princípio por trás das decisões de acesso
 
 Cinco decisões separadas, tomadas em momentos diferentes, com o mesmo princípio
@@ -889,5 +928,6 @@ Datadas para que ninguém as leia como fato consumado.
 | **Listagens pesadas** — ver a seção acima. Próxima prioridade técnica | 06/09/2026 |
 | **`purgeStaleSessions()` existe em `lib/auth.ts` e ninguém chama** — a tabela `sessions` cresce para sempre. Levantado pelo próprio backend logo após remover as permissões órfãs, para não ficar com dois pesos | 06/09/2026 |
 | **`PATCH /api/users/<id>` com id malformado devolve 500 em vez de 404.** Uuid válido inexistente devolve 404 certo; o malformado cai no catch genérico — mesmo gênero do JSON malformado | 06/09/2026 |
+| **"Consolidação financeira da rede" é promessa não cumprida.** O seletor de igreja existe; consolidar dados de várias numa visão só não. Ver "Multi-congregação" | 06/09/2026 |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. É arquivo do backend pela regra de propriedade, e está com ele | 06/09/2026 |

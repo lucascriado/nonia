@@ -401,6 +401,14 @@ apareceram.
 
   **E o hábito:** se uma frase que você mandou ficou estranha, assuma que foi
   isso antes de assumir distração.
+- **Relatar o próprio erro é o que impede que ele vire verdade histórica.** Em
+  06/09/2026 um rascunho **não enviado**, lido no terminal de outro agente, foi
+  tratado como decisão do Lucas, virou commit na `main` e a mensagem dizia
+  "Decisão do Lucas" — de uma decisão que ninguém tinha tomado. Foi revertido
+  **porque quem errou relatou depois, sem ninguém ter percebido**. Sem o relato,
+  a mudança teria ficado e o histórico atribuiria a decisão a quem não a tomou.
+  A lição não é "não leia a tela", que já está acima: é que **o histórico é
+  escrito por quem estava lá, e só quem errou sabe que houve erro**.
 
   **Não confunda com texto embaralhado**, que tem outra causa: mensagens de
   duas origens chegando entrelaçadas. Ali o pedaço **não some**, ele se mistura,
@@ -525,6 +533,11 @@ mesmo zip de 715 MB teve pico de **266 MB**. Cinco vezes menos.
   que é cômodo de montar.
 - Vale para qualquer otimização cuja propriedade é **invisível no código**:
   lazy, paginação, cache, fila.
+
+- **`POST /api/auth/switch` revoga a sessão anterior.** Guardar o cookie velho
+  para "voltar rápido" devolve **401** — e parece falha de isolamento quando é
+  só cookie revogado. **Toda troca de igreja é sessão nova**; releia o cookie da
+  resposta.
 
 #### Órfão: existe, não é chamado, e promete o que não entrega
 
