@@ -154,6 +154,20 @@
    -------------------------------------------------------------------------- */
 
 * { box-sizing: border-box; }
+
+/* Texto so para leitor de tela. Existe tambem no marketing.css, que o app nao
+   importa; e barato o suficiente para viver nos dois. */
+.mk-visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 button, input, select, textarea { font: inherit; }
 button, label[for] { cursor: pointer; }
 button, a, label, input { -webkit-tap-highlight-color: transparent; }
@@ -873,7 +887,10 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
    última coluna (sábado) cai nos múltiplos de 7 e é ela que dispensa a borda. */
 .calendar-day-cell:nth-child(7n) { border-right: 0; }
 .calendar-day-cell.outside { background: var(--panel-inset); color: var(--muted); }
-.calendar-day-cell > span { font-size: 0.8125rem; font-weight: 500; line-height: 1.2rem; }
+.calendar-day-select { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.calendar-day-number { font-size: 0.8125rem; font-weight: 500; line-height: 1.2rem; }
+.calendar-day-dots { display: none; }
+.calendar-day-cell.is-selected { box-shadow: inset 0 0 0 2px var(--primary); }
 .calendar-day-cell small { color: var(--muted); font-size: 0.6875rem; }
 .calendar-event-pill { overflow: hidden; width: 100%; padding: 3px 8px; border: 0; border-left: 2px solid; border-radius: var(--radius-xs); font-size: 0.71875rem; font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; animation: calendar-pill-enter .24s var(--ease-out) both; transition: filter .18s ease, transform .18s var(--ease-out); }
 .calendar-event-pill:hover { transform: translateX(2px); }
@@ -1527,6 +1544,72 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 }
 
 @keyframes sheet-enter { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
+/* --------------------------------------------------------------------------
+   Calendario no celular
+   A grade de mes tem sete colunas: em 390px cada dia fica com ~45px, e nenhum
+   titulo de evento cabe ali. Em vez de rolar de lado com pilulas ilegiveis, o
+   mes vira NAVEGACAO — dia mais pontos de cor indicando que ha evento — e o
+   conteudo vai para a agenda do dia, que ja existia como a visao "Dia".
+   Tocar um dia abre a agenda dele.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .calendar-month-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: 26px repeat(5, minmax(52px, 1fr)); overflow-x: visible; }
+  .calendar-weekday { min-height: 26px; padding: 6px 0; font-size: 0.5rem; letter-spacing: .03em; }
+
+  .calendar-day-cell { gap: 0; padding: 0; }
+  /* O dia inteiro e o alvo: 45x52 e o que o dedo acerta. */
+  .calendar-day-select {
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .calendar-day-number { font-size: 0.8125rem; }
+  .calendar-day-dots { display: flex; gap: 3px; min-height: 5px; }
+  .calendar-day-dots i { width: 5px; height: 5px; border-radius: 50%; }
+  .calendar-day-dots i.purple { background: var(--violet); }
+  .calendar-day-dots i.green { background: var(--primary); }
+  .calendar-day-dots i.blue { background: var(--info); }
+
+  /* Os titulos aparecem na agenda do dia, nao espremidos na celula. */
+  .calendar-day-cell .calendar-event-pill, .calendar-day-cell > small { display: none; }
+
+  /* Semana: sete colunas de 120px viram sete blocos empilhados. */
+  .calendar-week-view { grid-template-columns: 1fr; overflow-x: visible; }
+  .calendar-week-column { border-right: 0; border-bottom: 1px solid var(--border); }
+  .calendar-week-column header { min-height: 0; flex-direction: row; align-items: baseline; gap: 8px; grid-auto-flow: column; justify-content: flex-start; padding: 10px 14px; }
+  .calendar-week-column > div { padding: 10px 14px; }
+
+  .calendar-workspace { min-height: 0; }
+
+  /* A barra de controle gastava ~250px antes do primeiro dia aparecer: mes,
+     setas, "Hoje", alternador e "Novo Evento", cada um em sua linha. Agora o
+     mes e a navegacao dividem uma linha, o alternador ocupa a seguinte
+     inteira, e o botao de novo evento vira flutuante como nas outras telas. */
+  .calendar-page-toolbar { gap: 10px; }
+  .calendar-page-title { flex-direction: row; flex-wrap: wrap; align-items: center; width: 100%; gap: 8px; }
+  .calendar-page-title > strong { flex: 1; min-width: 0; font-size: 1.0625rem; }
+  .calendar-page-actions { width: 100%; gap: 10px; }
+  .calendar-view-toggle { width: 100%; }
+  .calendar-view-toggle button { flex: 1; }
+
+  .calendar-new-event {
+    position: fixed;
+    right: var(--gutter);
+    bottom: max(var(--gutter), env(safe-area-inset-bottom));
+    z-index: 4;
+    width: auto;
+    min-height: 52px;
+    padding: 0 22px;
+    border-radius: 999px;
+    box-shadow: var(--shadow-lg);
+  }
+  .calendar-main { padding-bottom: 88px; }
+}
 
 /* --------------------------------------------------------------------------
    Alvos de toque
