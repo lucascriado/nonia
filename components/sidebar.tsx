@@ -19,9 +19,10 @@ import {
   Wallet,
 } from "lucide-react";
 import type { Ref } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Avatar } from "@/components/avatar";
+import { useCurrentUser } from "@/components/current-user";
 
 // Novas rotas de menu entram aqui. O campo `section` define em qual grupo o
 // item aparece; a ordem dos grupos segue a primeira ocorrência na lista.
@@ -44,6 +45,7 @@ const navSections = Array.from(new Set(primaryLinks.map((link) => link.section))
 
 export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
   const pathname = usePathname();
+  const user = useCurrentUser();
 
   return (
     <aside className="sidebar" ref={sidebarRef}>
@@ -92,9 +94,9 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
           <a href="#" title="Sair"><LogOut aria-hidden /><span>Sair</span></a>
         </nav>
 
-        <Link className="sidebar-user" href="/configuracoes" title="Perfil e preferências">
-          <Image src="/renato.png" alt="" width={30} height={30} />
-          <span><strong>Pr. Renato</strong><small>Administrador</small></span>
+        <Link className="sidebar-user" href="/configuracoes" title="Perfil da conta">
+          <Avatar name={user.name} photoUrl={user.avatarUrl} size={30} />
+          <span><strong>{user.name}</strong><small>{user.role}</small></span>
           <ChevronsUpDown aria-hidden />
         </Link>
       </div>

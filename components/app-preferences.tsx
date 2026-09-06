@@ -4,18 +4,19 @@ import { useEffect } from "react";
 
 const preferencesKey = "nonia-app-preferences";
 
-type Preferences = {
-  theme?: "light" | "dark";
-  language?: "pt-BR" | "en-US" | "es-ES";
-  fontSize?: "small" | "medium" | "large";
-};
+// Só o tema sobrou como preferência: é a única que ainda tem quem a escreva —
+// o botão de claro/escuro da topbar. Escala de fonte e idioma saíram junto com
+// o cartão "Preferências do Sistema"; sem tela que as gravasse, seriam estado
+// morto no localStorage.
+type Preferences = { theme?: "light" | "dark" };
 
 export function readPreferences(): Required<Preferences> {
-  if (typeof window === "undefined") return { theme: "light", language: "pt-BR", fontSize: "medium" };
+  if (typeof window === "undefined") return { theme: "light" };
   try {
-    return { theme: "light", language: "pt-BR", fontSize: "medium", ...JSON.parse(window.localStorage.getItem(preferencesKey) || "{}") };
+    const stored = JSON.parse(window.localStorage.getItem(preferencesKey) || "{}");
+    return { theme: stored.theme === "dark" ? "dark" : "light" };
   } catch {
-    return { theme: "light", language: "pt-BR", fontSize: "medium" };
+    return { theme: "light" };
   }
 }
 
@@ -23,14 +24,11 @@ export function savePreferences(preferences: Preferences) {
   const next = { ...readPreferences(), ...preferences };
   window.localStorage.setItem(preferencesKey, JSON.stringify(next));
   applyPreferences(next);
-  window.dispatchEvent(new CustomEvent("nonia-preferences-change", { detail: next }));
   return next;
 }
 
 function applyPreferences(preferences: Required<Preferences>) {
   document.documentElement.dataset.theme = preferences.theme;
-  document.documentElement.dataset.fontSize = preferences.fontSize;
-  document.documentElement.lang = preferences.language;
 }
 
 export function AppPreferences() {

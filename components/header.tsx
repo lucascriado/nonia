@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -20,6 +19,8 @@ import {
   Wallet,
 } from "lucide-react";
 import { readPreferences, savePreferences } from "@/components/app-preferences";
+import { Avatar } from "@/components/avatar";
+import { useCurrentUser } from "@/components/current-user";
 
 const searchItems = [
   { title: "Dashboard", description: "Indicadores, atividades recentes e próximos eventos", href: "/painel", icon: LayoutDashboard, keywords: "inicio painel indicadores atividades eventos aniversario" },
@@ -30,7 +31,7 @@ const searchItems = [
   { title: "Células", description: "Pequenos grupos, líderes, membros e encontros", href: "/celulas", icon: Network, keywords: "celulas pequenos grupos lider membros presenca" },
   { title: "Ministérios", description: "Equipes, voluntários e chamada da escola bíblica", href: "/ministerios", icon: Puzzle, keywords: "ministerios voluntarios escola biblica chamada presenca domingo" },
   { title: "Financeiro", description: "Entradas, saídas, comprovantes e saldo disponível", href: "/financeiro", icon: Wallet, keywords: "financeiro dizimo oferta despesa saldo lancamento comprovante" },
-  { title: "Configurações", description: "Perfil, tema, idioma e preferências da plataforma", href: "/configuracoes", icon: Settings, keywords: "configuracoes preferencias tema idioma fonte perfil" },
+  { title: "Configurações", description: "Perfil da conta", href: "/configuracoes", icon: Settings, keywords: "configuracoes perfil conta usuario" },
 ];
 
 // Algumas páginas passam um título mais longo ("Gestão de Células"), então a
@@ -42,6 +43,7 @@ function subtitleFor(title: string) {
 }
 
 export function Header({ title }: { title: string }) {
+  const user = useCurrentUser();
   const [search, setSearch] = useState("");
   const [focused, setFocused] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -112,8 +114,8 @@ export function Header({ title }: { title: string }) {
       <button className="icon-button has-dot" aria-label="Notificações"><Bell /></button>
       <span className="divider" />
       <div className="user">
-        <span><strong>Pr. Renato</strong><small>Administrador</small></span>
-        <Image src="/renato.png" alt="Pr. Renato" width={30} height={30} priority />
+        <span><strong>{user.name}</strong><small>{user.role}</small></span>
+        <Avatar name={user.name} photoUrl={user.avatarUrl} size={30} />
       </div>
     </header>
   );

@@ -26,9 +26,10 @@ export const viewport: Viewport = {
   ],
 };
 
-// Aplica tema, fonte e idioma salvos antes da primeira pintura para evitar
-// flash do tema claro quando o usuário usa o modo escuro.
-const preferencesInitScript = `try{var p=JSON.parse(localStorage.getItem("nonia-app-preferences")||"{}");var d=document.documentElement;if(p.theme)d.dataset.theme=p.theme;if(p.fontSize)d.dataset.fontSize=p.fontSize;if(p.language)d.lang=p.language;}catch(e){}`;
+// Aplica o tema salvo antes da primeira pintura para evitar flash do tema
+// claro quando o usuário usa o modo escuro. O idioma é fixo em pt-BR no
+// <html>: a interface é escrita em português e não há tradução para trocar.
+const preferencesInitScript = `try{var p=JSON.parse(localStorage.getItem("nonia-app-preferences")||"{}");if(p.theme)document.documentElement.dataset.theme=p.theme;}catch(e){}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
