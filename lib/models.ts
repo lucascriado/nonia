@@ -249,7 +249,7 @@ OrganizationMember.init({
   status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "active" },
   isDefault: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: "is_default" },
   invitedBy: { type: DataTypes.UUID, field: "invited_by" },
-  joinedAt: { type: DataTypes.DATE, allowNull: false, field: "joined_at", defaultValue: DataTypes.NOW },
+  joinedAt: { type: DataTypes.DATE, allowNull: false, field: "joined_at", defaultValue: () => new Date() },
 }, { sequelize: db, tableName: "organization_members", createdAt: "created_at", updatedAt: "updated_at" });
 
 export class Session extends Model<InferAttributes<Session>, InferCreationAttributes<Session>> {
@@ -271,7 +271,7 @@ Session.init({
   tokenHash: { type: DataTypes.TEXT, allowNull: false, field: "token_hash" },
   ipAddress: { type: DataTypes.STRING, field: "ip_address" },
   userAgent: { type: DataTypes.STRING(400), field: "user_agent" },
-  lastSeenAt: { type: DataTypes.DATE, allowNull: false, field: "last_seen_at", defaultValue: DataTypes.NOW },
+  lastSeenAt: { type: DataTypes.DATE, allowNull: false, field: "last_seen_at", defaultValue: () => new Date() },
   expiresAt: { type: DataTypes.DATE, allowNull: false, field: "expires_at" },
   revokedAt: { type: DataTypes.DATE, field: "revoked_at" },
 }, { sequelize: db, tableName: "sessions", createdAt: "created_at", updatedAt: false });
@@ -357,7 +357,7 @@ Subscription.init({
   organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
   planId: { type: DataTypes.UUID, allowNull: false, field: "plan_id" },
   status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "trialing" },
-  startedAt: { type: DataTypes.DATE, allowNull: false, field: "started_at", defaultValue: DataTypes.NOW },
+  startedAt: { type: DataTypes.DATE, allowNull: false, field: "started_at", defaultValue: () => new Date() },
   trialEndsAt: { type: DataTypes.DATE, field: "trial_ends_at" },
   currentPeriodStart: { type: DataTypes.DATE, field: "current_period_start" },
   currentPeriodEnd: { type: DataTypes.DATE, field: "current_period_end" },

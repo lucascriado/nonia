@@ -11,7 +11,9 @@ services:
         condition: service_healthy
 
   db:
-    image: postgres:17-alpine
+    # Espelha a produção (18.6). O piso do schema é o PG 13,
+    # por causa do gen_random_uuid() nativo.
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: nonia

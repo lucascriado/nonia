@@ -3,7 +3,7 @@ import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { notFound } from "@/lib/http";
 import { apiError } from "@/lib/records";
-import { assertBelongsToOrganization, filterOwnedMemberIds } from "@/lib/tenant";
+import { assertBelongsToOrganization, assertOwnedResource, filterOwnedMemberIds } from "@/lib/tenant";
 import { QueryTypes } from "sequelize";
 
 export const runtime = "nodejs";
@@ -25,7 +25,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (!name) return Response.json({ error: "Nome do ministério é obrigatório." }, { status: 400 });
 
     await db.transaction(async (transaction) => {
-      await assertBelongsToOrganization("ministries", "id", id, organizationId(auth), transaction);
+      await assertOwnedResource("ministries", id, organizationId(auth), "Ministério não encontrado.", transaction);
       if (payload.leaderId) {
         await assertBelongsToOrganization("people", "id", payload.leaderId, organizationId(auth), transaction);
       }

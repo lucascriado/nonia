@@ -2,7 +2,7 @@ import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { apiError } from "@/lib/records";
-import { assertBelongsToOrganization, filterOwnedMemberIds } from "@/lib/tenant";
+import { assertOwnedResource, filterOwnedMemberIds } from "@/lib/tenant";
 import { QueryTypes } from "sequelize";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const auth = await requirePermission("attendance.read");
     const { id } = await params;
-    await assertBelongsToOrganization("ministries", "id", id, organizationId(auth));
+    await assertOwnedResource("ministries", id, organizationId(auth), "Ministério não encontrado.");
 
     const url = new URL(request.url);
     const history = url.searchParams.get("history") === "1";
@@ -73,7 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!payload.date) return Response.json({ error: "Data da chamada é obrigatória." }, { status: 400 });
 
     await db.transaction(async (transaction) => {
-      await assertBelongsToOrganization("ministries", "id", id, organizationId(auth), transaction);
+      await assertOwnedResource("ministries", id, organizationId(auth), "Ministério não encontrado.", transaction);
 
       const sessionRows = await db.query<{ id: string }>(`
         INSERT INTO ministry_attendance_sessions (ministry_id, organization_id, meeting_date)
