@@ -37,8 +37,10 @@ type FinancialTransaction = {
   status: "paid" | "pending";
   transactionDate: string;
   paymentMethod?: string;
-  attachmentUrl?: string;
+  hasAttachment?: boolean;
   attachmentName?: string;
+  /** Só vem da ficha individual, nunca da listagem. */
+  attachmentUrl?: string;
   notes?: string;
 };
 
@@ -46,6 +48,29 @@ const pageSize = 8;
 
 export default function FinancePage() {
   const readOnly = useReadOnly();
+
+  /**
+   * Abre a ficha buscando o registro COMPLETO.
+   *
+   * A listagem devolve só `hasAttachment` e o nome do arquivo — o comprovante
+   * em si não vem, senão cem lançamentos virariam megabytes. Abrir o
+   * formulário com o objeto da lista mostraria "Anexar comprovante" para um
+   * lançamento que já tem um, e quem anexasse outro substituiria o existente
+   * sem saber.
+   */
+  async function openRecord(item: FinancialTransaction, mode: "view" | "edit") {
+    setSelectedTransaction(item);
+    setDialogMode(mode);
+    try {
+      const response = await fetch(`/api/financeiro/${item.id}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const full = await response.json();
+      setSelectedTransaction((current) => (current && current.id === item.id ? { ...current, ...full } : current));
+    } catch {
+      // Sem a ficha completa o formulário abre com o que a lista tem. O
+      // servidor ignora chave ausente, então salvar não apaga o comprovante.
+    }
+  }
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -83,7 +108,7 @@ export default function FinancePage() {
         && (type === "all" || item.type === type)
         && (status === "all" || item.status === status)
         && (category === "all" || item.category === category)
-        && (attachment === "all" || (attachment === "with" ? Boolean(item.attachmentUrl) : !item.attachmentUrl));
+        && (attachment === "all" || (attachment === "with" ? Boolean(item.hasAttachment) : !item.hasAttachment));
     });
   }, [attachment, category, search, status, transactions, type]);
 
@@ -207,11 +232,14 @@ export default function FinancePage() {
                       <td data-label="Data" className="admission-date">{formatDate(item.transactionDate)}</td>
                       <td data-label="Status"><span className={`status-tag ${item.status === "paid" ? "is-active" : "is-inactive"}`}><i />{item.status === "paid" ? "Pago" : "Pendente"}</span></td>
                       <td data-label="Comprovante">
-                        {item.attachmentUrl
-                          ? <a className="finance-attachment-link" href={item.attachmentUrl} target="_blank" rel="noreferrer" aria-label={`Abrir comprovante de ${item.description}`}><Paperclip /></a>
+                        {/* A listagem não traz mais o arquivo, só se existe e o
+                            nome — 100 registros com anexo embutido eram
+                            megabytes. Abrir o comprovante é pela ficha. */}
+                        {item.hasAttachment
+                          ? <span className="finance-attachment-link" title={item.attachmentName ? `Comprovante: ${item.attachmentName}` : "Tem comprovante"} aria-label={`${item.description} tem comprovante anexado`}><Paperclip /></span>
                           : <span className="finance-attachment-none" aria-label="Sem comprovante"><FileX /></span>}
                       </td>
-                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${item.description}`} onClick={() => { setSelectedTransaction(item); setDialogMode("view"); }}><Eye /></button><button aria-label={`Editar ${item.description}`} onClick={() => { setSelectedTransaction(item); setDialogMode("edit"); }}><Pencil /></button><button aria-label={`Excluir ${item.description}`} onClick={() => setDeleteTarget(item)}><Trash2 /></button></div></td>
+                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${item.description}`} onClick={() => openRecord(item, "view")}><Eye /></button><button aria-label={`Editar ${item.description}`} onClick={() => openRecord(item, "edit")}><Pencil /></button><button aria-label={`Excluir ${item.description}`} onClick={() => setDeleteTarget(item)}><Trash2 /></button></div></td>
                     </tr>
                   ))}
                   {!loading && !visibleTransactions.length && <tr><td className="members-empty" colSpan={8}>{transactions.length ? "Nenhum lançamento encontrado com esses filtros." : "Nenhum lançamento registrado ainda. Comece pelo botão Novo Lançamento."}</td></tr>}

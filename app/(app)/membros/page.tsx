@@ -29,6 +29,8 @@ type Member = {
   initials: string;
   name: string;
   email: string;
+  hasPhoto?: boolean;
+  /** Só vem da ficha individual, nunca da listagem. */
   photoDataUrl?: string;
   ministry: string;
   ministryColor: "blue" | "green" | "gray" | "purple";
@@ -56,6 +58,28 @@ const pageSize = 6;
 
 export default function MembersPage() {
   const readOnly = useReadOnly();
+
+  /**
+   * Abre a ficha buscando o registro COMPLETO.
+   *
+   * A listagem devolve só `hasPhoto` — a foto em si não vem, senão cem
+   * cadastros virariam megabytes. Abrir o formulário com o objeto da lista
+   * mostraria "sem foto" para quem tem uma, e quem salvasse depois de trocar
+   * só o telefone poderia achar que a foto se perdeu.
+   */
+  async function openRecord(record: Member, mode: "view" | "edit") {
+    setSelectedMember(record);
+    setDialogMode(mode);
+    try {
+      const response = await fetch(`/api/members/${record.id}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const full = await response.json();
+      setSelectedMember((current) => (current && current.id === record.id ? { ...current, ...full } : current));
+    } catch {
+      // Sem a ficha completa o formulário abre com o que a lista tem. O
+      // servidor ignora chave ausente, então salvar não apaga a foto.
+    }
+  }
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -195,13 +219,13 @@ export default function MembersPage() {
                 <tbody>
                   {visibleMembers.map((member) => (
                     <tr key={member.email}>
-                      <td data-label="Nome"><div className="member-identity"><span className="member-avatar">{member.photoDataUrl ? <img src={member.photoDataUrl} alt="" /> : member.initials}</span><span><strong>{member.name}</strong><small>{member.email}</small></span></div></td>
+                      <td data-label="Nome"><div className="member-identity"><span className="member-avatar">{member.initials}</span><span><strong>{member.name}</strong><small>{member.email}</small></span></div></td>
                       <td data-label="Ministério"><span className={`ministry-tag ${member.ministryColor}`}>{member.ministry}</span></td>
                       <td data-label="Célula"><span className={`cell-tag ${member.cell === "Sem célula" ? "empty" : ""}`}>{member.cell}</span></td>
                       <td data-label="Status"><span className={`status-tag ${member.status === "Ativo" ? "is-active" : "is-inactive"}`}><i />{member.status}</span></td>
                       <td data-label="Batismo"><span className={`baptism-tag ${member.baptism === "Batizado" ? "is-baptized" : "is-waiting"}`}>{member.baptism}</span></td>
                       <td data-label="Admissão" className="admission-date">{member.date}</td>
-                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${member.name}`} onClick={() => { setSelectedMember(member); setDialogMode("view"); }}><Eye /></button><button aria-label={`Editar ${member.name}`} onClick={() => { setSelectedMember(member); setDialogMode("edit"); }}><Pencil /></button><button aria-label={`Excluir ${member.name}`} onClick={() => setDeleteTarget(member)}><Trash2 /></button></div></td>
+                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${member.name}`} onClick={() => openRecord(member, "view")}><Eye /></button><button aria-label={`Editar ${member.name}`} onClick={() => openRecord(member, "edit")}><Pencil /></button><button aria-label={`Excluir ${member.name}`} onClick={() => setDeleteTarget(member)}><Trash2 /></button></div></td>
                     </tr>
                   ))}
                   {!loading && !visibleMembers.length && <tr><td className="members-empty" colSpan={7}>{members.length ? "Nenhum membro encontrado com esses filtros." : "Nenhum membro cadastrado ainda. Comece pelo botão Novo Membro, no topo da tela."}</td></tr>}

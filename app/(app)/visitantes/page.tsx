@@ -29,6 +29,8 @@ type Visitor = {
   initials: string;
   name: string;
   email: string;
+  hasPhoto?: boolean;
+  /** Só vem da ficha individual, nunca da listagem. */
   photoDataUrl?: string;
   date: string;
   invitedBy: string;
@@ -54,6 +56,28 @@ type Tab = typeof tabs[number];
 
 export default function VisitorsPage() {
   const readOnly = useReadOnly();
+
+  /**
+   * Abre a ficha buscando o registro COMPLETO.
+   *
+   * A listagem devolve só `hasPhoto` — a foto em si não vem, senão cem
+   * cadastros virariam megabytes. Abrir o formulário com o objeto da lista
+   * mostraria "sem foto" para quem tem uma, e quem salvasse depois de trocar
+   * só o telefone poderia achar que a foto se perdeu.
+   */
+  async function openRecord(record: Visitor, mode: "view" | "edit") {
+    setSelectedVisitor(record);
+    setDialogMode(mode);
+    try {
+      const response = await fetch(`/api/visitors/${record.id}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const full = await response.json();
+      setSelectedVisitor((current) => (current && current.id === record.id ? { ...current, ...full } : current));
+    } catch {
+      // Sem a ficha completa o formulário abre com o que a lista tem. O
+      // servidor ignora chave ausente, então salvar não apaga a foto.
+    }
+  }
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -205,14 +229,14 @@ export default function VisitorsPage() {
               <tbody>
                 {visible.map((visitor, index) => (
                   <tr key={visitor.email}>
-                    <td data-label="Visitante"><div className="visitor-identity"><span className={`visitor-avatar ${visitor.photoDataUrl ? "" : `avatar-${index % 4}`}`}>{visitor.photoDataUrl ? <img src={visitor.photoDataUrl} alt="" /> : visitor.initials}</span><span><strong>{visitor.name}</strong><small>{visitor.email}</small></span></div></td>
+                    <td data-label="Visitante"><div className="visitor-identity"><span className={`visitor-avatar avatar-${index % 4}`}>{visitor.initials}</span><span><strong>{visitor.name}</strong><small>{visitor.email}</small></span></div></td>
                     <td data-label="Data">{visitor.date}</td>
                     <td data-label="Quem convidou"><span className="invited-by"><Users />{visitor.invitedBy}</span></td>
                     <td data-label="Progresso"><div className="visitor-status-cell"><MembershipProgress stage={visitor.membershipStage} /></div></td>
                     <td data-label="Ações">
                       <div className="member-actions">
-                        <button aria-label={`Visualizar ${visitor.name}`} onClick={() => { setSelectedVisitor(visitor); setDialogMode("view"); }}><Eye /></button>
-                        <button aria-label={`Converter ${visitor.name} em membro`} disabled={convertingId === visitor.id} onClick={() => setConvertTarget(visitor)}><UserCheck /></button><button aria-label={`Editar ${visitor.name}`} onClick={() => { setSelectedVisitor(visitor); setDialogMode("edit"); }}><Pencil /></button>
+                        <button aria-label={`Visualizar ${visitor.name}`} onClick={() => openRecord(visitor, "view")}><Eye /></button>
+                        <button aria-label={`Converter ${visitor.name} em membro`} disabled={convertingId === visitor.id} onClick={() => setConvertTarget(visitor)}><UserCheck /></button><button aria-label={`Editar ${visitor.name}`} onClick={() => openRecord(visitor, "edit")}><Pencil /></button>
                         <button aria-label={`Excluir ${visitor.name}`} onClick={() => setDeleteTarget(visitor)}><Trash2 /></button>
                       </div>
                     </td>
