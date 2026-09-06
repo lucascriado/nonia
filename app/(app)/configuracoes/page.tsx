@@ -1,6 +1,7 @@
 "use client";
 
 import { DashboardShell } from "@/components/dashboard-shell";
+import { OrganizationPanel } from "@/components/organization-panel";
 import { PlanPanel } from "@/components/plan-panel";
 import { ProfileCard } from "./profile-card";
 
@@ -17,7 +18,10 @@ export default function SettingsPage() {
 
         <section className="settings-grid">
           <ProfileCard />
-          <PlanPanel />
+          <div className="settings-stack">
+            <OrganizationPanel />
+            <PlanPanel />
+          </div>
         </section>
       </main>
     </DashboardShell>
