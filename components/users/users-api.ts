@@ -51,3 +51,27 @@ export function getRoles() {
 export function createInvitation(input: { fullName: string; email: string; roleSlug: string }) {
   return apiRequest<PendingInvitation>("/api/users", { method: "POST", body: JSON.stringify(input) });
 }
+
+/**
+ * Altera papel, situação, vínculo com pessoa ou senha. Todos os campos são
+ * opcionais e só o que vier é alterado.
+ *
+ * Efeitos que a tela precisa comunicar: suspender revoga as sessões da pessoa,
+ * e redefinir senha também.
+ *
+ * Cuidado com dois códigos: `insufficient_role_level` e
+ * `user_in_multiple_organizations` valem SÓ para redefinição de senha. Tratar
+ * como erro genérico do PATCH mostraria mensagem errada em cima de troca de
+ * papel.
+ */
+export function updateUser(
+  id: string,
+  changes: { roleSlug?: string; status?: "active" | "suspended"; personId?: string; password?: string },
+) {
+  return apiRequest<{ ok: true }>(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(changes) });
+}
+
+/** Remove o vínculo com esta igreja; o usuário segue existindo em outras. */
+export function removeUser(id: string) {
+  return apiRequest<{ ok: true }>(`/api/users/${id}`, { method: "DELETE" });
+}

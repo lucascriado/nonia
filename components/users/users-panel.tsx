@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, LoaderCircle, MailWarning, ShieldCheck, UserPlus } from "lucide-react";
+import { Check, Copy, LoaderCircle, MailWarning, ShieldCheck, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/avatar";
 import { AuthAlert } from "@/components/auth/auth-alert";
@@ -9,7 +9,7 @@ import { AuthField } from "@/components/auth/auth-field";
 import { AuthError, emailProblem } from "@/components/auth/session";
 import Link from "next/link";
 import { usePermission, useSession } from "@/components/current-user";
-import { createInvitation, getRoles, getUsers, type OrganizationUser, type PendingInvitation, type Role } from "@/components/users/users-api";
+import { createInvitation, getRoles, getUsers, removeUser, updateUser, type OrganizationUser, type PendingInvitation, type Role } from "@/components/users/users-api";
 
 const emptyForm = { fullName: "", email: "", roleSlug: "" };
 
@@ -26,6 +26,18 @@ export function UsersPanel() {
   const [submitting, setSubmitting] = useState(false);
   /** Link do convite recém-criado. Só existe aqui: nenhuma listagem o devolve. */
   const [freshInvite, setFreshInvite] = useState<PendingInvitation | null>(null);
+
+  const refresh = useMemo(
+    () => () => {
+      getUsers()
+        .then((data) => {
+          setUsers(data.users);
+          setInvitations(data.invitations);
+        })
+        .catch(() => toast.error("Não foi possível atualizar a lista."));
+    },
+    [],
+  );
 
   useEffect(() => {
     let active = true;
@@ -47,6 +59,9 @@ export function UsersPanel() {
    * ocupa — ou seja, no gratuito o convite SEMPRE recusa. Melhor explicar que
    * é o plano do que deixar a pessoa preencher o formulário para levar um erro.
    */
+  // Convite pendente OCUPA assento: medi na prática — 2 usuários mais 3
+  // convites deram usage.users 5 de 5. Quem vê "5 de 5" com dois nomes na tela
+  // precisa saber que os convites contam, senão parece erro de contagem.
   const seatsFull = plan?.maxUsers != null && plan.usage.users >= plan.maxUsers;
 
   const defaultRole = useMemo(() => roles.find((role) => role.slug === "secretaria")?.slug ?? roles[0]?.slug ?? "", [roles]);
@@ -105,17 +120,14 @@ export function UsersPanel() {
 
       <ul className="users-list">
         {users.map((person) => (
-          <li key={person.id}>
-            <Avatar name={person.name} photoUrl={person.avatarUrl} size={38} />
-            <span className="users-identity">
-              <strong>
-                {person.name}
-                {person.email === currentUser.email && <em>você</em>}
-              </strong>
-              <small>{person.email}</small>
-            </span>
-            <span className="users-role">{person.roleName}</span>
-          </li>
+          <UserRow
+            canManage={canInvite}
+            isSelf={person.email === currentUser.email}
+            key={person.id}
+            onChanged={refresh}
+            roles={roles}
+            user={person}
+          />
         ))}
 
         {invitations.map((invitation) => (
@@ -138,9 +150,10 @@ export function UsersPanel() {
             <ShieldCheck aria-hidden />
             <span>
               O plano <strong>{plan!.name}</strong> inclui{" "}
-              {plan!.maxUsers === 1 ? "um usuário" : `${plan!.maxUsers} usuários`}, e{" "}
-              {plan!.usage.users === 1 ? "ele já está em uso" : "todos já estão em uso"}. Para convidar
-              mais gente, mude de plano — o convite seria recusado por limite, não por erro seu.
+              {plan!.maxUsers === 1 ? "um acesso" : `${plan!.maxUsers} acessos`}, e todos já estão
+              ocupados{invitations.length > 0 ? " — convite pendente também ocupa um acesso, então cancelar um que não vai ser aceito libera espaço" : ""}.
+              Para convidar mais gente, mude de plano: o convite seria recusado por limite, não por
+              erro seu.
             </span>
           </p>
           <Link className="primary-action" href="/configuracoes">Ver planos</Link>
@@ -240,5 +253,120 @@ function InviteLink({ invitation, onDone }: { invitation: PendingInvitation; onD
 
       <button className="invite-link-done" onClick={onDone} type="button">Já copiei, convidar outra pessoa</button>
     </div>
+  );
+}
+
+/**
+ * Uma pessoa da lista, com as ações de papel e remoção.
+ *
+ * As ações NÃO são escondidas para proprietário. O bloqueio do servidor é
+ * `last_owner` e só dispara quando a organização ficaria sem nenhum
+ * proprietário ativo — com dois donos, rebaixar um é legítimo. Esconder aqui
+ * seria esconder ação permitida; a API recusa quando for o caso e a tela mostra
+ * a mensagem dela.
+ *
+ * Sobre si mesmo é diferente: `self_update` e `self_delete` são sempre 403, e
+ * aí esconder é o certo.
+ */
+function UserRow({
+  user,
+  roles,
+  isSelf,
+  canManage,
+  onChanged,
+}: {
+  user: OrganizationUser;
+  roles: Role[];
+  isSelf: boolean;
+  canManage: boolean;
+  onChanged: () => void;
+}) {
+  const [working, setWorking] = useState(false);
+  const [confirmingRemoval, setConfirmingRemoval] = useState(false);
+  const suspended = user.status === "suspended";
+
+  async function run(action: () => Promise<unknown>, ok: string) {
+    setWorking(true);
+    try {
+      await action();
+      toast.success(ok);
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof AuthError ? error.message : "Não foi possível concluir a operação.");
+    } finally {
+      setWorking(false);
+      setConfirmingRemoval(false);
+    }
+  }
+
+  return (
+    <li className={suspended ? "is-suspended" : undefined}>
+      <Avatar name={user.name} photoUrl={user.avatarUrl} size={38} />
+      <span className="users-identity">
+        <strong>
+          {user.name}
+          {isSelf && <em>você</em>}
+          {suspended && <em className="is-suspended-tag">suspenso</em>}
+        </strong>
+        <small>{user.email}</small>
+      </span>
+
+      {canManage && !isSelf ? (
+        <span className="users-actions">
+          <label className="mk-visually-hidden" htmlFor={`papel-${user.id}`}>Papel de {user.name}</label>
+          <select
+            disabled={working}
+            id={`papel-${user.id}`}
+            onChange={(event) => run(() => updateUser(user.id, { roleSlug: event.target.value }), `${user.name} agora é ${roles.find((r) => r.slug === event.target.value)?.name ?? "atualizado"}.`)}
+            value={user.roleSlug}
+          >
+            {/* O papel atual entra na lista mesmo sendo proprietário, senão o
+                select abriria mostrando outra coisa que não a verdade. */}
+            {!roles.some((role) => role.slug === user.roleSlug) && <option value={user.roleSlug}>{user.roleName}</option>}
+            {roles.map((role) => <option key={role.slug} value={role.slug}>{role.name}</option>)}
+          </select>
+
+          <button
+            disabled={working}
+            onClick={() =>
+              run(
+                () => updateUser(user.id, { status: suspended ? "active" : "suspended" }),
+                suspended ? `${user.name} voltou a ter acesso.` : `${user.name} foi suspenso e as sessões dele foram encerradas.`,
+              )
+            }
+            title={suspended ? "Devolver o acesso" : "Suspender o acesso e encerrar as sessões"}
+            type="button"
+          >
+            {suspended ? "Reativar" : "Suspender"}
+          </button>
+
+          {confirmingRemoval ? (
+            <span className="users-confirm">
+              <button disabled={working} onClick={() => setConfirmingRemoval(false)} type="button">Voltar</button>
+              <button
+                className="users-remove-confirm"
+                disabled={working}
+                onClick={() => run(() => removeUser(user.id), `${user.name} não tem mais acesso a esta igreja.`)}
+                type="button"
+              >
+                Remover
+              </button>
+            </span>
+          ) : (
+            <button
+              aria-label={`Remover ${user.name} desta igreja`}
+              className="users-remove"
+              disabled={working}
+              onClick={() => setConfirmingRemoval(true)}
+              type="button"
+            >
+              <UserMinus aria-hidden />
+            </button>
+          )}
+        </span>
+      ) : (
+        <span className="users-role">{user.roleName}</span>
+      )}
+    </li>
   );
 }

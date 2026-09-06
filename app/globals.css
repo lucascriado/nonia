@@ -1146,6 +1146,40 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .users-identity strong { display: flex; align-items: center; gap: var(--space-2); overflow: hidden; color: var(--heading); font-size: 0.875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .users-identity em { padding: 2px 7px; border-radius: 999px; background: var(--primary-soft); color: var(--heading); font-size: 0.625rem; font-style: normal; font-weight: 700; text-transform: uppercase; }
 .users-identity small { overflow: hidden; color: var(--muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.users-list li.is-suspended .users-identity strong, .users-list li.is-suspended .users-identity small { opacity: .6; }
+.users-identity em.is-suspended-tag { background: var(--danger-soft); color: var(--danger); }
+
+.users-actions { display: flex; align-items: center; gap: var(--space-2); }
+.users-actions select {
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.users-actions > button {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.users-actions > button:hover:not(:disabled) { border-color: var(--primary-border); color: var(--heading); }
+.users-actions button:disabled { cursor: wait; opacity: .6; }
+.users-remove { display: grid !important; width: 36px; padding: 0 !important; place-items: center; }
+.users-remove svg { width: var(--icon-sm); }
+.users-remove:hover:not(:disabled) { border-color: var(--danger-border) !important; background: var(--danger-soft); color: var(--danger) !important; }
+.users-confirm { display: flex; align-items: center; gap: var(--space-2); }
+.users-confirm button { min-height: 36px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.users-remove-confirm { background: var(--danger) !important; color: var(--on-primary-fill) !important; }
+
 .users-role { padding: 5px var(--space-3); border-radius: 999px; background: var(--neutral-soft); color: var(--muted); font-size: 0.6875rem; font-weight: 700; white-space: nowrap; }
 
 /* Assentos esgotados: a tela explica ANTES, em vez de deixar preencher o
@@ -1883,6 +1917,10 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .users-grid { max-width: none; }
   .users-list li { flex-wrap: wrap; }
   .users-role { margin-left: 54px; }
+  .users-actions { width: 100%; flex-wrap: wrap; margin-left: 54px; }
+  .users-actions select, .users-actions > button { min-height: 44px; }
+  .users-remove { width: 44px; }
+  .users-confirm button { min-height: 44px; }
   .invite-link-row { flex-direction: column; }
   .invite-link-row .primary-action { width: 100%; }
   .plan-option { align-items: stretch; }
