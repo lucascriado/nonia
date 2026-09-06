@@ -7,13 +7,14 @@ import { Avatar } from "@/components/avatar";
 import { AuthAlert } from "@/components/auth/auth-alert";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthError, emailProblem } from "@/components/auth/session";
+import Link from "next/link";
 import { usePermission, useSession } from "@/components/current-user";
 import { createInvitation, getRoles, getUsers, type OrganizationUser, type PendingInvitation, type Role } from "@/components/users/users-api";
 
 const emptyForm = { fullName: "", email: "", roleSlug: "" };
 
 export function UsersPanel() {
-  const { user: currentUser } = useSession();
+  const { user: currentUser, plan } = useSession();
   const canInvite = usePermission("users.write");
   const [users, setUsers] = useState<OrganizationUser[]>([]);
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
@@ -41,6 +42,13 @@ export function UsersPanel() {
     return () => { active = false; };
   }, []);
 
+  /**
+   * Assentos ocupados contra o teto do plano. No Semente é 1, e o dono já o
+   * ocupa — ou seja, no gratuito o convite SEMPRE recusa. Melhor explicar que
+   * é o plano do que deixar a pessoa preencher o formulário para levar um erro.
+   */
+  const seatsFull = plan?.maxUsers != null && plan.usage.users >= plan.maxUsers;
+
   const defaultRole = useMemo(() => roles.find((role) => role.slug === "secretaria")?.slug ?? roles[0]?.slug ?? "", [roles]);
 
   async function handleSubmit(event: React.FormEvent) {
@@ -66,7 +74,11 @@ export function UsersPanel() {
     } catch (error) {
       if (!(error instanceof AuthError)) throw error;
       if (error.code === "email_taken") setErrors((current) => ({ ...current, email: error.message }));
-      else setFormError(error.message);
+      else if (error.code === "plan_limit_reached") {
+        // Pode chegar aqui mesmo com a checagem acima: outra pessoa pode ter
+        // ocupado o último assento entre carregar a tela e enviar.
+        setFormError(`${error.message} O limite é do plano, não do convite — mude de plano para abrir mais assentos.`);
+      } else setFormError(error.message);
     } finally {
       setSubmitting(false);
     }
@@ -120,7 +132,22 @@ export function UsersPanel() {
 
       {freshInvite?.inviteUrl && <InviteLink invitation={freshInvite} onDone={() => setFreshInvite(null)} />}
 
-      {canInvite && !freshInvite && (
+      {canInvite && !freshInvite && seatsFull && (
+        <div className="users-seats-full">
+          <p>
+            <ShieldCheck aria-hidden />
+            <span>
+              O plano <strong>{plan!.name}</strong> inclui{" "}
+              {plan!.maxUsers === 1 ? "um usuário" : `${plan!.maxUsers} usuários`}, e{" "}
+              {plan!.usage.users === 1 ? "ele já está em uso" : "todos já estão em uso"}. Para convidar
+              mais gente, mude de plano — o convite seria recusado por limite, não por erro seu.
+            </span>
+          </p>
+          <Link className="primary-action" href="/configuracoes">Ver planos</Link>
+        </div>
+      )}
+
+      {canInvite && !freshInvite && !seatsFull && (
         <form className="users-invite" noValidate onSubmit={handleSubmit}>
           <h4><UserPlus aria-hidden />Convidar alguém</h4>
 

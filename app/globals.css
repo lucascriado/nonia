@@ -1084,6 +1084,47 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .profile-password-actions button:disabled { cursor: wait; opacity: .65; }
 
 /* --------------------------------------------------------------------------
+   Faixa de cobranca
+   Fica entre a topbar e o conteudo, em todas as telas do app. Segue a mesma
+   margem do <main> para nao brigar com a sidebar.
+   -------------------------------------------------------------------------- */
+
+.billing-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: var(--sidebar-width);
+  padding: var(--space-3) var(--gutter);
+  border-bottom: 1px solid;
+  margin-top: var(--topbar-height);
+  transition: margin-left .38s var(--ease-out);
+}
+/* Sem isto o conteudo entraria por baixo da faixa: o <main> ja reserva a
+   altura da topbar no proprio padding, entao a faixa devolve essa reserva. */
+.billing-notice + main { padding-top: var(--gutter); }
+.billing-notice p { margin: 0; flex: 1; font-size: 0.8125rem; line-height: 1.5; }
+.billing-notice > svg { width: var(--icon-md); flex: 0 0 var(--icon-md); }
+.billing-notice-action {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.billing-notice-action svg { width: var(--icon-sm); }
+
+.billing-notice.is-warning { border-bottom-color: var(--warning); background: var(--warning-soft); color: var(--warning); }
+.billing-notice.is-warning .billing-notice-action { background: var(--warning); color: var(--panel); }
+.billing-notice.is-critical { border-bottom-color: var(--danger-border); background: var(--danger-soft); color: var(--danger); }
+.billing-notice.is-critical .billing-notice-action { background: var(--danger); color: var(--on-primary-fill); }
+.billing-notice.is-info { border-bottom-color: var(--border); background: var(--panel-soft); color: var(--muted); }
+
+/* --------------------------------------------------------------------------
    Usuarios e convites
    -------------------------------------------------------------------------- */
 
@@ -1106,6 +1147,14 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .users-identity em { padding: 2px 7px; border-radius: 999px; background: var(--primary-soft); color: var(--heading); font-size: 0.625rem; font-style: normal; font-weight: 700; text-transform: uppercase; }
 .users-identity small { overflow: hidden; color: var(--muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
 .users-role { padding: 5px var(--space-3); border-radius: 999px; background: var(--neutral-soft); color: var(--muted); font-size: 0.6875rem; font-weight: 700; white-space: nowrap; }
+
+/* Assentos esgotados: a tela explica ANTES, em vez de deixar preencher o
+   formulario para levar um 402. */
+.users-seats-full { padding: var(--space-5); border-top: 1px solid var(--border); background: var(--panel-soft); }
+.users-seats-full p { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0 0 var(--space-4); color: var(--text); font-size: 0.8125rem; line-height: 1.55; }
+.users-seats-full p svg { width: var(--icon-md); flex: 0 0 var(--icon-md); margin-top: 1px; color: var(--muted); }
+.users-seats-full > span { min-width: 0; flex: 1; }
+.users-seats-full .primary-action { width: 100%; min-height: 44px; }
 
 .users-invite { padding: var(--space-5); border-top: 1px solid var(--border); background: var(--panel-soft); }
 .users-invite h4 { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-4); color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
@@ -1690,6 +1739,9 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   }
   /* O botao flutuante cobriria o fim da lista sem esta folga. */
   .members-main, .visitors-main, .cells-main, .ministries-main, .finance-main { padding-bottom: 88px; }
+  .billing-notice { margin-left: 0; align-items: flex-start; padding: var(--space-3) var(--gutter); }
+  .billing-notice { flex-wrap: wrap; }
+  .billing-notice-action { min-height: 44px; }
 
   /* Icone decorativo ao lado de titulo: o texto ja diz a mesma coisa. */
   .resource-heading h2 svg, .settings-heading h2 svg, .record-form-section h3 svg,

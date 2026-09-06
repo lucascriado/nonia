@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
 import { CurrentUserProvider } from "@/components/current-user";
+import { BillingNotice } from "@/components/billing-notice";
 import type { SessionPayload } from "@/components/auth/session";
 import { Toaster } from "sonner";
 
@@ -80,6 +81,9 @@ export function DashboardShell({
       <Sidebar sidebarRef={sidebarRef} />
       <label className="menu-overlay" htmlFor="menu-toggle" aria-label="Fechar menu" data-sidebar-trigger />
       <Header title={title} />
+      {/* Fica acima do conteúdo de TODA tela: avisar sobre perder acesso não
+          pode depender de a pessoa visitar Configurações. */}
+      <BillingNotice />
       {children}
       <Toaster position="top-right" richColors closeButton />
     </CurrentUserProvider>

@@ -34,7 +34,12 @@ export type SessionPlan = {
   trialDaysLeft: number | null;
   trialExpired: boolean;
   access: {
-    level: string;
+    /**
+     * `full` normal; `grace` é a carência de 7 dias depois do vencimento, em
+     * que tudo ainda funciona; `read_only` é depois dela, quando consultar e
+     * exportar seguem valendo e cadastrar e editar param.
+     */
+    level: "full" | "grace" | "read_only";
     graceEndsAt: string | null;
     graceDaysLeft: number | null;
     pastDuePlan: string | null;
