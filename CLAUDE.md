@@ -17,18 +17,23 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | --- | --- |
 | Produção | **Não existe.** O nonia nunca foi deployado, nunca teve container no ar |
 | Aplicação no Coolify | Criada em 06/09/2026, `fqdn` nulo, auto-deploy **desligado**, nunca publicada (reverificado no Coolify em 06/09/2026) |
-| Banco de produção | Provisionado e **vazio** (0 tabelas). Baseline em `~/backups/nonia-2026-09-06.sql` |
+| Banco de produção | A base `postgres` está provisionada e **vazia** (0 tabelas). Baseline em `~/backups/nonia-2026-09-06.sql` |
 | Domínio `nonia.app` | **Não responde.** Zona no Cloudflare, mas o registro A é nuvem cinza e o firewall só aceita faixas do Cloudflare → timeout |
 | `www.nonia.app` | Não existe registro |
 | Autenticação na `main` | **Não existe.** Todas as rotas de `app/api` e todas as telas estão 100% abertas |
 | Multi-tenancy na `main` | **Não existe.** Nenhuma tabela tem `organization_id` |
 | Fase 1 (backend) | **Entregue na branch `feat/auth-multitenant`, ainda não integrada.** Ver "Em voo" abaixo |
-| Banco de desenvolvimento | `nonia_dev`, **PostgreSQL 18.6 — a mesma versão da produção**. Não há PostgreSQL instalado nesta máquina; o acesso é por túnel SSH *(arranjo definitivo pendente de confirmação do admin de VPS)* |
+| Banco de desenvolvimento | `nonia_dev`, no mesmo Postgres do Coolify que a produção: **PostgreSQL 18.6 nos dois**. Não há PostgreSQL instalado nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. É uma base separada da de produção, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 **Nenhum deploy até a Fase 1 estar integrada e revisada.** Publicar hoje expõe
 membros, visitantes e financeiro a qualquer pessoa na internet. Some-se a isso
 que o `CMD` do Dockerfile é `node database/migrate.mjs && node server.js`: um
 deploy acidental roda as migrations sozinho contra o banco.
+
+> **O PostgreSQL embarcado na porta 54329 não é do nonia.** Ele pertence a
+> outra sessão de agente nesta máquina e não faz parte do projeto — não aponte
+> a `DATABASE_URL` para ele. O banco de desenvolvimento é o `nonia_dev` pelo
+> túnel, em `127.0.0.1:5432`.
 
 ## Repositório e worktrees
 
@@ -185,6 +190,9 @@ Oficiais desde 06/09/2026.
 
 O cadastro continua nascendo no plano **`avaliacao`**, 14 dias grátis.
 
+O backend foi acionado em 06/09/2026 para cadastrar os três comerciais na
+tabela `plans`, com os limites como dado do plano.
+
 > **Nenhum desses limites é aplicado.** Ninguém bloqueia o 101º membro nem o
 > 11º usuário: `plans.max_users` e `plans.max_people` existem no schema e são
 > declarados em `lib/models.ts`, mas nenhuma rota os consulta. Os três planos
@@ -252,7 +260,7 @@ Datadas para que ninguém as leia como fato consumado.
 | Pendência | Desde |
 | --- | --- |
 | **`organization_members.person_id` aceita uuid de outra organização.** `POST /api/users` e `PATCH /api/users/[id]` gravam o campo direto do payload, sem `assertBelongsToOrganization`. Nenhuma rota lida hoje devolve dado da pessoa por esse caminho (só o uuid), mas é escrita cruzada entre tenants e precisa de correção na aplicação, não só da 006 | 06/09/2026 |
-| **Migration 006** — fechar as FKs que faltam (`cells.leader_id`, `ministries.leader_id`, `members.ministry_id`, `organization_members.person_id`). Se o caminho escolhido exigir `ON DELETE SET NULL` por coluna, o **piso de PostgreSQL sobe de 13+ para 15+** e este arquivo precisa ser corrigido | 06/09/2026 |
+| **Migration 006** — fechar as FKs que faltam (`cells.leader_id`, `ministries.leader_id`, `members.ministry_id`, `organization_members.person_id`). **Ordem decidida em 06/09/2026: a validação de aplicação vem primeiro, a migration no mesmo lote** — a 006 sozinha trocaria uma gravação errada silenciosa por um erro de FK cru na cara do usuário. Se o caminho escolhido exigir `ON DELETE SET NULL` por coluna, o **piso de PostgreSQL sobe de 13+ para 15+** e este arquivo precisa ser corrigido | 06/09/2026 |
 | **`middleware.ts` será renomeado para `proxy.ts`** (o Next 16 depreciou "middleware" em favor de "proxy"). Decidido em 06/09/2026, **ainda não feito** — verificado: só existe `middleware.ts` na branch de auth | 06/09/2026 |
 | **Limites de plano não são aplicados** e os planos comerciais não existem na tabela `plans`. Ver "Planos comerciais" | 06/09/2026 |
 | `/precos` e `/cadastro` **não existem como página** — são só constantes em `components/marketing/routes.ts` na branch de UI. O frontend está montando as duas | 06/09/2026 |
