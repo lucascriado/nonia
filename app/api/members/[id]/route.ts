@@ -1,18 +1,47 @@
-import { db } from "@/lib/db";
+import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { syncCellMembership } from "@/lib/cell-membership";
 import { Member, Ministry, Person, Visitor } from "@/lib/models";
 import { apiError, nullable, personAttributes, RecordPayload, validateRecordPayload } from "@/lib/records";
 import { assertAffected } from "@/lib/tenant";
-import { readJson } from "@/lib/http";
+import { notFound } from "@/lib/http";
+import { readJson, requireUuid } from "@/lib/http";
 
 export const runtime = "nodejs";
+
+export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const auth = await requirePermission("members.read");
+    const { id } = await context.params;
+    requireUuid(id, "Membro não encontrado.");
+
+    // Traz a foto, que a listagem deixou de devolver por peso. É este o
+    // caminho que o formulário de edição usa antes de abrir -- sem ele, salvar
+    // mandaria a foto vazia.
+    const { rows } = await query(`
+      SELECT id, full_name AS name, email, phone, birth_date AS "birthDate",
+        gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
+        address, neighborhood, city, state, avatar_url AS "photoDataUrl", notes,
+        ministry, ministry_color AS "ministryColor", role, status,
+        baptism_status AS baptism, baptism_date AS "baptismDate",
+        admission_date AS date, is_new AS "isNew", cell_name AS cell
+      FROM member_directory WHERE id = $1 AND organization_id = $2
+    `, [id, organizationId(auth)]);
+
+    if (!rows.length) throw notFound("Membro não encontrado.");
+    return Response.json(rows[0]);
+  } catch (error) {
+    return apiError(error);
+  }
+}
+
 
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requirePermission("members.write");
     const { id } = await context.params;
+    requireUuid(id, "Membro não encontrado.");
     const payload = await readJson<RecordPayload>(request);
     const validationError = validateRecordPayload(payload);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
@@ -55,6 +84,7 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
   try {
     const auth = await requirePermission("members.write");
     const { id } = await context.params;
+    requireUuid(id, "Membro não encontrado.");
 
     await db.transaction(async (transaction) => {
       const person = await Person.findOne({

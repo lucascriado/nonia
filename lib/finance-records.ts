@@ -21,8 +21,18 @@ export type FinancePayload = {
 
 const nullable = (value?: string) => value?.trim() || null;
 
+/**
+ * Atributos do lançamento a partir do formulário.
+ *
+ * Mesma rede de segurança da foto em `personAttributes`: a chave
+ * attachmentUrl ausente preserva o comprovante existente, porque a listagem
+ * deixou de devolvê-lo (podia ter 2 MB por lançamento). Só null ou vazio
+ * explícitos apagam.
+ */
 export function financeAttributes(payload: FinancePayload) {
+  const anexo = payload.attachmentUrl === undefined ? {} : { attachmentUrl: nullable(payload.attachmentUrl) };
   return {
+    ...anexo,
     type: payload.type === "expense" ? "expense" : "income",
     description: payload.description!.trim(),
     category: payload.category!.trim(),
@@ -31,7 +41,6 @@ export function financeAttributes(payload: FinancePayload) {
     status: payload.status === "pending" ? "pending" : "paid",
     transactionDate: payload.transactionDate!.trim(),
     paymentMethod: nullable(payload.paymentMethod),
-    attachmentUrl: nullable(payload.attachmentUrl),
     attachmentName: nullable(payload.attachmentName),
     notes: nullable(payload.notes),
   };

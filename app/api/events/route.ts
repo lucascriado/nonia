@@ -1,7 +1,7 @@
 import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { notFound, readJson } from "@/lib/http";
+import { notFound, readJson, requireUuid } from "@/lib/http";
 import { apiError, nullable } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -95,6 +95,7 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) return Response.json({ error: "Evento não informado." }, { status: 400 });
+    requireUuid(id, "Evento não encontrado.");
 
     await db.transaction(async (transaction) => {
       const [rows] = await db.query(

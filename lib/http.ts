@@ -45,3 +45,22 @@ export async function readJson<T>(request: Request): Promise<T> {
     throw badRequest("Corpo da requisição inválido: esperado JSON.", "invalid_json");
   }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Confere que o id da URL tem forma de uuid antes de ir ao banco.
+ *
+ * Sem isto, um id torto chega ao Postgres e volta como
+ * "invalid input syntax for type uuid", que o catch genérico transforma em
+ * 500 -- erro de servidor para um endereço que o cliente inventou.
+ *
+ * Responde 404, e não 400, de propósito: um id malformado não pode ser um
+ * registro desta organização, e é exatamente a mesma situação que um uuid
+ * válido inexistente. Do lado de quem usa, as duas são "esse registro não
+ * existe", e a tela trata uma coisa só em vez de duas.
+ */
+export function requireUuid(valor: string | null | undefined, mensagem = "Registro não encontrado."): string {
+  if (!valor || !UUID.test(valor)) throw notFound(mensagem);
+  return valor;
+}

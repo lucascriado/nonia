@@ -14,7 +14,11 @@ export async function GET() {
     const { rows } = await query(`
       SELECT id, type, description, category, counterparty, amount, status,
         transaction_date AS "transactionDate", payment_method AS "paymentMethod",
-        attachment_url AS "attachmentUrl", attachment_name AS "attachmentName", notes
+        -- O anexo pode ter 2 MB por lançamento; um ano de comprovantes
+        -- passaria de 100 MB numa requisição. A lista diz que existe e o nome
+        -- do arquivo; o conteúdo sai pela rota do lançamento.
+        attachment_url IS NOT NULL AS "hasAttachment",
+        attachment_name AS "attachmentName", notes
       FROM financial_transactions
       WHERE organization_id = $1
       ORDER BY transaction_date DESC, created_at DESC
