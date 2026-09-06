@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { assignMembersToCell } from "@/lib/cell-membership";
-import { notFound } from "@/lib/http";
+import { notFound, readJson } from "@/lib/http";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization } from "@/lib/tenant";
 import { QueryTypes } from "sequelize";
@@ -24,7 +24,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   try {
     const auth = await requirePermission("cells.write");
     const { id } = await params;
-    const payload = await request.json() as CellPayload;
+    const payload = await readJson<CellPayload>(request);
     const name = payload.name?.trim();
     if (!name) return Response.json({ error: "Nome da célula é obrigatório." }, { status: 400 });
 

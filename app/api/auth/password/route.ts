@@ -23,7 +23,7 @@ import {
   requireSession,
   sessionCookie,
 } from "@/lib/auth";
-import { badRequest, HttpError, unauthorized } from "@/lib/http";
+import { HttpError, badRequest, readJson, unauthorized } from "@/lib/http";
 import { hashPassword, validatePasswordStrength, verifyPassword } from "@/lib/passwords";
 import { apiError } from "@/lib/records";
 
@@ -39,7 +39,7 @@ type ChangePasswordPayload = { currentPassword?: string; newPassword?: string };
 export async function POST(request: Request) {
   try {
     const auth = await requireSession();
-    const payload = (await request.json()) as ChangePasswordPayload;
+    const payload = await readJson<ChangePasswordPayload>(request);
 
     const currentPassword = payload.currentPassword ?? "";
     const newPassword = payload.newPassword ?? "";

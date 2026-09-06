@@ -3,7 +3,7 @@ import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { createSession, jsonWithCookie, requestMeta, resolveSession, sessionCookie } from "@/lib/auth";
-import { badRequest, conflict } from "@/lib/http";
+import { badRequest, conflict, readJson } from "@/lib/http";
 import { Organization, OrganizationMember, User } from "@/lib/models";
 import { hashPassword, validatePasswordStrength } from "@/lib/passwords";
 import { EMAIL_PATTERN, normalizeEmail, uniqueOrganizationSlug } from "@/lib/organizations";
@@ -24,7 +24,7 @@ type RegisterPayload = {
 
 export async function POST(request: Request) {
   try {
-    const payload = (await request.json()) as RegisterPayload;
+    const payload = await readJson<RegisterPayload>(request);
 
     const organizationName = payload.organizationName?.trim();
     const fullName = payload.fullName?.trim();

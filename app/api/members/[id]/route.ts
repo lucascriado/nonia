@@ -5,6 +5,7 @@ import { syncCellMembership } from "@/lib/cell-membership";
 import { Member, Ministry, Person, Visitor } from "@/lib/models";
 import { apiError, nullable, personAttributes, RecordPayload, validateRecordPayload } from "@/lib/records";
 import { assertAffected } from "@/lib/tenant";
+import { readJson } from "@/lib/http";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   try {
     const auth = await requirePermission("members.write");
     const { id } = await context.params;
-    const payload = await request.json() as RecordPayload;
+    const payload = await readJson<RecordPayload>(request);
     const validationError = validateRecordPayload(payload);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 

@@ -13,7 +13,7 @@ import {
 } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { sessionPayload } from "@/lib/auth-payloads";
-import { badRequest, forbidden } from "@/lib/http";
+import { badRequest, forbidden, readJson } from "@/lib/http";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -21,10 +21,10 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     const auth = await requireSession();
-    const { organizationId, organizationSlug } = (await request.json()) as {
+    const { organizationId, organizationSlug } = await readJson<{
       organizationId?: string;
       organizationSlug?: string;
-    };
+    }>(request);
 
     if (!organizationId && !organizationSlug) throw badRequest("Informe a organização de destino.");
 

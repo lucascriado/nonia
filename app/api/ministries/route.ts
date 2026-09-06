@@ -1,6 +1,7 @@
 import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
+import { readJson } from "@/lib/http";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization, filterOwnedMemberIds } from "@/lib/tenant";
 import { QueryTypes } from "sequelize";
@@ -55,7 +56,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const auth = await requirePermission("ministries.write");
-    const payload = await request.json() as MinistryPayload;
+    const payload = await readJson<MinistryPayload>(request);
     const name = payload.name?.trim();
     if (!name) return Response.json({ error: "Nome do ministério é obrigatório." }, { status: 400 });
 

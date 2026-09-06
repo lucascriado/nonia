@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { Member, Person, Visitor } from "@/lib/models";
+import { readJson } from "@/lib/http";
 import { apiError, personAttributes, RecordPayload, validateRecordPayload } from "@/lib/records";
 import { assertAffected } from "@/lib/tenant";
 import { membershipStage, visitorStatus } from "@/lib/visitor-stages";
@@ -12,7 +13,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   try {
     const auth = await requirePermission("visitors.write");
     const { id } = await context.params;
-    const payload = await request.json() as RecordPayload;
+    const payload = await readJson<RecordPayload>(request);
     const validationError = validateRecordPayload(payload);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 

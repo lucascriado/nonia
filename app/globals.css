@@ -1023,7 +1023,7 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
    antiga tinha duas colunas por causa do cartao "Preferencias do Sistema";
    agora e uma coluna estreita, para o cartao nao esticar sozinho na largura
    toda. */
-.settings-grid { display: grid; max-width: 380px; margin-inline: 0; gap: 20px; align-items: start; }
+.settings-grid { display: grid; max-width: 720px; margin-inline: 0; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: var(--space-5); align-items: start; }
 .profile-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
 .profile-card { position: relative; display: flex; flex-direction: column; align-items: center; padding: 0 22px 22px; }
 .profile-cover { width: calc(100% + 44px); height: 88px; margin-bottom: -44px; background: linear-gradient(120deg, var(--primary-soft), var(--panel-inset)); }
@@ -1082,6 +1082,140 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .profile-password-actions button { min-height: 44px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.84375rem; font-weight: 600; }
 .profile-password-actions .primary-action { padding: 0 var(--space-5); }
 .profile-password-actions button:disabled { cursor: wait; opacity: .65; }
+
+/* --------------------------------------------------------------------------
+   Usuarios e convites
+   -------------------------------------------------------------------------- */
+
+.users-grid { display: grid; max-width: 720px; margin-inline: 0; }
+.users-panel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
+.users-panel.is-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-6); color: var(--muted); font-size: 0.875rem; }
+.users-panel.is-loading svg { width: var(--icon-xl); color: var(--primary); }
+.users-panel > header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
+.users-panel > header > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
+.users-panel > header > span svg { width: var(--icon-md); }
+.users-panel h3 { margin: 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.users-panel > header p { margin: 3px 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
+
+.users-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.users-list li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-soft); }
+.users-list li:last-child { border-bottom: 0; }
+.users-list li.is-pending { background: var(--panel-soft); }
+.users-identity { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.users-identity strong { display: flex; align-items: center; gap: var(--space-2); overflow: hidden; color: var(--heading); font-size: 0.875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.users-identity em { padding: 2px 7px; border-radius: 999px; background: var(--primary-soft); color: var(--heading); font-size: 0.625rem; font-style: normal; font-weight: 700; text-transform: uppercase; }
+.users-identity small { overflow: hidden; color: var(--muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.users-role { padding: 5px var(--space-3); border-radius: 999px; background: var(--neutral-soft); color: var(--muted); font-size: 0.6875rem; font-weight: 700; white-space: nowrap; }
+
+.users-invite { padding: var(--space-5); border-top: 1px solid var(--border); background: var(--panel-soft); }
+.users-invite h4 { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-4); color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.users-invite h4 svg { width: var(--icon-md); color: var(--primary); }
+.users-invite .mk-field { margin-bottom: var(--space-4); }
+.users-invite select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+.users-invite select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.users-invite > .primary-action { width: 100%; min-height: 44px; }
+
+/* O link do convite. Sem envio de e-mail, ele e a UNICA forma de o convidado
+   receber o convite, e nao volta em listagem nenhuma — por isso o aviso tem
+   peso de alerta, e nao de nota de rodape. */
+.invite-link { padding: var(--space-5); border-top: 1px solid var(--border); background: var(--panel-soft); }
+.invite-link-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.invite-link-warning svg { width: var(--icon-md); flex: 0 0 var(--icon-md); margin-top: 1px; }
+.invite-link-warning > span { min-width: 0; flex: 1; }
+.invite-link-warning strong { font-weight: 700; }
+.invite-link-row { display: flex; gap: var(--space-2); }
+.invite-link-row input {
+  min-width: 0;
+  flex: 1;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+.invite-link-row .primary-action { flex: 0 0 auto; min-height: 44px; }
+.invite-link-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: 0.75rem; }
+.invite-link-done { margin-top: var(--space-3); border: 0; background: transparent; color: var(--primary); font-size: 0.8125rem; font-weight: 600; text-decoration: underline; }
+
+/* --------------------------------------------------------------------------
+   Plano e assinatura
+   -------------------------------------------------------------------------- */
+
+.plan-panel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
+.plan-panel > header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
+.plan-panel > header > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
+.plan-panel > header > span svg { width: var(--icon-md); }
+.plan-panel > header > div { min-width: 0; flex: 1; }
+.plan-panel h3 { margin: 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.plan-panel > header p { margin: 3px 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
+
+.plan-badge { padding: 5px var(--space-3); border-radius: 999px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.plan-badge.is-trial { background: var(--accent-soft); color: var(--accent); }
+.plan-badge.is-subscription { background: var(--primary-soft); color: var(--heading); }
+.plan-badge.is-free { background: var(--neutral-soft); color: var(--muted); }
+
+.plan-usage { display: grid; gap: var(--space-4); padding: var(--space-5); }
+.plan-usage-row { display: grid; gap: var(--space-2); }
+.plan-usage-label { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); color: var(--muted); font-size: 0.8125rem; }
+.plan-usage-label strong { color: var(--heading); font-size: 0.875rem; font-weight: 600; }
+.plan-usage-track { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: var(--panel-inset); }
+.plan-usage-track i { display: block; height: 100%; border-radius: 999px; background: var(--primary); transition: width .4s var(--ease-out); }
+.plan-usage-row small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.75rem; }
+.plan-usage-row small svg { width: var(--icon-sm); }
+/* O aviso muda de cor ANTES de encostar no teto, nao depois. */
+.plan-usage-row.is-near .plan-usage-track i { background: var(--warning); }
+.plan-usage-row.is-near small { color: var(--warning); }
+.plan-usage-row.is-full .plan-usage-track i { background: var(--danger); }
+.plan-usage-row.is-full small { color: var(--danger); font-weight: 600; }
+
+.plan-options { display: grid; gap: var(--space-3); padding: 0 var(--space-5) var(--space-5); }
+.plan-option { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-soft); }
+.plan-option.is-current { border-color: var(--primary-border); background: var(--primary-soft); }
+.plan-option > div { min-width: 0; flex: 1 1 180px; }
+.plan-option strong { display: block; color: var(--heading); font-size: 0.875rem; font-weight: 600; }
+.plan-option small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.75rem; line-height: 1.45; }
+.plan-option-price { color: var(--heading); font-size: 0.9375rem; font-weight: 700; white-space: nowrap; }
+.plan-option-current { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.plan-option-current svg { width: var(--icon-sm); }
+.plan-option-action { min-height: 40px; padding: 0 var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.plan-option-action:hover { border-color: var(--primary); background: var(--primary-soft); color: var(--heading); }
+
+.plan-confirm { display: flex; align-items: center; gap: var(--space-2); }
+.plan-confirm button { min-height: 40px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.plan-confirm .primary-action { padding: 0 var(--space-4); }
+.plan-confirm button:disabled { cursor: wait; opacity: .65; }
+
+.plan-cancel { padding-top: var(--space-3); border-top: 1px solid var(--border); text-align: right; }
+.plan-cancel > button { min-height: 40px; padding: 0 var(--space-3); border: 0; background: transparent; color: var(--muted); font-size: 0.8125rem; font-weight: 600; text-decoration: underline; }
+.plan-cancel > button:hover { color: var(--danger); }
+.plan-cancel p { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0 0 var(--space-3); padding: var(--space-3); border: 1px solid var(--danger-border); border-radius: var(--radius-sm); background: var(--danger-soft); color: var(--danger); font-size: 0.8125rem; line-height: 1.5; text-align: left; }
+.plan-cancel p svg { width: var(--icon-md); flex: 0 0 var(--icon-md); margin-top: 1px; }
+.plan-cancel .plan-confirm { justify-content: flex-end; }
+.plan-cancel-confirm { min-height: 40px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: var(--danger); color: var(--on-primary-fill); font-size: 0.8125rem; font-weight: 600; }
 .settings-footer { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; text-align: center; }
 .settings-footer span { color: var(--primary); }
 
@@ -1479,8 +1613,6 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .members-pagination > div, .visitor-pagination > div, .activity-pagination div { align-self: center; }
   .visitor-stats, .member-stats { grid-template-columns: 1fr; }
   .visitor-table-toolbar { align-items: flex-start; flex-direction: column; }
-  .visitor-status-cell { max-width: 62%; align-items: flex-end; }
-  .visitor-membership-progress { width: 100%; }
   .membership-progress { grid-template-columns: 1fr; }
   .membership-progress.wide { grid-column: 1; }
   .membership-progress span { display: grid; grid-template-columns: 26px 1fr; align-items: center; text-align: left; }
@@ -1569,14 +1701,14 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    Agora a identidade manda, as etiquetas se agrupam numa faixa e a data e as
    acoes dividem o rodape do cartao. */
 @media (max-width: 640px) {
-  .members-table tr, .visitors-table tr {
+  .members-table tr, .visitors-table tr, .finance-table tr {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     padding: 14px 16px;
   }
-  .members-table td, .visitors-table td {
+  .members-table td, .visitors-table td, .finance-table td {
     display: block;
     min-height: 0;
     padding: 0;
@@ -1584,12 +1716,45 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
     text-align: left;
   }
   /* Os rotulos saem: as etiquetas ja se explicam e o nome dispensa "Nome". */
-  .members-table td::before, .visitors-table td::before { content: none; }
+  .members-table td::before, .visitors-table td::before, .finance-table td::before { content: none; }
 
   .members-table td[data-label="Nome"], .visitors-table td[data-label="Nome"] { flex: 1 0 100%; }
   .members-table td[data-label="Admissão"] { order: 8; flex: 1 0 auto; color: var(--muted); font-size: 0.75rem; }
   .members-table td[data-label="Admissão"]::before { content: "desde "; color: inherit; font-size: inherit; font-weight: 400; letter-spacing: 0; text-transform: none; }
   .members-table td[data-label="Ações"], .visitors-table td[data-label="Ações"] { order: 9; flex: 0 0 auto; margin-left: auto; }
+
+  /* Visitantes e a listagem mais densa: alem da pessoa, a linha carrega etapa
+     de integracao, quem convidou e data da visita. Sem regra propria, esses
+     tres se espremiam dois a dois e a etapa — que e o assunto da tela — vinha
+     truncada em "Visitou...". Cada um ganha a sua linha. */
+  .visitors-table td[data-label="Progresso"] { order: 3; flex: 1 0 100%; }
+  .visitors-table td[data-label="Quem convidou"] { order: 4; flex: 0 1 auto; color: var(--muted); font-size: 0.75rem; }
+  .visitors-table td[data-label="Data"] { order: 5; flex: 0 1 auto; color: var(--muted); font-size: 0.75rem; }
+  .visitors-table td[data-label="Data"]::before { content: "visita em "; color: inherit; font-size: inherit; font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+  /* Financeiro e a linha com mais campos do sistema: descricao, contraparte,
+     categoria, tipo, valor, data, comprovante e situacao. Mesmo arranjo da
+     dashboard — o VALOR e o numero, entao ele fica na primeira linha junto da
+     descricao, alinhado a direita, e o resto vira etiqueta e metadado. */
+  .finance-table td[data-label="Descrição"] { flex: 1 1 60%; }
+  /* Mesma armadilha que truncava a etapa em /visitantes: a descricao tem
+     ellipsis com nowrap para caber na coluna da tabela, e no cartao ela tem a
+     largura toda — nao ha motivo para cortar. */
+  .finance-identity strong, .finance-identity small { overflow: visible; white-space: normal; }
+  .finance-table td[data-label="Valor"] { order: 2; flex: 0 0 auto; margin-left: auto; font-size: 1rem; font-weight: 700; text-align: right; }
+  .finance-table td[data-label="Tipo"] { order: 3; }
+  .finance-table td[data-label="Categoria"] { order: 4; }
+  .finance-table td[data-label="Status"] { order: 5; }
+  .finance-table td[data-label="Data"] { order: 6; flex: 1 0 auto; color: var(--muted); font-size: 0.75rem; }
+  .finance-table td[data-label="Comprovante"] { order: 7; flex: 0 0 auto; }
+  .finance-table td[data-label="Ações"] { order: 8; flex: 0 0 auto; margin-left: auto; }
+
+  .visitor-status-cell { max-width: none; align-items: stretch; }
+  .visitor-membership-progress { width: 100%; }
+  /* A etapa deixa de ser reticencia: e o dado que a pessoa veio ver. */
+  .visitor-membership-progress span { overflow: visible; color: var(--heading); font-size: 0.75rem; white-space: normal; }
+  .visitor-membership-progress div { gap: 5px; }
+  .visitor-membership-progress i { height: 5px; }
 
   .member-identity, .visitor-identity { gap: 10px; }
   .member-actions { gap: 4px; }
@@ -1661,6 +1826,17 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
     clip-path: inset(50%);
     white-space: nowrap;
   }
+
+  .settings-grid { grid-template-columns: 1fr; max-width: none; }
+  .users-grid { max-width: none; }
+  .users-list li { flex-wrap: wrap; }
+  .users-role { margin-left: 54px; }
+  .invite-link-row { flex-direction: column; }
+  .invite-link-row .primary-action { width: 100%; }
+  .plan-option { align-items: stretch; }
+  .plan-option-action, .plan-confirm button { min-height: 44px; }
+  .plan-confirm { width: 100%; }
+  .plan-confirm button { flex: 1; }
 
   .cell-grid, .ministries-grid { gap: var(--space-4); }
   .cell-card, .ministry-card, .resource-card { padding: var(--space-5); gap: var(--space-3); }

@@ -17,6 +17,31 @@ export type SessionUser = {
 export type SessionOrganization = { id: string; name: string; slug: string };
 export type SessionRole = { slug: string; name: string; level: number };
 
+/**
+ * Estado do plano da organização. Vem só no GET /api/auth/session: resolver o
+ * plano em toda requisição autenticada custaria uma consulta a mais só para
+ * desenhar uma faixa.
+ *
+ * `maxMembers`/`maxUsers` em null significam ILIMITADO, não zero.
+ */
+export type SessionPlan = {
+  slug: string;
+  name: string;
+  source: "trial" | "subscription" | "free";
+  maxMembers: number | null;
+  maxUsers: number | null;
+  trialEndsAt: string | null;
+  trialDaysLeft: number | null;
+  trialExpired: boolean;
+  access: {
+    level: string;
+    graceEndsAt: string | null;
+    graceDaysLeft: number | null;
+    pastDuePlan: string | null;
+  };
+  usage: { members: number; users: number };
+};
+
 export type SessionPayload = {
   authenticated: true;
   user: SessionUser;
@@ -26,6 +51,8 @@ export type SessionPayload = {
   expiresAt: string;
   /** Presente no login, no GET sessão e na troca de organização. */
   organizations?: SessionOrganization[];
+  /** Só no GET sessão — as outras rotas não resolvem o plano. */
+  plan?: SessionPlan;
 };
 
 export type SessionResponse = SessionPayload | { authenticated: false };
@@ -63,7 +90,9 @@ const fallbackMessages: Record<string, string> = {
     "Muitas tentativas com a senha atual. Por segurança, seu acesso fica bloqueado por 15 minutos — isso vale também para entrar de novo. Tente mais tarde.",
 };
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** Exportado para os módulos vizinhos (billing) reusarem o mesmo tratamento
+ *  de erro: mensagem em pt-BR do servidor, fallback quando não vem JSON. */
+export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, {
@@ -108,15 +137,15 @@ export type RegisterInput = {
 };
 
 export function register(input: RegisterInput) {
-  return request<SessionPayload>("/api/auth/register", json(input));
+  return apiRequest<SessionPayload>("/api/auth/register", json(input));
 }
 
 export function login(input: { email: string; password: string; organizationSlug?: string }) {
-  return request<SessionPayload>("/api/auth/login", json(input));
+  return apiRequest<SessionPayload>("/api/auth/login", json(input));
 }
 
 export function logout() {
-  return request<{ ok: true }>("/api/auth/logout", json({}));
+  return apiRequest<{ ok: true }>("/api/auth/logout", json({}));
 }
 
 /**
@@ -124,15 +153,15 @@ export function logout() {
  * propósito, para a tela sondar sem sujar o console com 401.
  */
 export function getSession() {
-  return request<SessionResponse>("/api/auth/session");
+  return apiRequest<SessionResponse>("/api/auth/session");
 }
 
 export function getInvite(token: string) {
-  return request<Invite>(`/api/auth/invite?token=${encodeURIComponent(token)}`);
+  return apiRequest<Invite>(`/api/auth/invite?token=${encodeURIComponent(token)}`);
 }
 
 export function acceptInvite(input: { token: string; password: string; fullName?: string }) {
-  return request<SessionPayload>("/api/auth/invite/accept", json(input));
+  return apiRequest<SessionPayload>("/api/auth/invite/accept", json(input));
 }
 
 /**
@@ -142,11 +171,11 @@ export function acceptInvite(input: { token: string; password: string; fullName?
  * revogadas, mas quem trocou continua logado. Não redirecione para /entrar.
  */
 export function changePassword(input: { currentPassword: string; newPassword: string }) {
-  return request<{ ok: true }>("/api/auth/password", json(input));
+  return apiRequest<{ ok: true }>("/api/auth/password", json(input));
 }
 
 export function switchOrganization(input: { organizationSlug?: string; organizationId?: string }) {
-  return request<SessionPayload>("/api/auth/switch", json(input));
+  return apiRequest<SessionPayload>("/api/auth/switch", json(input));
 }
 
 /** Mínimo de 8 caracteres, com letras e números — a mesma regra do backend. */

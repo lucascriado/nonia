@@ -3,7 +3,7 @@ import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { badRequest, conflict, forbidden } from "@/lib/http";
+import { badRequest, conflict, forbidden, readJson } from "@/lib/http";
 import { Invitation, OrganizationMember, User } from "@/lib/models";
 import { hashPassword, validatePasswordStrength } from "@/lib/passwords";
 import { EMAIL_PATTERN, normalizeEmail } from "@/lib/organizations";
@@ -13,6 +13,7 @@ import {
   INVITATION_TTL_DAYS,
   invitationUrl,
 } from "@/lib/invitations";
+import { enviarEmail, templateConvite } from "@/lib/email";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization } from "@/lib/tenant";
 import { assertWithinPlanLimit } from "@/lib/plan-limits";
@@ -63,7 +64,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const auth = await requirePermission("users.write");
-    const payload = (await request.json()) as CreateUserPayload;
+    const payload = await readJson<CreateUserPayload>(request);
 
     const email = payload.email ? normalizeEmail(payload.email) : "";
     const fullName = payload.fullName?.trim();
@@ -180,6 +181,23 @@ export async function POST(request: Request) {
       return record;
     });
 
+    const url = invitationUrl(request, token);
+
+    // DEPOIS do commit, e sem poder derrubar nada: o convite já existe. Se o
+    // envio falhar -- sem chave, domínio não verificado, Resend fora do ar --
+    // a resposta continua trazendo a inviteUrl para quem convidou repassar à
+    // mão, que é exatamente como funcionava antes de existir e-mail.
+    const envio = await enviarEmail({
+      para: email,
+      ...templateConvite({
+        organizacao: auth.organization.name,
+        papel: role.name,
+        convidadoPor: auth.user.fullName,
+        url,
+        expiraEm: expiresAt,
+      }),
+    });
+
     return Response.json(
       {
         id: invitation.id,
@@ -188,8 +206,11 @@ export async function POST(request: Request) {
         roleSlug,
         status: "pending",
         expiresAt: expiresAt.toISOString(),
-        // Ainda não há envio de e-mail: quem convidou repassa este link.
-        inviteUrl: invitationUrl(request, token),
+        // Continua vindo mesmo quando o e-mail sai: é o caminho manual, e o
+        // único quando o envio falha.
+        inviteUrl: url,
+        // Para a tela ser honesta: "convite enviado" ou "copie o link abaixo".
+        emailSent: envio.enviado,
       },
       { status: 201 },
     );
