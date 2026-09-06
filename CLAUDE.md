@@ -70,6 +70,10 @@ As três branches estão em `origin` desde 06/09/2026.
 - **O repositório é público.** Antes de qualquer push, confira que o diff não
   leva senha, token, uuid de infra, IP nem conteúdo de `.env`. É por isso que a
   regra de manter identificador de infra fora do repo existe.
+- **Um segredo chega a um texto por dois caminhos, e a regra acima só pega um.**
+  Alguém colar o valor é ato deliberado, e a regra pega. **O shell expandir sem
+  ninguém colar não é ato nenhum, e a regra não pega** — é o que exige a
+  convenção "Segredos e interpolação" em [`AGENTS.md`](AGENTS.md).
 - **Integrar branch que traz migration inclui rodar `npm run db:migrate` contra
   o `nonia_dev`, na mesma operação, antes de anunciar a integração.** Não é
   opcional e não depende de alguém pedir — o banco é compartilhado e ninguém
