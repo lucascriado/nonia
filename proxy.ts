@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+// Convenção "proxy" do Next 16, que substituiu "middleware".
+//
 // Roda no Edge, onde não há acesso ao Postgres nem ao node:crypto. Por isso
 // aqui só existe a checagem barata de "tem cookie de sessão?", que serve para
 // desviar a navegação. Quem valida a sessão de verdade -- token, expiração,
@@ -41,12 +43,12 @@ const APP_PAGES = [
 ];
 
 /** Páginas que deixam de fazer sentido depois de entrar. */
-const GUEST_ONLY_PAGES = ["/entrar", "/cadastro", "/recuperar-senha"];
+const GUEST_ONLY_PAGES = ["/entrar", "/cadastro"];
 
 const matches = (pathname: string, paths: string[]) =>
   paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
 

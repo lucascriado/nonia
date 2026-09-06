@@ -14,6 +14,7 @@ import {
   invitationUrl,
 } from "@/lib/invitations";
 import { apiError } from "@/lib/records";
+import { assertBelongsToOrganization } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
@@ -105,6 +106,13 @@ export async function POST(request: Request) {
       const passwordHash = await hashPassword(payload.password);
 
       const created = await db.transaction(async (transaction) => {
+        // A ficha de pessoa vinculada ao usuário tem que ser desta igreja: o
+        // uuid vem do payload e a FK composta da 006 recusaria depois, com
+        // erro de banco cru no meio do cadastro.
+        if (payload.personId) {
+          await assertBelongsToOrganization("people", "id", payload.personId, organizationId(auth), transaction);
+        }
+
         const user =
           existingUser ??
           (await User.create(

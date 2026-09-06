@@ -4,11 +4,19 @@ import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { badRequest, forbidden, notFound } from "@/lib/http";
+import { hashPassword, validatePasswordStrength } from "@/lib/passwords";
 import { apiError } from "@/lib/records";
+import { assertBelongsToOrganization } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
-type UpdatePayload = { roleSlug?: string; status?: string; personId?: string | null };
+type UpdatePayload = {
+  roleSlug?: string;
+  status?: string;
+  personId?: string | null;
+  /** Redefinição de senha pelo responsável. Ver as guardas em PATCH. */
+  password?: string;
+};
 
 async function ownerCount(organization: string) {
   const rows = await db.query<{ count: number }>(
@@ -22,8 +30,16 @@ async function ownerCount(organization: string) {
 }
 
 async function membership(organization: string, userId: string) {
-  const rows = await db.query<{ userId: string; roleSlug: string; fullName: string }>(
-    `SELECT om.user_id AS "userId", r.slug AS "roleSlug", u.full_name AS "fullName"
+  const rows = await db.query<{
+    userId: string;
+    roleSlug: string;
+    roleLevel: number;
+    fullName: string;
+    organizationCount: number;
+  }>(
+    `SELECT om.user_id AS "userId", r.slug AS "roleSlug", r.level AS "roleLevel",
+            u.full_name AS "fullName",
+            (SELECT count(*)::int FROM organization_members o2 WHERE o2.user_id = om.user_id) AS "organizationCount"
      FROM organization_members om
      JOIN roles r ON r.id = om.role_id
      JOIN users u ON u.id = om.user_id
@@ -41,6 +57,40 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     const target = await membership(organizationId(auth), id);
     if (!target) throw notFound("Usuário não encontrado nesta organização.");
+
+    // Redefinição de senha: é o único caminho de recuperação do MVP, já que
+    // a recuperação por e-mail ficou fora. As guardas abaixo existem porque
+    // a identidade do usuário é global (um e-mail, várias igrejas).
+    let passwordHash: string | null = null;
+    if (payload.password !== undefined) {
+      const passwordError = validatePasswordStrength(payload.password);
+      if (passwordError) throw badRequest(passwordError, "weak_password");
+
+      if (target.userId === auth.user.id) {
+        throw forbidden(
+          "Use a troca de senha da sua própria conta, que pede a senha atual.",
+          "self_password_reset",
+        );
+      }
+      // Um admin redefinindo a senha do proprietário assumiria a conta dele,
+      // inclusive a cobrança. Só se pode redefinir a senha de quem está
+      // abaixo -- e o proprietário pode redefinir a de qualquer um.
+      if (auth.role.slug !== "owner" && auth.role.level <= target.roleLevel) {
+        throw forbidden(
+          "Você só pode redefinir a senha de usuários com papel inferior ao seu.",
+          "insufficient_role_level",
+        );
+      }
+      // A senha é da identidade, não do vínculo: redefini-la aqui daria
+      // acesso às outras igrejas em que essa pessoa entra com o mesmo e-mail.
+      if (target.organizationCount > 1) {
+        throw forbidden(
+          "Este usuário também acessa outra organização, então a senha dele não pode ser redefinida por aqui.",
+          "user_in_multiple_organizations",
+        );
+      }
+      passwordHash = await hashPassword(payload.password);
+    }
 
     if (target.userId === auth.user.id && (payload.roleSlug || payload.status)) {
       throw forbidden("Você não pode alterar o próprio papel ou acesso.", "self_update");
@@ -72,6 +122,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     await db.transaction(async (transaction) => {
+      // Mesmo motivo do POST: o uuid vem do payload e precisa ser desta igreja.
+      if (payload.personId) {
+        await assertBelongsToOrganization("people", "id", payload.personId, organizationId(auth), transaction);
+      }
+
       await db.query(
         `UPDATE organization_members
          SET role_id = COALESCE($3, role_id),
@@ -91,6 +146,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         },
       );
 
+      if (passwordHash) {
+        await db.query(
+          `UPDATE users SET password_hash = $2, failed_login_attempts = 0, locked_until = NULL
+           WHERE id = $1`,
+          { bind: [id, passwordHash], transaction },
+        );
+        // Senha nova invalida tudo que estava aberto com a antiga.
+        await db.query(
+          `UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`,
+          { bind: [id], transaction },
+        );
+        await addActivity(transaction, auth, "system", "redefiniu a senha de", target.fullName);
+      }
+
       // Acesso suspenso derruba as sessões abertas naquela organização.
       if (payload.status === "suspended") {
         await db.query(
@@ -100,7 +169,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         );
       }
 
-      await addActivity(transaction, auth, "system", "atualizou o acesso de", target.fullName);
+      if (payload.roleSlug || payload.status || payload.personId !== undefined) {
+        await addActivity(transaction, auth, "system", "atualizou o acesso de", target.fullName);
+      }
     });
 
     return Response.json({ ok: true });
