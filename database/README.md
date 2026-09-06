@@ -134,6 +134,40 @@ vale **agora**, e só esta função precisa saber a diferença.
 `status = 'incomplete'` é cobrança ainda não confirmada e **não** libera o
 plano pago: cai para a avaliação ou para o gratuito.
 
+### Estado da assinatura e somente leitura
+
+`lib/subscription-state.ts` é o único lugar com os estados, as transições
+permitidas e a carência. Nada de `if (status === "past_due")` espalhado.
+
+Dois conceitos que não se misturam: o **estado** é o que está contratado
+(`subscriptions.status`); o **nível de acesso** é o que a igreja pode fazer
+agora, derivado do estado mais a data — calculado na leitura, como o plano
+efetivo, porque não há tarefa agendada.
+
+| Situação | Acesso |
+| --- | --- |
+| `active`, `trialing` no prazo, `incomplete` | `full` |
+| `past_due` até 7 dias após o vencimento | `grace` — escreve, e a tela avisa |
+| `past_due` depois disso | `read_only` |
+| `canceled`, `expired`, sem assinatura | `full`, no plano gratuito |
+| `past_due` sem data de vencimento | `grace` — nunca tranca por falta de dado nosso |
+
+Somente leitura vem de **dívida**, não de ausência de plano pago: quem cancela
+ou deixa a avaliação vencer cai para o gratuito e continua escrevendo dentro do
+teto dele.
+
+O bloqueio fica em `requirePermission`, e não em cada rota: quando **todas** as
+permissões pedidas terminam em `.write`, a chamada é uma escrita. Estar nesse
+gargalo é o que impede uma rota nova de nascer furando o modo somente leitura
+por esquecimento. Consultar, buscar e exportar continuam valendo, e autenticar
+também — login e troca de senha não passam por `requirePermission`.
+
+Quem esbarra recebe **402** com `code: "subscription_read_only"` e uma mensagem
+deliberadamente diferente da de teto de plano: são situações distintas, e
+misturá-las faria a pessoa tentar a solução errada. `GET /api/auth/session`
+devolve `plan.access` com `level`, `graceEndsAt` e `graceDaysLeft`, para a tela
+avisar **durante** a carência — avisar depois é tarde.
+
 ### Como os tetos são aplicados
 
 O teto sai sempre do plano efetivo; `NULL` é ilimitado; papel não interfere,
