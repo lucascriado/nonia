@@ -114,8 +114,10 @@ Chega à `main` com a integração de `feat/auth-multitenant`. **Toda rota nova 
 - Papéis do sistema: `owner` (100), `admin` (80), `secretaria` (60),
   `lider` (40), `leitura` (20). São 24 permissões no formato `recurso.acao`,
   em `permissions`/`role_permissions`.
-- `secretaria` tem `finance.read` e **não** tem `finance.write`: lançamento
-  financeiro é de `admin` ou `owner`. Decisão de produto, não descuido do seed.
+- `secretaria` tem `finance.write` desde a migration **009**. O modelo só tem
+  `read` e `write`, sem distinguir criar de editar e apagar, então isso inclui
+  **excluir lançamento** — as três rotas pedem a mesma permissão. Conceder só o
+  lançar exigiria uma permissão nova.
 
 ### Contrato
 
@@ -184,6 +186,14 @@ mudou payload, resposta ou cookie.
 
 - Comece com `requirePermission(...)` e use `organizationId(auth)` em todo
   SELECT, UPDATE, DELETE e INSERT.
+- **Leia o corpo com `readJson` de `lib/http.ts`, nunca com `request.json()`
+  cru.** O `request.json()` estoura em corpo malformado e cai no catch genérico,
+  virando **500** — o cliente conclui que o servidor quebrou quando quem errou
+  foi ele. O `readJson` devolve `400 invalid_json`. Em 06/09/2026 isso valia
+  para **todas** as rotas de `app/api`.
+- **Grave a atividade na mesma transação da escrita.** Numa segunda transação,
+  se ela falhar o efeito já aconteceu, o chamador recebe 500, reenvia e leva um
+  `409` — achando que não funcionou quando funcionou.
 - **Todo id que vem do payload precisa ser validado** com
   `assertBelongsToOrganization` / `filterOwnedMemberIds` de `lib/tenant.ts`,
   ou resolvido por nome dentro da organização. Id que vem na URL passa por
@@ -338,11 +348,33 @@ para concluir coisa alguma sobre o projeto.
   **Data que chega como texto é tratada como texto** — fatie a string, não
   converta em `Date` para reformatar.
 
+#### Resíduo de decisão antiga sobrevivendo onde ninguém olhou
+
+O gênero mais produtivo de defeito visual que apareceu em 06/09/2026: uma regra
+que fazia sentido para um arranjo que não existe mais continua aplicada. **Vale
+procurar por isso de propósito** — o terceiro caso abaixo foi achado assim,
+antes de virar defeito relatado.
+
 - **Esconder um elemento sem desfazer o `grid` que o dimensionava imprime um
   item sobre o outro.** No celular, ocultar o ícone do cartão sem voltar o grid
   de duas colunas para uma jogava rótulo e valor na mesma coluna de 40px, e o
-  cartão exibia "TOTAL 4 DE CÉLULAS" — dois textos sobrepostos. `display: none`
-  tira o conteúdo, **não** a coluna que existia para ele.
+  cartão exibia "TOTAL 4 DE CÉLULAS". `display: none` tira o conteúdo, **não** a
+  coluna que existia para ele.
+- Em `/visitantes`, a **etapa de integração — o assunto da tela** — truncada por
+  um cálculo de largura herdado de um padrão de cartão já abandonado.
+- Em `/financeiro`, `nowrap` com ellipsis que só faz sentido em coluna de
+  tabela, sobrevivendo no cartão do celular.
+
+#### Contexto de declaração determina comportamento
+
+Duas regras irmãs, e **nenhuma das duas aparece em `typecheck` ou `build`**:
+
+- **Onde a regra de CSS mora determina onde o componente funciona** — ver
+  "Arquitetura".
+- **Onde o hook é chamado determina o que ele enxerga.** `useCurrentUser()`
+  chamado no componente que *renderiza* o provider está **acima** dele, e lê o
+  valor padrão: o cartão de perfil mostrava "Administrador" enquanto a topbar
+  mostrava o usuário real, na mesma tela.
 - **`next-env.d.ts` aparecendo sujo no `git status` sem você ter tocado nele.**
   O arquivo **é versionado desde o primeiro commit do repositório e tem que
   continuar** — sem ele, o Next reclama no primeiro build limpo. O que não se

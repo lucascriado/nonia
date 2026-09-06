@@ -21,8 +21,8 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `4c08947`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
-| Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
+| Integração | **Feita.** `main` em `23ae724`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
 
@@ -78,7 +78,8 @@ As três branches estão em `origin` desde 06/09/2026.
   não commitada ali é varrida para dentro de um commit de merge, e foi o que
   aconteceu em 06/09/2026 com duas mudanças de documentação — o conteúdo
   sobreviveu, as mensagens de commit não.
-- `CLAUDE.md`, `AGENTS.md` e `README.md` são mantidos pelo documentador
+- `CLAUDE.md`, `AGENTS.md`, `README.md` e `database/README.md` são mantidos pelo
+  documentador — um arquivo, um dono
   (decidido em 06/09/2026). Devs não editam esses arquivos nas branches;
   mandam o conteúdo técnico pelo gerente.
 - Nada que exija uma tela entra na `main` sem a tela — senão o ambiente local
@@ -142,12 +143,13 @@ primeira.
 | **Sem `AUTH_SECRET`** | O token de sessão é aleatório e **opaco**; o banco guarda só o SHA-256 dele. Não é JWT, não há nada para assinar — **não reintroduza essa variável**. A variável nunca chegou a ser aplicada em lugar nenhum (verificado no banco do Coolify em 06/09/2026) | 06/09/2026 |
 | **E-mail de usuário é único GLOBAL** | A identidade é `users`; o vínculo com cada igreja mora em `organization_members`. A mesma pessoa administra duas igrejas com um login só, e `POST /api/auth/switch` troca a organização ativa | 06/09/2026 |
 | **Senha com scrypt do `node:crypto`** | `N=2^15, r=8, p=1`, `maxmem` 96 MB. Escolhido porque bcrypt e argon2 exigem **dependência nativa**, que quebraria o `output: "standalone"` do Dockerfile e traria compilação para o deploy. O hash guarda os próprios parâmetros, então dá para subir o custo depois sem invalidar senha antiga. **Reabrir se** o build deixar de ser `standalone` — é ele que torna dependência nativa um problema | 06/09/2026 |
-| **Secretaria não lança financeiro** | O papel `secretaria` fica com `finance.read` e **sem** `finance.write`. Quem lança dízimo e oferta é `admin` ou `owner` | 06/09/2026 |
+| **Secretaria lança no financeiro** | Migration **009**, que **reverte** a decisão da manhã. A restrição nasceu de um chute conservador decidido no abstrato; percorrer a jornada mostrou o efeito prático: a secretaria cadastra membro, visitante, célula, ministério e evento, e leva 403 ao lançar o dízimo — na igreja de verdade isso vira o pastor digitando, ou alguém usando a conta dele. **Atenção ao tamanho do que foi concedido:** o modelo só tem `read` e `write`, então ela passa a lançar, corrigir **e excluir**. Ver Pendências | 06/09/2026 |
 | **Planos comerciais definidos** | Semente, Comunidade e Rede — ver "Planos comerciais" abaixo | 06/09/2026 |
 | **Pagamento: Mercado Pago** | Escolhido pelo requisito de CPF (Pix/boleto). O schema de planos/assinaturas é **agnóstico ao gateway**: colunas `provider*` guardam o id externo, nenhuma regra de domínio depende do MP. **Reabrir se** o requisito de CPF com Pix/boleto cair — é ele que escolheu o gateway, e o schema já não amarra | 06/09/2026 |
 | **Route groups** | `app/(marketing)/` para o site público e `app/(app)/` para o sistema logado. Route group não entra na URL; a única rota que mudou foi a dashboard, de `/` para **`/painel`** | 06/09/2026 |
 | **Cadastro nasce em avaliação e cai para o Semente** | Quem se cadastra entra em **avaliação de 14 dias**; terminado o prazo sem assinar, cai para o **Semente gratuito, sem expirar**. Resolve a divergência entre o `register`, que atribuía `avaliacao`, e a landing, que promete gratuito para até 100 membros sem prazo — as duas frases passam a ser verdadeiras. Ver "Plano efetivo" | 06/09/2026 |
 | **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. Ver "Assinatura e acesso" | 06/09/2026 |
+| **Cancelar avaliação vigente é recusado** | `409 trial_not_cancelable`. Parece restritivo e não é: quem clica quer uma de duas coisas e nenhuma é atendida. "Não quero ser cobrado" já está garantido — a avaliação termina sozinha e a igreja cai no gratuito. "Quero sair do produto" é apagar a conta, que é outra coisa e não existe. Em troca, a ação seria **irreversível**: perde os dias restantes e não há volta para `trialing`, nem contratando. **Ação irreversível sem benefício nenhum é caso de recusar, não de confirmar na tela.** Só vale enquanto a avaliação é **válida** — vencida é linha morta, e recusar ali produziria a mensagem errada; `incomplete` continua cancelável | 06/09/2026 |
 | **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura | 06/09/2026 |
 | **Somente leitura vem de DÍVIDA, não de ausência de plano pago** | Cancelar leva ao gratuito, com o teto do gratuito; **atrasar** leva a somente leitura. Sem essa distinção, cancelar seria melhor que atrasar e o somente leitura seria contornável em um clique | 06/09/2026 |
 | **Exportar entra no MVP** | A promessa "quem quiser sair leva o que é seu" só era verdadeira pela API — não havia botão de exportar em lugar nenhum. Decidido implementar em vez de recuar a promessa. Formato e cuidados em [`AGENTS.md`](AGENTS.md) | 06/09/2026 |
@@ -267,6 +269,30 @@ o banco de verdade**, em vez de confiar no contrato — a terceira vez no dia em
 que testar contra a realidade derrubou algo que passara em `typecheck` e
 `build`. E foi encontrado sem estrago porque quem achou **não** rodou a migration
 por conta própria: banco compartilhado não é território de quem está numa branch.
+
+### Oitava a décima primeira levas
+
+- `132c209` — conserto do impasse e `finance.write` para a secretaria.
+- `4edf490` — recusa de cancelar avaliação, `400 invalid_json` e e-mail de convite.
+- `22d9153` — `/visitantes`, faixa de plano e tela de contratação.
+- `23ae724` — tela de usuários e arranjo de `/financeiro`.
+
+**Dois defeitos gerais consertados no caminho**, ambos de classe e não de tela:
+
+- **Corpo JSON malformado devolvia 500 em todas as rotas** — o `request.json()`
+  estourava e caía no catch genérico. Agora é `400 invalid_json`, por um
+  `readJson` comum; não sobrou nenhum `request.json()` cru em `app/api`.
+- **A atividade de contratar e cancelar era gravada numa segunda transação.** Se
+  ela falhasse, a assinatura já tinha mudado, o chamador recebia 500, reenviava
+  e levava `409 already_subscribed` — achando que não funcionou quando havia
+  funcionado.
+
+### Estado do MVP
+
+Sobrou **um bloqueador**: os avisos de cobrança, em construção. Saíram o
+impasse, a tela de usuários, o convite alcançável (link copiável, e e-mail
+quando houver domínio) e a tela de contratação. A tela de convite foi
+exercitada com token de verdade pela primeira vez.
 
 ## Isolamento entre organizações
 
@@ -488,6 +514,57 @@ próprios dados**: consultar, buscar e exportar continuam valendo no pior estado
 Sem data de vencimento a igreja fica na carência e **nunca** é trancada por
 falta de dado nosso — falha para o lado de quem usa.
 
+## A exceção que resolve o impasse
+
+A guarda de somente leitura barrava **contratar e cancelar** — as duas ações que
+tirariam a igreja da inadimplência. Nas palavras do backend: *a guarda ficou boa
+demais, pegou até o antídoto.* A igreja virava somente leitura por causa da
+cobrança, e o produto não oferecia saída.
+
+A exceção é `requireBillingWriteEvenWhenReadOnly()`, em `lib/auth.ts`, usada em
+exatamente duas rotas: `POST /api/billing/subscribe` e `POST /api/billing/cancel`.
+
+> **Ela não recebe parâmetro nenhum, e isso é o desenho.** Com a permissão fixa,
+> não dá para "acrescentar uma rota" à exceção sem escrever código novo e pensar
+> de novo. Foi decisão de não criar mecanismo genérico: lista de isenção cresce
+> sozinha, função nomeada não.
+
+> **Pendência que mora nesse ponto:** com cobrança de verdade, isentar o
+> **cancelar** vira saída para a dívida — cancelar devolveria a escrita no plano
+> gratuito e apagaria a inadimplência. A regra "cancelar assinatura vencida não
+> limpa a dívida" tem que ser aplicada ali. Hoje não é explorável porque nenhum
+> dinheiro troca de mãos.
+
+## E-mail de convite
+
+Existe, via Resend, e **o convite não depende dele**. Verificado contra a API
+real, não deduzido: com o domínio não verificado, o convite é criado (201),
+`emailSent` volta `false`, a `inviteUrl` continua vindo e o convidado aceita
+normalmente pelo link. O Resend recusa com *"you can only send testing emails to
+your own email address"*.
+
+**Sem domínio verificado o produto não regride** — fica idêntico ao que era
+antes de existir e-mail.
+
+Para o envio funcionar de verdade faltam três registros DNS: **MX** em `send`,
+**TXT de SPF** em `send` e **TXT de DKIM** em `resend._domainkey`.
+
+> **No Cloudflare eles precisam ficar como DNS only, com o proxy DESLIGADO.**
+> Com a nuvem laranja a verificação falha — é o erro clássico de quem usa
+> Cloudflare. O Resend recomenda subdomínio (`mail.nonia.app`) em vez do domínio
+> raiz. **Verificar não exige hospedar nada**, então isso é possível mesmo com o
+> deploy fora de escopo.
+
+## No plano Semente ninguém convida ninguém
+
+Consequência visível, descoberta percorrendo a jornada: o Semente dá **1
+assento**, e o dono já o ocupa. **No gratuito não há como convidar a
+secretaria.** Durante os 14 dias de avaliação são 5 assentos e dá para montar a
+equipe; quando a avaliação vence, os convites param.
+
+Isso é a promessa da landing sendo cumprida, não defeito — mas muda o que o
+produto entrega no plano gratuito, e está com o Lucas.
+
 ## Lacunas conhecidas do MVP
 
 Decididas, não esquecidas. Não "conserte" sem falar com o Lucas.
@@ -558,6 +635,29 @@ continuam no repositório e funcionam localmente. Quando a hospedagem voltar ao
 escopo, o caminho é Coolify com build pack `dockerfile` na porta 3000, e as
 migrations rodam no boot do container — mas isso é plano, não estado.
 
+## Por que existe um banco compartilhado
+
+Não é desenho: é contorno. Nesta máquina não foi possível instalar PostgreSQL —
+o `sudo` pede uma senha que ninguém do time tem —, então o desenvolvimento
+aponta para o `nonia_dev`, remoto, por túnel SSH.
+
+**A limitação é desta máquina e não se transfere.** O repositório é
+auto-suficiente: 8 migrations, seed idempotente com login de demonstração, e
+`db:migrate`, `db:seed:dev`, `db:status` e `auth:owner` prontos. Quem tem
+administrador no próprio computador instala Postgres 15+, aponta a
+`DATABASE_URL` para `localhost` e não precisa de SSH, de túnel, de credencial de
+ninguém, nem de alguém para conceder e revogar acesso depois.
+
+Banco por pessoa também é **melhor**: o dado de teste de um não atrapalha o
+outro, e não existe o risco de apontar para o banco errado — que aconteceu duas
+vezes em 06/09/2026.
+
+> **O túnel não é compartilhável por construção.** Ele autentica com a
+> credencial de administração do servidor, que também roda outros sistemas.
+> Replicá-lo na máquina de outra pessoa seria entregar administração do
+> servidor inteiro, e não há como conceder "só o banco" por esse caminho. Quem
+> chega usa banco local — não é preferência, é a única forma segura.
+
 ## Infraestrutura — o que importa hoje
 
 **Só o banco.** Não há aplicação hospedada, domínio nem deploy no escopo atual.
@@ -624,7 +724,10 @@ Datadas para que ninguém as leia como fato consumado.
 | Pendência | Desde |
 | --- | --- |
 | **Exportar não tem botão.** A API está pronta (`/api/export/members`, `/visitors`, `/financeiro`), mas nenhuma tela oferece o download — a promessa "quem quiser sair leva o que é seu" ainda depende de chamar a API na mão | 06/09/2026 |
-| **Quando houver cobrança real, cancelar assinatura vencida não pode limpar a dívida.** Levantado pelo backend: hoje não há dívida a preservar, mas o dia em que houver é o dia em que cancelar viraria a saída barata do somente leitura | 06/09/2026 |
+| **Quando houver cobrança real, cancelar assinatura vencida não pode limpar a dívida.** O ponto exato onde aplicar está marcado no docblock de `requireBillingWriteEvenWhenReadOnly`, em `lib/auth.ts` — a exceção que isenta o cancelar da guarda de somente leitura. Hoje não é explorável porque nenhum dinheiro troca de mãos | 06/09/2026 |
 | **SEGURANÇA — o bypass de contratação não pode ser ligado em ambiente exposto.** Ele concede plano pago sem pagamento. Enquanto existir, precisa de `BILLING_BYPASS` desligada por padrão, **recusa em produção ainda que a variável esteja ligada**, e toda assinatura marcada com `provider = 'bypass'` mais `billing_event`. **Só sai de cena quando existir pagamento real.** *Cópia deliberada do bloco em "Cobrança" — públicos diferentes; as duas mudam juntas.* | 06/09/2026 |
+| **Secretaria pode excluir lançamento financeiro.** A 009 concede `finance.write`, e o modelo não distingue criar de editar e apagar — as três rotas pedem a mesma permissão. Se excluir for demais, o caminho é uma permissão separada. Está com o Lucas | 06/09/2026 |
+| **No plano Semente não há assento para convidar ninguém.** Consequência do teto de 1 usuário; está com o Lucas | 06/09/2026 |
+| **E-mail de convite não envia** enquanto o domínio não estiver verificado no Resend — faltam três registros DNS, e no Cloudflare com proxy desligado. O convite por link funciona | 06/09/2026 |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. É arquivo do backend pela regra de propriedade, e está com ele | 06/09/2026 |

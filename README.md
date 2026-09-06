@@ -19,56 +19,70 @@ Pré-requisitos: Node 22+ e **PostgreSQL 15 ou superior** (o banco do time roda
 no repositório, mas não há Docker instalado nas máquinas do time; não conte com
 ele para subir o projeto.
 
-### 1. De onde vem a `DATABASE_URL`
+### 1. Suba um Postgres na sua máquina
 
-Não há Postgres nesta máquina e o `.env.example` **não serve como está**: ele
-traz um endereço de exemplo, não a conexão real.
-
-**Peça ao administrador de VPS a `DATABASE_URL` do banco de desenvolvimento
-(`nonia_dev`).** O acesso é por um **túnel SSH** que precisa estar de pé — sem
-ele, a string correta também não conecta.
-
-> ### ⚠ `password authentication failed for user "nonia"`
->
-> Se você seguiu o `.env.example` sem trocar nada, é esta a mensagem que
-> aparece. Ela engana: **não** significa que existe um Postgres local com a
-> senha errada.
->
-> **A porta 127.0.0.1:5432 é a ponta do túnel, não um banco local.** Alguém
-> responde ali, e por isso o erro é de autenticação em vez de "connection
-> refused" — o que faz procurar senha em vez de procurar a conexão certa.
->
-> Três fatos que economizam a mesma hora:
->
-> - **5432 local é o túnel**, serviço `nonia-db-tunnel.service`, que precisa
->   estar ativo;
-> - o Postgres embarcado na porta **54329 não é do nonia** — é de outra coisa
->   nesta máquina, não aponte a `DATABASE_URL` para ele;
-> - existe um `.env.dev` **fora do repositório**, com o administrador de VPS.
-
-### 2. Instalar e rodar
+**É o caminho oficial**, e não depende de ninguém: este repositório é
+auto-suficiente. Instale PostgreSQL 15+, crie um banco, aponte a
+`DATABASE_URL` do seu `.env` para ele e siga.
 
 ```bash
-cp .env.example .env        # substitua a DATABASE_URL pela que você recebeu
+cp .env.example .env        # aponte a DATABASE_URL para o seu Postgres
 npm install
-npm run db:status           # só lê: diz se o banco está em dia
+npm run db:migrate          # cria o schema do zero
+npm run db:seed:dev         # dados de demonstração
 npm run dev                 # http://localhost:3000
 ```
 
+Acesso depois do seed: `demo@nonia.app` / `demo1234`. Para criar o proprietário
+de uma organização sem usuário, `npm run auth:owner -- --email … --name …
+--password …`.
+
+Banco por pessoa é **melhor** que um banco comum: o dado de teste de um não
+atrapalha o outro, e não existe o risco de apontar para o banco errado — que
+aconteceu duas vezes em 06/09/2026.
+
 `npm run typecheck` é o único comando desta lista que funciona sem banco.
 
-### 3. Migrations e seed — banco próprio ou banco do time?
+### 2. O `nonia_dev` compartilhado é contorno, não arquitetura
 
-**A resposta muda o que você pode rodar.** O `nonia_dev` é **compartilhado**:
-todo mundo do time trabalha nele ao mesmo tempo.
+Na máquina de desenvolvimento original não foi possível instalar Postgres — o
+`sudo` pede uma senha que ninguém do time tem. O contorno foi usar um banco
+remoto, o `nonia_dev`, por um túnel SSH.
+
+**Isso é limitação daquela máquina e não se transfere.** Quem tem administrador
+no próprio computador não herda o problema e deve usar banco local.
+
+> **O acesso ao banco compartilhado é administrativo e não é transferível.** O
+> túnel autentica com a credencial de administração do servidor, que também
+> roda outros sistemas — não é algo que se replique na máquina de cada pessoa,
+> e não há como conceder "só o banco" por esse caminho. Não peça, não
+> compartilhe: use banco local.
+
+Se você estiver **naquela máquina**, o `.env` já aponta para o túnel, e valem os
+avisos abaixo.
+
+> ### ⚠ `password authentication failed for user "nonia"`
+>
+> É o que aparece ao usar o `.env.example` sem trocar nada **naquela máquina**.
+> A mensagem engana: **não** significa um Postgres local com senha errada.
+>
+> **A porta 127.0.0.1:5432 lá é a ponta do túnel, não um banco local.** Alguém
+> responde ali, e por isso o erro é de autenticação em vez de "connection
+> refused" — o que faz procurar senha em vez de procurar a conexão certa.
+>
+> Ainda naquela máquina: o túnel é o serviço `nonia-db-tunnel.service` e precisa
+> estar ativo; o Postgres embarcado na porta **54329 não é do nonia**; e existe
+> um `.env.dev` fora do repositório.
+
+### 3. Migrations e seed — banco próprio ou compartilhado?
+
+No **seu** banco, rode o que quiser. Contra o `nonia_dev` compartilhado, não:
 
 | Comando | Banco próprio | `nonia_dev` compartilhado |
 | --- | --- | --- |
 | `npm run db:status` | sim | **sim** — só lê, é o jeito seguro de saber se falta migration |
 | `npm run db:migrate` | sim | **não** — quem aplica migration no banco do time é o integrador, junto da integração |
 | `npm run db:seed:dev` | sim | **não** — o seed escreve na organização `demo`, que as outras pessoas estão usando |
-
-Acesso de desenvolvimento depois do seed: `demo@nonia.app` / `demo1234`.
 
 ## Validação
 
