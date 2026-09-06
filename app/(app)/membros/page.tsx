@@ -15,6 +15,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
 import { DeleteRecordDialog, PersonRecordDialog, PersonRecordValues } from "@/components/person-record-dialog";
 import { toast } from "sonner";
@@ -108,6 +109,8 @@ export default function MembersPage() {
     setPage(1);
   }
 
+  const activeFilters = [ministry !== "all", status !== "all", baptism !== "all", search.trim() !== ""].filter(Boolean).length;
+
   function clearFilters() {
     setSearch("");
     setMinistry("all");
@@ -155,20 +158,22 @@ export default function MembersPage() {
         </section>
 
         <section className="members-content">
-          <div className="member-filters">
-            <select aria-label="Filtrar por ministério" value={ministry} onChange={(event) => updateFilter(() => setMinistry(event.target.value))}>
-              <option value="all">Todos os Ministérios</option>
-              {ministries.map((item) => <option key={item}>{item}</option>)}
-            </select>
-            <select aria-label="Filtrar por status" value={status} onChange={(event) => updateFilter(() => setStatus(event.target.value))}>
-              <option value="all">Status: Todos</option><option>Ativo</option><option>Inativo</option>
-            </select>
-            <select aria-label="Filtrar por batismo" value={baptism} onChange={(event) => updateFilter(() => setBaptism(event.target.value))}>
-              <option value="all">Batismo: Todos</option><option>Batizado</option><option>Aguardando</option>
-            </select>
-            <label className="member-filter-search"><Search /><input value={search} onChange={(event) => updateFilter(() => setSearch(event.target.value))} placeholder="Filtrar por nome..." /></label>
-            <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
-          </div>
+          <FilterDisclosure activeCount={activeFilters}>
+            <div className="member-filters">
+              <select aria-label="Filtrar por ministério" value={ministry} onChange={(event) => updateFilter(() => setMinistry(event.target.value))}>
+                <option value="all">Todos os Ministérios</option>
+                {ministries.map((item) => <option key={item}>{item}</option>)}
+              </select>
+              <select aria-label="Filtrar por status" value={status} onChange={(event) => updateFilter(() => setStatus(event.target.value))}>
+                <option value="all">Status: Todos</option><option>Ativo</option><option>Inativo</option>
+              </select>
+              <select aria-label="Filtrar por batismo" value={baptism} onChange={(event) => updateFilter(() => setBaptism(event.target.value))}>
+                <option value="all">Batismo: Todos</option><option>Batizado</option><option>Aguardando</option>
+              </select>
+              <label className="member-filter-search"><Search /><input value={search} onChange={(event) => updateFilter(() => setSearch(event.target.value))} placeholder="Filtrar por nome..." /></label>
+              <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
+            </div>
+          </FilterDisclosure>
 
           <div className="members-table-card">
             <div className="members-table-scroll">

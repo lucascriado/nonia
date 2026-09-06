@@ -27,6 +27,7 @@ import { QueryTypes, type Transaction } from "sequelize";
 import { db } from "@/lib/db";
 import { organizationId, type AuthContext } from "@/lib/auth";
 import { HttpError } from "@/lib/http";
+import { loadSubscription, resolveAccess, type Access } from "@/lib/subscription-state";
 
 export type LimitedResource = "members" | "users";
 
@@ -43,14 +44,14 @@ export type EffectivePlan = PlanRow & {
   trialDaysLeft: number | null;
   /** Houve uma avaliação e ela terminou. Muda a mensagem de quem esbarra. */
   trialExpired: boolean;
+  /** Nível de acesso derivado do estado da assinatura. */
+  access: Access;
 };
 
 const RESOURCE = {
   members: { coluna: "max_members", rotulo: "membros", verbo: "cadastrar mais membros" },
   users: { coluna: "max_users", rotulo: "usuários com acesso", verbo: "dar acesso a mais gente" },
 } as const;
-
-type SubscriptionRow = { status: string; trialEndsAt: Date | null } & PlanRow;
 
 /**
  * O plano que vale AGORA para a organização. Fonte única da regra.
@@ -65,35 +66,17 @@ export async function resolveEffectivePlan(
 ): Promise<EffectivePlan | null> {
   const { lock = false, transaction } = options;
 
-  const assinaturas = await db.query<SubscriptionRow>(
-    `SELECT s.status, s.trial_ends_at AS "trialEndsAt",
-            p.slug, p.name, p.max_members AS "maxMembers", p.max_users AS "maxUsers"
-     FROM subscriptions s
-     JOIN plans p ON p.id = s.plan_id
-     WHERE s.organization_id = $1
-       AND s.status IN ('trialing', 'active', 'past_due', 'incomplete')
-     ${lock ? "FOR UPDATE OF s" : ""}`,
-    { bind: [organization], transaction, type: QueryTypes.SELECT },
-  );
-  const assinatura = assinaturas[0] ?? null;
-
-  if (lock && !assinatura) {
-    // Sem assinatura não há o que travar; a organização serve de âncora para
-    // manter a serialização por igreja.
-    await db.query(`SELECT 1 FROM organizations WHERE id = $1 FOR UPDATE`, {
-      bind: [organization],
-      transaction,
-      type: QueryTypes.SELECT,
-    });
-  }
+  const assinatura = await loadSubscription(organization, { lock, transaction });
 
   const agora = Date.now();
   const fimDaAvaliacao = assinatura?.trialEndsAt ? new Date(assinatura.trialEndsAt) : null;
+  const acesso = resolveAccess(assinatura);
   const avaliacaoValida = Boolean(fimDaAvaliacao && fimDaAvaliacao.getTime() > agora);
   const avaliacaoVencida = Boolean(fimDaAvaliacao && fimDaAvaliacao.getTime() <= agora);
 
   const base = (plano: PlanRow, source: EffectivePlan["source"], comPrazo: boolean): EffectivePlan => ({
     ...plano,
+    access: acesso,
     source,
     trialEndsAt: fimDaAvaliacao ? fimDaAvaliacao.toISOString() : null,
     trialDaysLeft:
@@ -105,13 +88,17 @@ export async function resolveEffectivePlan(
 
   // 1. Assinatura paga vigente vence tudo. 'incomplete' é cobrança ainda não
   //    confirmada, então NÃO libera o plano pago -- cai para os passos abaixo.
-  if (assinatura && (assinatura.status === "active" || assinatura.status === "past_due")) {
-    return base(assinatura, "subscription", false);
+  const doContrato = assinatura
+    ? { slug: assinatura.planSlug, name: assinatura.planName, maxMembers: assinatura.maxMembers, maxUsers: assinatura.maxUsers }
+    : null;
+
+  if (assinatura && doContrato && (assinatura.status === "active" || assinatura.status === "past_due")) {
+    return base(doContrato, "subscription", false);
   }
 
   // 2. Avaliação dentro do prazo.
-  if (assinatura && assinatura.status === "trialing" && avaliacaoValida) {
-    return base(assinatura, "trial", true);
+  if (assinatura && doContrato && assinatura.status === "trialing" && avaliacaoValida) {
+    return base(doContrato, "trial", true);
   }
 
   // 3. Gratuito, sem prazo para expirar.
@@ -248,6 +235,7 @@ export async function planSnapshot(organization: string) {
     trialEndsAt: plan.trialEndsAt,
     trialDaysLeft: plan.trialDaysLeft,
     trialExpired: plan.trialExpired,
+    access: plan.access,
     usage: { members, users },
   };
 }

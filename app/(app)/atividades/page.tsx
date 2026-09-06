@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, ListChecks, Settings, UserPlus, Users } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FilterDisclosure } from "@/components/filter-disclosure";
 import { toast } from "sonner";
 import { ActivitySkeleton } from "@/components/skeleton";
 import { visiblePageNumbers } from "@/lib/pagination";
@@ -27,15 +28,19 @@ export default function ActivitiesPage() {
   }, [category, date, page, search]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const activeFilters = [search.trim() !== "", date !== "all", category !== "all"].filter(Boolean).length;
+
   return (
     <DashboardShell title="Atividades">
       <main className="activities-main">
         <section className="activities-heading"><h2>Atividades Recentes</h2><p>Visualize o histórico completo de ações e eventos do ministério.</p></section>
-        <section className="activities-filters">
-          <label><span>Busca</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Pesquisar atividades..." /></label>
-          <label><span>Data</span><select value={date} onChange={(event) => { setDate(event.target.value); setPage(1); }}><option value="all">Todo período</option><option value="today">Hoje</option><option value="week">Últimos 7 dias</option><option value="month">Últimos 30 dias</option></select></label>
-          <div><span>Categorias</span><nav>{categories.map((item) => <button className={category === item.value ? "active" : undefined} key={item.value} onClick={() => { setCategory(item.value); setPage(1); }}>{item.label}</button>)}</nav></div>
-        </section>
+        <FilterDisclosure activeCount={activeFilters}>
+          <section className="activities-filters">
+            <label><span>Busca</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Pesquisar atividades..." /></label>
+            <label><span>Data</span><select value={date} onChange={(event) => { setDate(event.target.value); setPage(1); }}><option value="all">Todo período</option><option value="today">Hoje</option><option value="week">Últimos 7 dias</option><option value="month">Últimos 30 dias</option></select></label>
+            <div><span>Categorias</span><nav>{categories.map((item) => <button className={category === item.value ? "active" : undefined} key={item.value} onClick={() => { setCategory(item.value); setPage(1); }}>{item.label}</button>)}</nav></div>
+          </section>
+        </FilterDisclosure>
         <section className="activity-timeline-card">
           <div className="activity-timeline">
             {loading && <ActivitySkeleton count={pageSize} />}

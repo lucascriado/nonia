@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CalendarClock, Clock, Edit3, Eye, LoaderCircle, MapPin, Network, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FilterDisclosure } from "@/components/filter-disclosure";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
 import { AnimatedNumber } from "@/components/animated-number";
 import { DeleteRecordDialog } from "@/components/person-record-dialog";
@@ -91,6 +92,10 @@ export default function CellsPage() {
   const assignedMembers = useMemo(() => cells.reduce((total, cell) => total + cell.memberCount, 0), [cells]);
   const average = cells.length ? Math.round(assignedMembers / cells.length) : 0;
 
+  // Quantos filtros estão aplicados: o botão recolhido precisa dizer isso,
+  // senão a pessoa não sabe que a lista está filtrada.
+  const activeFilters = [meetingDay !== "all", leader !== "all", search.trim() !== ""].filter(Boolean).length;
+
   function clearFilters() {
     setSearch("");
     setMeetingDay("all");
@@ -159,18 +164,20 @@ export default function CellsPage() {
               <article><span><MapPin /></span><small>Com endereço</small><strong>{loading ? <NumberSkeleton /> : <AnimatedNumber value={cells.filter((cell) => cell.address).length} />}</strong></article>
             </section>
 
-            <div className="member-filters resource-filters">
-              <select aria-label="Filtrar por dia" value={meetingDay} onChange={(event) => setMeetingDay(event.target.value)}>
-                <option value="all">Dia: Todos</option>
-                {meetingDays.map((day) => <option key={day}>{day}</option>)}
-              </select>
-              <select aria-label="Filtrar por líder" value={leader} onChange={(event) => setLeader(event.target.value)}>
-                <option value="all">Líder: Todos</option>
-                {leaders.map((item) => <option key={item}>{item}</option>)}
-              </select>
-              <label className="member-filter-search"><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filtrar célula..." /></label>
-              <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
-            </div>
+            <FilterDisclosure activeCount={activeFilters}>
+              <div className="member-filters resource-filters">
+                <select aria-label="Filtrar por dia" value={meetingDay} onChange={(event) => setMeetingDay(event.target.value)}>
+                  <option value="all">Dia: Todos</option>
+                  {meetingDays.map((day) => <option key={day}>{day}</option>)}
+                </select>
+                <select aria-label="Filtrar por líder" value={leader} onChange={(event) => setLeader(event.target.value)}>
+                  <option value="all">Líder: Todos</option>
+                  {leaders.map((item) => <option key={item}>{item}</option>)}
+                </select>
+                <label className="member-filter-search"><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filtrar célula..." /></label>
+                <button className="clear-filters" onClick={clearFilters}>Limpar Filtros</button>
+              </div>
+            </FilterDisclosure>
 
             <section className="cell-grid">
               {loading && Array.from({ length: 4 }).map((_, index) => <ResourceCardSkeleton key={index} />)}
@@ -183,7 +190,7 @@ export default function CellsPage() {
                   <h3>{cell.name}</h3>
                   <p><MapPin />{cell.address || "Endereço não informado"}</p>
                   <p><Clock />{cell.meetingDay}, {cell.meetingTime}</p>
-                  <div className="avatar-row">{cell.members.slice(0, 3).map((member) => <span key={member.id}>{initials(member.name)}</span>)}{cell.memberCount > 3 && <span>+{cell.memberCount - 3}</span>}</div>
+                  <div className="avatar-row">{cell.members.slice(0, 3).map((member) => <span key={member.id}>{initials(member.name)}</span>)}{cell.memberCount > 3 && <span className="avatar-more">+{cell.memberCount - 3}</span>}</div>
                   <footer>
                     <button onClick={() => openForm("view", cell)}><Eye />Visualizar</button>
                     <button onClick={() => openForm("edit", cell)}><Edit3 />Editar</button>
