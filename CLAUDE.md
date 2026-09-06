@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `23ae724`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `24c643f`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -35,6 +35,13 @@ das telas de login existirem — foi **cumprida**: as duas branches entraram
 juntas, com `/entrar`, `/cadastro` e `/convite/[token]` prontas. Vale registrar
 o critério, porque ele se repete: nada que exija uma tela entra sem a tela, ou o
 ambiente local do time para de funcionar.
+
+> **Estado do `nonia_dev` em 06/09/2026:** 1 usuário e 3 convites pendentes
+> (`secretaria.teste@`, `marcos.lider@`, `ana.tesoureira@`). Os convites são
+> **fixtures temporários** deixados ao exercitar a tela; nenhum foi aceito, então
+> não viraram usuário, e serão limpos antes de fechar o MVP. `/usuarios` foi
+> exercitada de verdade contra esse banco: sem sessão responde **307** para
+> `/entrar`, com sessão responde **200**.
 
 > **O PostgreSQL embarcado na porta 54329 não é do nonia.** Ele pertence a
 > outra sessão de agente nesta máquina e não faz parte do projeto — não aponte

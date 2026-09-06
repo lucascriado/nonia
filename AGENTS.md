@@ -255,12 +255,15 @@ Use `bruto()` só para valor que o **próprio sistema** gerou (data, número).
 - **`next build` sem `DATABASE_URL` falha** com "Failed to collect page data",
   porque `lib/db.ts` instancia o Sequelize no import do módulo. Por isso o
   `Dockerfile` injeta uma `DATABASE_URL` fictícia só na etapa de build —
-  **aquela linha não é sobra; quem "limpar" quebra o build.**
+  **aquela linha não é sobra; quem "limpar" quebra o build.** Para rodar
+  `npm run build` na sua máquina, tenha a `DATABASE_URL` no `.env`: ela não
+  precisa apontar para um banco que responde, só existir.
 
 ### Apurando fatos
 
-A quarta armadilha não é de código, é de método — e foi a que mais perto chegou
-de entrar na documentação como verdade.
+Estas não são de código, são de método. São as que mais perto chegaram de entrar
+na documentação como verdade, e as que custaram mais tempo no dia em que
+apareceram.
 
 - **Não trate o que aparece no terminal de outro agente como fato.** Aquela tela
   mostra também caixa de entrada não enviada, rascunho sendo redigido e saída
@@ -278,10 +281,18 @@ de entrar na documentação como verdade.
   `nonia_dev`, os dois comandos passaram, e `GET /api/auth/session` respondia
   **500** com `column p.max_members does not exist` — o código já consultava a
   coluna nova, o banco ainda tinha a antiga. Verificou-se a coisa errada e
-  chamou-se de verificado.
+  chamou-se de verificado. **Quem prova é `npm run db:status`**, que compara o
+  disco com o aplicado, só lê, e sai com código 1 quando falta migration.
 - **Rota dando 500 e falando de coluna que não existe: o primeiro palpite é
   migration não aplicada, não bug de código.** Custa um `SELECT` em
   `schema_migrations`.
+- **Revisar uma tabela não é o mesmo que percorrer o caminho com ela.** Uma
+  configuração pode parecer sensata lida como lista e ser absurda em uso: a
+  permissão da secretaria foi decidida no abstrato e parecia razoável na tabela
+  de papéis; percorrer a jornada mostrou que ela cadastra tudo e leva 403 ao
+  lançar o dízimo. Vale para qualquer conjunto de regras — permissão, validação,
+  limite, roteamento. **Antes de aprovar a tabela, faça o percurso de uma
+  pessoa real dentro dela.**
 - **Prefira uma verificação que roda em tudo a uma inspeção que depende de
   reparar.** A sobreposição do cartão no celular foi achada por um detector
   escrito para o caso — não por olhar tela por tela procurando. Olhar encontra o
@@ -354,6 +365,11 @@ O gênero mais produtivo de defeito visual que apareceu em 06/09/2026: uma regra
 que fazia sentido para um arranjo que não existe mais continua aplicada. **Vale
 procurar por isso de propósito** — o terceiro caso abaixo foi achado assim,
 antes de virar defeito relatado.
+
+**Como evitar:** ao remover ou esconder um elemento, procure o que existia *por
+causa dele* — a coluna do grid, a largura reservada, o `nowrap` que fazia
+sentido na tabela. Ao mudar um arranjo, releia as regras escritas para o
+arranjo anterior; elas não somem sozinhas.
 
 - **Esconder um elemento sem desfazer o `grid` que o dimensionava imprime um
   item sobre o outro.** No celular, ocultar o ícone do cartão sem voltar o grid
