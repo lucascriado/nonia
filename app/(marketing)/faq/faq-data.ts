@@ -2,7 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
   CreditCard,
-  Network,
   Puzzle,
   ShieldCheck,
   UserPlus,
@@ -33,7 +32,7 @@ export const faqTopics: FaqTopic[] = [
       "Dados pessoais, contato e endereço com máscara de CPF, telefone e CEP",
       "CEP completo consulta os Correios e preenche rua, bairro, cidade e estado",
       "Foto opcional; sem foto, o sistema mostra as iniciais da pessoa",
-      "Busca por nome, filtros por situação e célula, com paginação",
+      "Busca por nome, filtros por situação e ministério, com paginação",
     ],
     questions: [
       {
@@ -75,33 +74,7 @@ export const faqTopics: FaqTopic[] = [
       {
         question: "Dá para saber quantos visitantes vieram no mês?",
         answer:
-          "Sim, é um dos indicadores da abertura do painel, ao lado de membros ativos, células e aniversariantes.",
-      },
-    ],
-  },
-  {
-    id: "celulas",
-    icon: Network,
-    eyebrow: "Comunidade",
-    title: "Células",
-    summary:
-      "Cada célula com líder, endereço e composição. Quem está em qual grupo deixa de ser conhecimento de uma pessoa só.",
-    points: [
-      "Líder e anfitrião definidos entre os membros já cadastrados",
-      "Endereço e dia de encontro em cada grupo",
-      "Composição da célula montada a partir da lista de membros",
-      "O vínculo aparece na ficha do membro e no filtro de células",
-    ],
-    questions: [
-      {
-        question: "Um membro pode estar em mais de uma célula?",
-        answer:
-          "O vínculo principal é um só, para que os relatórios não contem a mesma pessoa duas vezes. Participações extras costumam ser melhor representadas como ministério.",
-      },
-      {
-        question: "O líder de célula precisa de conta no sistema?",
-        answer:
-          "Só se você quiser que ele acesse o painel. Nos planos pagos você cria usuários com permissões separadas das da secretaria.",
+          "Sim, é um dos indicadores da abertura do painel, ao lado de membros ativos e aniversariantes.",
       },
     ],
   },
@@ -123,11 +96,6 @@ export const faqTopics: FaqTopic[] = [
         question: "Dá para registrar presença de um encontro passado?",
         answer:
           "Sim. A chamada é feita por data, então lançar o encontro da semana anterior é normal.",
-      },
-      {
-        question: "Ministério e célula são a mesma coisa?",
-        answer:
-          "Não. Célula é o grupo de convivência com endereço e dia fixo; ministério é a equipe de serviço, com escala e presença. As duas telas são separadas de propósito.",
       },
     ],
   },
@@ -206,7 +174,7 @@ export const faqTopics: FaqTopic[] = [
       {
         question: "O que acontece quando terminam os 14 dias de avaliação?",
         answer:
-          "A conta passa para o plano Semente, que é gratuito e não expira. Nada é apagado e ninguém é cobrado - se a igreja quiser seguir com células, ministérios e financeiro, aí sim assina o Comunidade.",
+          "A conta passa para o plano Semente, que é gratuito e não expira. Nada é apagado e ninguém é cobrado - se a igreja quiser seguir com ministérios e financeiro, aí sim assina o Comunidade.",
       },
       {
         question: "Se eu cancelar, perco meus dados?",

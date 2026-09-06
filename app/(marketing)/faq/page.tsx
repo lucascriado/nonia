@@ -8,7 +8,7 @@ import { FaqSections } from "./faq-sections";
 export const metadata: Metadata = {
   title: "Dúvidas frequentes",
   description:
-    "Como funcionam membros, visitantes, células, ministérios, agenda e financeiro no nonia - e as perguntas que toda igreja faz sobre planos, dados e segurança.",
+    "Como funcionam membros, visitantes, ministérios, agenda e financeiro no nonia - e as perguntas que toda igreja faz sobre planos, dados e segurança.",
   alternates: { canonical: "/faq" },
 };
 

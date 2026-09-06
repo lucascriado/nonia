@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 const reassurances = [
   "14 dias com todos os recursos: 200 pessoas e 5 usuários",
   "Sem cartão de crédito e sem taxa de instalação",
-  "Membros, visitantes, células, ministérios, agenda e financeiro desde o primeiro dia",
+  "Membros, visitantes, ministérios, agenda e financeiro desde o primeiro dia",
   "Seus dados são da igreja: exportação sempre disponível",
 ];
 

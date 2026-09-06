@@ -80,7 +80,7 @@ const steps = [
 
 const differentials = [
   { icon: HeartHandshake, title: "Pensado para igreja", text: "A linguagem é a da sua congregação: ministério, visitante, dízimo, não “cliente” e “lead”." },
-  { icon: Smartphone, title: "Funciona no celular", text: "Secretaria no computador, líder de célula no telefone. As telas se adaptam de verdade, sem versão capenga." },
+  { icon: Smartphone, title: "Funciona no celular", text: "Secretaria no computador, líder de ministério no telefone. As telas se adaptam de verdade, sem versão capenga." },
   { icon: Lock, title: "Cada igreja no seu espaço", text: "Os dados da sua congregação ficam isolados dos das outras. Cada assinatura é um ambiente próprio." },
   { icon: History, title: "Histórico de tudo", text: "Toda alteração relevante vira registro de atividade. Você sabe o que mudou, quem mudou e em que dia." },
 ];
