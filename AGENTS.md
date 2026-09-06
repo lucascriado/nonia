@@ -599,6 +599,23 @@ Três assuntos técnicos diferentes, o mesmo método. Daí os dois corolários:
 > conferir é quase sempre menor que o custo de estar errado por horas, e quem
 > espera acumular evidência já está errado esse tempo todo.
 
+E o terceiro, sobre **como** essas cinco apareceram:
+
+> **Nenhuma apareceu em busca por defeitos. Todas apareceram em verificação** —
+> três embutidas no trabalho (um `typecheck` depois de sincronizar, um teste
+> ponta a ponta, uma releitura do próprio texto) e **duas exigidas antes de
+> entregar** (conferir a fonte antes de implementar a regra do CNPJ; medir a
+> memória antes de dar o download por pronto).
+>
+> Procurar defeito no abstrato não funciona. Verificar uma **afirmação
+> concreta** funciona — por hábito ou porque alguém pediu.
+>
+> **Exigir a medição antes da entrega é o único desses caminhos que se pode
+> planejar.** Hábito não se agenda; cobrança sim. Por isso **"meça antes de me
+> entregar" vale como pedido padrão sempre que a propriedade que importa for
+> invisível no código** — e foi exatamente uma cobrança dessas que produziu o
+> achado mais caro: 1298 MB contra 266 MB.
+
 #### Resíduo de decisão antiga sobrevivendo onde ninguém olhou
 
 O gênero mais produtivo de defeito visual que apareceu em 06/09/2026: uma regra
