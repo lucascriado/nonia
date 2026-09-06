@@ -2,6 +2,7 @@
 import { query } from "@/lib/db";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { dataBR, montarCsv, respostaCsv, texto } from "@/lib/csv";
+import { filtrosDeVisitantes } from "@/lib/listings";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -19,33 +20,15 @@ export async function GET(request: Request) {
   try {
     const auth = await requirePermission("visitors.read");
     const { searchParams } = new URL(request.url);
-
-    const busca = searchParams.get("search")?.trim() || null;
-    const aba = searchParams.get("tab");
-    const convidadoPor = searchParams.get("invitedBy");
-
-    const valores: unknown[] = [organizationId(auth)];
-    const filtros = ["organization_id = $1"];
-    if (busca) {
-      valores.push(`%${busca}%`);
-      filtros.push(`concat_ws(' ', full_name, email, invited_by) ILIKE $${valores.length}`);
-    }
-    // As abas da tela: "Recentes" é a marca is_recent, "Primeira visita" é a
-    // etapa inicial. "Todos" não filtra.
-    if (aba === "Recentes") filtros.push("is_recent");
-    else if (aba && aba !== "Todos" && aba !== "all") filtros.push("membership_stage = 'visited'");
-    if (convidadoPor && convidadoPor !== "all") {
-      valores.push(convidadoPor);
-      filtros.push(`invited_by = $${valores.length}`);
-    }
+    const filtro = filtrosDeVisitantes(searchParams, organizationId(auth));
 
     const { rows } = await query<Record<string, string | null>>(
       `SELECT full_name, email, phone, birth_date, gender, marital_status, cpf, zip_code,
               address, neighborhood, city, state, visit_date, invited_by, membership_stage, notes
        FROM visitor_directory
-       WHERE ${filtros.join(" AND ")}
+       WHERE ${filtro.where.join(" AND ")}
        ORDER BY visit_date DESC, full_name`,
-      valores,
+      filtro.valores,
     );
 
     const csv = montarCsv(

@@ -96,9 +96,3 @@ export function respostaCsv(csv: string, recurso: string, organizationSlug: stri
   });
 }
 
-/** Aceita o rótulo da tela ou o valor do banco, e devolve o do banco. */
-export function normalizar(valor: string | null, mapa: Record<string, string>): string | null {
-  if (!valor || valor === "all") return null;
-  const chave = valor.trim();
-  return mapa[chave] ?? mapa[chave.toLowerCase()] ?? chave;
-}

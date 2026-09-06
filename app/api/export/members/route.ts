@@ -5,54 +5,32 @@
 // refém do próprio cadastro por causa de um pagamento atrasado.
 import { query } from "@/lib/db";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { dataBR, montarCsv, normalizar, respostaCsv, texto } from "@/lib/csv";
+import { dataBR, montarCsv, respostaCsv, texto } from "@/lib/csv";
+import { filtrosDeMembros } from "@/lib/listings";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const STATUS = { Ativo: "active", Inativo: "inactive", active: "active", inactive: "inactive" };
-const BATISMO = { Batizado: "baptized", Aguardando: "waiting", baptized: "baptized", waiting: "waiting" };
 
 export async function GET(request: Request) {
   try {
     const auth = await requirePermission("members.read");
     const { searchParams } = new URL(request.url);
 
-    // Mesmos nomes e mesma semântica dos filtros da tela, para "exportar o que
-    // estou vendo" ser verdade e não quase verdade.
-    const busca = searchParams.get("search")?.trim() || null;
-    const ministerio = searchParams.get("ministry");
-    const status = normalizar(searchParams.get("status"), STATUS);
-    const batismo = normalizar(searchParams.get("baptism"), BATISMO);
-
-    const valores: unknown[] = [organizationId(auth)];
-    const filtros = ["organization_id = $1"];
-    if (busca) {
-      valores.push(`%${busca}%`);
-      filtros.push(`concat_ws(' ', full_name, email, cell_name) ILIKE $${valores.length}`);
-    }
-    if (ministerio && ministerio !== "all") {
-      valores.push(ministerio);
-      filtros.push(`ministry = $${valores.length}`);
-    }
-    if (status) {
-      valores.push(status);
-      filtros.push(`status = $${valores.length}`);
-    }
-    if (batismo) {
-      valores.push(batismo);
-      filtros.push(`baptism_status = $${valores.length}`);
-    }
+    // Os MESMOS filtros da listagem, do mesmo lugar: é isto que faz
+    // "exportar o que estou vendo" continuar verdade quando um dos dois mudar.
+    // A exportação não pagina de propósito -- ela leva tudo o que casa.
+    const filtro = filtrosDeMembros(searchParams, organizationId(auth));
 
     const { rows } = await query<Record<string, string | null>>(
       `SELECT full_name, email, phone, birth_date, gender, marital_status, cpf, zip_code,
               address, neighborhood, city, state, ministry, cell_name, role, status,
               baptism_status, baptism_date, admission_date, notes
        FROM member_directory
-       WHERE ${filtros.join(" AND ")}
+       WHERE ${filtro.where.join(" AND ")}
        ORDER BY full_name`,
-      valores,
+      filtro.valores,
     );
 
     const csv = montarCsv(
