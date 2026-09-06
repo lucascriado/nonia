@@ -47,6 +47,40 @@ prazo: alguém atualiza a que está lendo e nem descobre que a outra existe — 
 o que aconteceu com o guarda-corpo do bypass em 06/09/2026, que envelheceu de um
 lado só na primeira vez que o conteúdo mudou.
 
+## Segredos e interpolação
+
+**Quem carrega segredo no ambiente nunca monta mensagem nem script por
+interpolação.** Heredoc **sempre** com delimitador entre aspas simples
+(`<<'FIM'`); variável que precisa entrar vai por ambiente ou codificada em
+base64, nunca expandida no meio do texto.
+
+O motivo é que **a regra de nunca colar credencial pode estar sendo cumprida na
+intenção e violada pelo shell, sem ninguém ver.** São dois caminhos diferentes
+para um segredo chegar a uma mensagem:
+
+| Caminho | A regra "não cole credencial" pega? |
+| --- | --- |
+| Alguém cola o valor | **sim** — há um ato deliberado |
+| O shell expande sem ninguém colar | **não** — não houve ato de colar |
+
+Num heredoc **sem** aspas no delimitador, escrever o *nome* de uma variável de
+credencial no corpo de um relatório faz o shell substituí-la pelo **valor real**,
+e a credencial viaja dentro da mensagem. Ninguém colou senha nenhuma, e a senha
+vai junto. Verificado em 06/09/2026 com uma canária, passando o mesmo texto
+pelos dois caminhos: com aspas, tudo literal; sem aspas, o comando executou e a
+variável expandiu.
+
+> **Vale para qualquer texto montado por interpolação, não só relatório — e o
+> dano escala com o que aquele texto controla.** Scripts gerados para rodar no
+> servidor usam heredoc, alguns sem aspas de propósito para injetar a senha do
+> banco. Funcionaram por **sorte parcial**: a senha ser só letras e números foi
+> escolha feita pensando em URL, e por acaso também a salvou do shell. Com uma
+> crase ou um cifrão, o script montado errado teria rodado **contra um banco**,
+> não contra um relatório.
+
+A mecânica e o caso de perda de informação estão em
+"[Apurando fatos](#apurando-fatos)", na armadilha do relatório adulterado.
+
 ## Mensagens de commit
 
 - **Não inclua o rodapé `Claude-Session: https://claude.ai/code/session_…`.**
@@ -306,6 +340,10 @@ apareceram.
 
   O detalhe que faz funcionar são as aspas simples no delimitador: `<<'FIM'` não
   interpreta nada, `<<FIM` interpreta. Heredoc sem as aspas não resolve.
+
+  **A mesma mecânica que come palavras injeta segredo**: sem as aspas, o nome de
+  uma variável de credencial no corpo do texto expande para o valor real. Por
+  isso isto também é convenção de segurança — ver "Segredos e interpolação".
 
   **E o hábito:** se uma frase que você mandou ficou estranha, assuma que foi
   isso antes de assumir distração.
