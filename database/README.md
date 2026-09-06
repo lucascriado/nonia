@@ -94,7 +94,7 @@ Depois aponte `DATABASE_URL` para `127.0.0.1:15432`.
 Os limites são **dado**, em colunas de `plans`, e não regra espalhada pelo
 código — é neles que o checkout do Mercado Pago vai se ancorar.
 
-| slug | `price_cents` | `max_people` | `max_users` |
+| slug | `price_cents` | `max_members` | `max_users` |
 | --- | --- | --- | --- |
 | `avaliacao` | 0, por 14 dias | 200 | 5 |
 | `semente` | 0 | 100 | 1 |
@@ -105,8 +105,67 @@ Em `price_cents`, **`NULL` é "sob consulta" e `0` é gratuito de verdade** — 
 essa distinção a Rede ficaria indistinguível da Semente. Toda organização nasce
 em `avaliacao`.
 
-**Os tetos não são aplicados por nenhuma rota.** Ver Pendências no
-[`CLAUDE.md`](../CLAUDE.md).
+A coluna se chamava `max_people` e virou `max_members` na `008`: a landing
+promete "até 100 **membros**", e `people` aqui guarda membros **e** visitantes.
+Contar visitante contra esse teto quebraria a promessa comercial.
+
+### Plano efetivo
+
+O plano de uma organização é **derivado**, não é simplesmente a linha em
+`subscriptions`. `resolveEffectivePlan` em `lib/plan-limits.ts` é a única
+fonte da regra, nesta ordem:
+
+1. assinatura paga vigente (`active` ou `past_due`) → o plano dela;
+2. senão, avaliação ainda dentro do prazo → o plano da avaliação;
+3. senão → `semente`, gratuito e sem prazo.
+
+Quem se cadastra entra em `avaliacao` por 14 dias e, terminado o prazo sem
+assinar, cai para `semente`. É o que faz a landing ("gratuito para até 100
+membros, sem prazo para expirar") e o cadastro serem verdade ao mesmo tempo.
+
+O cálculo acontece **na leitura**, e isso é deliberado: não há cron nem
+processo de fundo, e a máquina pode estar desligada na hora em que um prazo
+virar. Derivando na leitura, o rebaixamento acontece sozinho e é impossível uma
+organização ficar num estado que ninguém atualizou. Uma avaliação vencida
+continua com `status = 'trialing'` no banco — a linha é o **contrato**
+(o que foi assinado, quando vence, o id no gateway); o plano efetivo é o que
+vale **agora**, e só esta função precisa saber a diferença.
+
+`status = 'incomplete'` é cobrança ainda não confirmada e **não** libera o
+plano pago: cai para a avaliação ou para o gratuito.
+
+### Como os tetos são aplicados
+
+O teto sai sempre do plano efetivo; `NULL` é ilimitado; papel não interfere,
+porque teto é comercial e não permissão.
+
+| Teto | Conta | Verificado em |
+| --- | --- | --- |
+| `max_members` | linhas em `members` | criar membro, converter visitante em membro |
+| `max_users` | vínculos não suspensos **+** convites pendentes | criar usuário, criar convite, reativar suspenso |
+
+Visitante não conta contra `max_members`. Aceitar convite não é verificado: o
+assento já foi reservado quando o convite foi criado, e barrar alguém que
+acabou de definir a senha seria pior do que barrar quem convidou.
+
+A verificação é `uso >= teto` **na criação**. Uma organização acima do teto —
+porque o plano mudou, ou porque os dados vieram antes da regra — continua
+lendo e editando tudo que tem; ela só não cresce mais. Nada é apagado e
+ninguém perde acesso.
+
+Quem esbarra recebe **402** com `code: "plan_limit_reached"` e, no corpo,
+`resource`, `limit`, `current`, `plan`, `trialExpired` e `suggestedPlan`. Quem
+caiu da avaliação para o gratuito recebe uma mensagem própria, que diz que a
+avaliação terminou e que o que já existe continua disponível — é o momento em
+que a pessoa decide assinar ou abandonar.
+
+`GET /api/auth/session` devolve `plan` com `source`, `trialEndsAt`,
+`trialDaysLeft`, `trialExpired`, os tetos e o `usage` atual, para a tela avisar
+**antes** de a pessoa esbarrar. Fica só nessa rota, e não no `requireSession`,
+para não custar uma consulta a mais em toda requisição autenticada. A mensagem em pt-BR
+diz o teto, onde a igreja está e qual plano resolve — quem esbarra é quem a
+gente quer que assine. O plano sugerido sai do banco (`trial_days = 0`, o mais
+barato que resolve), então `avaliacao` nunca é sugerido como upgrade.
 
 ## Valores persistidos
 

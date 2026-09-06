@@ -314,7 +314,7 @@ export class Plan extends Model<InferAttributes<Plan>, InferCreationAttributes<P
   declare billingPeriod: CreationOptional<string>;
   declare trialDays: CreationOptional<number>;
   declare maxUsers: number | null;
-  declare maxPeople: number | null;
+  declare maxMembers: number | null;
   declare isActive: CreationOptional<boolean>;
   declare sortOrder: CreationOptional<number>;
 }
@@ -329,7 +329,7 @@ Plan.init({
   billingPeriod: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "monthly", field: "billing_period" },
   trialDays: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 0, field: "trial_days" },
   maxUsers: { type: DataTypes.INTEGER, field: "max_users" },
-  maxPeople: { type: DataTypes.INTEGER, field: "max_people" },
+  maxMembers: { type: DataTypes.INTEGER, field: "max_members" },
   isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: "is_active" },
   sortOrder: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 0, field: "sort_order" },
 }, { sequelize: db, tableName: "plans", createdAt: "created_at", updatedAt: "updated_at" });
