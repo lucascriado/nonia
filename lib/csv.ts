@@ -80,10 +80,21 @@ const semAcento = (valor: string) =>
  * Resposta de download. O nome carrega o recurso, a organização e a data, para
  * a pasta de downloads não virar cinco "export.csv".
  */
+/**
+ * Nome canônico do arquivo exportado.
+ *
+ * Mora aqui, e não em cada rota, porque o CSV do financeiro é entregue por
+ * dois caminhos -- o download avulso e a planilha dentro do zip de
+ * comprovantes -- e dois lugares montando o nome seriam dois nomes no dia em
+ * que alguém mexesse num.
+ */
+export function nomeDeArquivo(recurso: string, organizationSlug: string, extensao = "csv", data = new Date()) {
+  const dia = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
+  return `nonia-${recurso}-${organizationSlug}-${dia}.${extensao}`;
+}
+
 export function respostaCsv(csv: string, recurso: string, organizationSlug: string) {
-  const hoje = new Date();
-  const dia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
-  const nome = `nonia-${recurso}-${organizationSlug}-${dia}.csv`;
+  const nome = nomeDeArquivo(recurso, organizationSlug);
   const ascii = semAcento(nome);
 
   return new Response(csv, {
