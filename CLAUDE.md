@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `62d0305`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `154cacc`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -115,17 +115,28 @@ Os parênteses são route groups e **não** aparecem na URL.
 
 Decisões fechadas. Reabrir só com o Lucas, não por conta própria.
 
+Onde a decisão depende de um fato técnico que pode mudar, **a condição de
+reabertura está escrita junto**. Não é convite para reabrir: é o contrário —
+decisão sem condição declarada é a que alguém desfaz em silêncio, por não ter
+com o que comparar a situação nova. Decisão que é gosto, e não fato, não tem
+condição e não ganha uma inventada.
+
 | Decisão | Conteúdo | Data |
 | --- | --- | --- |
 | **SaaS multi-igreja** | Cada igreja é uma `organization` (tenant). `organization_id` em toda tabela de domínio, isolamento total entre organizações | 06/09/2026 |
 | **Autenticação própria** | Sessão persistida em tabela + cookie httpOnly. **Sem Auth.js/NextAuth** | 06/09/2026 |
 | **Sem `AUTH_SECRET`** | O token de sessão é aleatório e **opaco**; o banco guarda só o SHA-256 dele. Não é JWT, não há nada para assinar — **não reintroduza essa variável**. A variável nunca chegou a ser aplicada em lugar nenhum (verificado no banco do Coolify em 06/09/2026) | 06/09/2026 |
 | **E-mail de usuário é único GLOBAL** | A identidade é `users`; o vínculo com cada igreja mora em `organization_members`. A mesma pessoa administra duas igrejas com um login só, e `POST /api/auth/switch` troca a organização ativa | 06/09/2026 |
-| **Senha com scrypt do `node:crypto`** | `N=2^15, r=8, p=1`, `maxmem` 96 MB. Escolhido porque bcrypt e argon2 exigem **dependência nativa**, que quebraria o `output: "standalone"` do Dockerfile e traria compilação para o deploy. O hash guarda os próprios parâmetros, então dá para subir o custo depois sem invalidar senha antiga | 06/09/2026 |
+| **Senha com scrypt do `node:crypto`** | `N=2^15, r=8, p=1`, `maxmem` 96 MB. Escolhido porque bcrypt e argon2 exigem **dependência nativa**, que quebraria o `output: "standalone"` do Dockerfile e traria compilação para o deploy. O hash guarda os próprios parâmetros, então dá para subir o custo depois sem invalidar senha antiga. **Reabrir se** o build deixar de ser `standalone` — é ele que torna dependência nativa um problema | 06/09/2026 |
 | **Secretaria não lança financeiro** | O papel `secretaria` fica com `finance.read` e **sem** `finance.write`. Quem lança dízimo e oferta é `admin` ou `owner` | 06/09/2026 |
 | **Planos comerciais definidos** | Semente, Comunidade e Rede — ver "Planos comerciais" abaixo | 06/09/2026 |
-| **Pagamento: Mercado Pago** | Escolhido pelo requisito de CPF (Pix/boleto). O schema de planos/assinaturas é **agnóstico ao gateway**: colunas `provider*` guardam o id externo, nenhuma regra de domínio depende do MP | 06/09/2026 |
+| **Pagamento: Mercado Pago** | Escolhido pelo requisito de CPF (Pix/boleto). O schema de planos/assinaturas é **agnóstico ao gateway**: colunas `provider*` guardam o id externo, nenhuma regra de domínio depende do MP. **Reabrir se** o requisito de CPF com Pix/boleto cair — é ele que escolheu o gateway, e o schema já não amarra | 06/09/2026 |
 | **Route groups** | `app/(marketing)/` para o site público e `app/(app)/` para o sistema logado. Route group não entra na URL; a única rota que mudou foi a dashboard, de `/` para **`/painel`** | 06/09/2026 |
+| **Cadastro nasce em avaliação e cai para o Semente** | Quem se cadastra entra em **avaliação de 14 dias**; terminado o prazo sem assinar, cai para o **Semente gratuito, sem expirar**. Resolve a divergência entre o `register`, que atribuía `avaliacao`, e a landing, que promete gratuito para até 100 membros sem prazo — as duas frases passam a ser verdadeiras. Ver "Plano efetivo" | 06/09/2026 |
+| **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. *Ainda não implementado* | 06/09/2026 |
+| **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura. *Ainda não implementado* | 06/09/2026 |
+| **Mercado Pago: API de Pagamentos, não recorrência** | `POST /v1/payments`, Checkout Transparente. Ver "Cobrança" | 06/09/2026 |
+| **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
 | **Tema sage/verde-floresta FICA** | Uma paleta índigo foi proposta e **reprovada pelo Lucas em 06/09/2026**. O commit da proposta já foi revertido na branch de UI. Não reabrir | 06/09/2026 |
 
 ### Rotas públicas decididas
@@ -143,10 +154,16 @@ As duas branches entraram na `main` sem nenhum conflito de código. Os únicos
 conflitos foram nos arquivos de documentação, resolvidos a favor da versão do
 documentador.
 
-### `feat/auth-multitenant` (backend/DBA) — 10 commits
+### Do backend/DBA — `feat/auth-multitenant`
 
-Validação do backend: `typecheck` e `build` limpos, **97 casos automatizados
-contra PostgreSQL 18.6 real, 0 falhas**.
+Validação do backend na árvore já integrada, **por comportamento e não só por
+compilação**: **107 casos contra um banco novo, com as 7 migrations aplicadas do
+zero, 0 falhas**. `typecheck` e `build` limpos.
+
+Verificado junto que **toda tela de `app/(app)` está na lista de rotas
+protegidas do `proxy.ts`** — nenhuma ficou desprotegida. Vale registrar porque
+lista explícita é lista que envelhece calada: tela nova que ninguém acrescente
+ali passa a ser tratada como página pública. Hoje a lista está em dia.
 
 - Migrations **004** (organizações, usuários, sessões, RBAC, convites, planos e
   assinaturas), **005** (`organization_id` nas 11 tabelas de domínio, com
@@ -164,14 +181,41 @@ contra PostgreSQL 18.6 real, 0 falhas**.
 - Acesso de dev após `npm run db:seed:dev`: `demo@nonia.app` / `demo1234`.
   `npm run auth:owner` cria o proprietário de uma organização órfã.
 
-### `feat/ui-theme` (frontend)
+### Do frontend — `feat/ui-theme`
+
+Numa segunda leva (`562e267`) entraram `/precos` e o conserto do parâmetro de
+retorno do login — o bug de junção descrito em [`AGENTS.md`](AGENTS.md), que
+nenhuma das branches conseguia enxergar sozinha.
+
+Numa terceira (`cbc31c1`), o calendário no celular e a avaliação de 14 dias
+contada nas telas:
+
+- **Calendário em 390px: "mês para achar, agenda para ler".** O mês vira
+  navegação — número do dia e até três pontos de evento, com o dia inteiro como
+  alvo de toque — e o conteúdo vai para a agenda do dia. A visão Semana empilha
+  os sete dias em vez de rolar de lado. A barra de controle caiu de ~250px para
+  133px. **No desktop nada muda de aparência.**
+- A avaliação de 14 dias entrou no herói, no CTA, na seção de planos, no
+  `/cadastro`, nas dúvidas — com uma pergunta nova sobre o 15º dia — e numa
+  faixa em `/precos`. O texto aprovado pelo Lucas ficou intacto; só ganhou a
+  primeira metade da história.
 
 - Route groups `(marketing)` e `(app)`, dashboard em `/painel`, título próprio
   por tela.
 - Site público: landing em `/`, FAQ em `/faq`, e as telas de sessão `/entrar`,
   `/cadastro` e `/convite/[token]`.
 - Ajustes de responsividade no celular e correções do tema escuro.
-- Os PNGs placeholder saíram do repositório — não há mais `public/`.
+- Os PNGs placeholder saíram do repositório, e `public/` foi junto — o que
+  quebrou o `COPY` do `Dockerfile`. **Corrigido em `488cc3d`**, recriando
+  `public/` com um `.gitkeep`.
+
+### Quarta leva — `154cacc`
+
+Os tetos de plano passaram a ser **aplicados**: `lib/plan-limits.ts` e a
+migration **008**, que renomeia `plans.max_people` para `plans.max_members`. A
+verificação entrou em `app/api/members`, `app/api/users` e na conversão de
+visitante em membro, e trava a linha da assinatura dentro da transação para que
+duas criações simultâneas não furem o teto juntas.
 
 ## Isolamento entre organizações
 
@@ -226,13 +270,71 @@ que o checkout do Mercado Pago vai se ancorar.
 
 Em `price_cents`, **`NULL` é "sob consulta" e `0` é gratuito de verdade**. A
 coluna virou anulável na 007 exatamente por isso: sem a distinção, a Rede
-ficaria indistinguível da Semente no banco. `max_users` e `max_people` nulos
+ficaria indistinguível da Semente no banco. `max_users` e `max_members` nulos
 significam ilimitado.
 
 > **Nenhum desses limites é aplicado.** Nada impede o 101º membro no Semente nem
 > o 11º usuário no Comunidade: os tetos estão cadastrados e **nenhuma rota os
 > consulta**. Vender com limite não verificado é aceitável no MVP **desde que
 > ninguém ache que está pronto**.
+
+## Plano efetivo — derivado na leitura
+
+**Implementado** em `lib/plan-limits.ts` (`resolveEffectivePlan`) e na migration
+**008**, integrado em `154cacc`.
+
+O plano que vale a cada momento é **calculado na leitura**, nesta ordem:
+
+1. assinatura paga vigente (`active` ou `past_due`) → o plano dela;
+2. senão, avaliação ainda dentro do prazo → o plano da avaliação;
+3. senão, `semente` — gratuito, sem expirar.
+
+> **A linha em `subscriptions` é o contrato; o plano efetivo é o que vale
+> agora.** O contrato guarda o que foi assinado, quando vence e o id no
+> gateway. Uma avaliação vencida continua com `status = 'trialing'` no banco, e
+> está certo que continue — quem ignora isso é `resolveEffectivePlan`, o único
+> lugar que precisa saber a diferença. Não "conserte" o status no banco.
+
+> **Por que derivado e não gravado por tarefa agendada.** A alternativa era um
+> job que virasse o plano no vencimento, e foi descartada: não há cron, não há
+> deploy, e a máquina é local — pode estar desligada exatamente quando o prazo
+> virar. O backend provou a propriedade, não só o retorno: adiantou o
+> `trial_ends_at` para ontem, confirmou que a linha seguia `trialing` porque
+> ninguém rodou nada, e mostrou a API já devolvendo `semente` com teto 100.
+> **Reabrir se** entrar tarefa agendada no projeto — mas o problema que a
+> decisão resolve não é "falta de cron", é "estado que depende de alguém ter
+> rodado algo".
+
+### Mudança de comportamento — falhar fechado (06/09/2026)
+
+**É o oposto do que valia antes.** Organização sem assinatura vigente não tinha
+teto nenhum; agora cai para o `semente`, com teto de 100 membros. O motivo cabe
+em uma frase: **não existe ilimitado por acidente.**
+
+**Cair para o Semente não tira nada de ninguém.** Quem já passou dos 100 não
+perde acesso e não tem nada apagado — a verificação é `uso >= teto` **na
+criação**, então a organização só não cresce. O papel não interfere: teto é
+comercial, não é permissão.
+
+## Cobrança — Mercado Pago
+
+**Decidido em 06/09/2026, nada implementado ainda.**
+
+A integração usa a **API de Pagamentos** (`POST /v1/payments`), em Checkout
+Transparente. As duas alternativas foram descartadas por motivo concreto:
+
+| Alternativa | Por que não |
+| --- | --- |
+| `preapproval` (assinatura recorrente do MP) | **Não aceita Pix nem boleto** — cobra automaticamente em cartão, e não existe débito automático de Pix. Como Pix e boleto com CPF foi o requisito que **escolheu** o gateway, adotar recorrência seria contratar justamente a limitação que se queria evitar |
+| Checkout Pro | O QR e o copia-e-cola precisam aparecer **dentro do nonia**. O `payload jsonb` de `subscription_payments` foi modelado para isso |
+
+> **Consequência que vai surpreender alguém: com Pix e boleto, mensalidade é uma
+> cobrança nova a cada ciclo, não automática.** É limitação do meio de
+> pagamento, não do desenho — nenhum arranjo de código faz Pix debitar sozinho.
+
+**Reabrir se** cartão virar meio de pagamento aceito: aí `preapproval` passa a
+fazer sentido, e `subscriptions.provider_subscription_id` já está reservado
+para ele.
 
 ## Lacunas conhecidas do MVP
 
@@ -365,8 +467,7 @@ Datadas para que ninguém as leia como fato consumado.
 
 | Pendência | Desde |
 | --- | --- |
+| **Somente leitura na mensalidade vencida e a carência de 7 dias não existem** no código — são decisão de 06/09/2026 sem implementação. Hoje, vencer não muda nada além do plano efetivo cair para o `semente` | 06/09/2026 |
+| **Nada de Mercado Pago está implementado.** Não há checkout, webhook nem `MP_ACCESS_TOKEN` em uso — só o schema, que já é agnóstico. Ver "Cobrança" | 06/09/2026 |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
-| **Limites de plano não são aplicados.** Os tetos estão cadastrados na tabela `plans` desde a 007 e **nenhuma rota os consulta** — nada impede o 101º membro no Semente nem o 11º usuário no Comunidade. Ver "Planos comerciais" | 06/09/2026 |
-| **O `Dockerfile` quebra desde que `public/` saiu do repositório.** A linha `COPY --from=builder /app/public ./public` aponta para um diretório que não existe mais — `docker compose up --build`, que o README documenta, falha. Verificado estaticamente; não há Docker nesta máquina para reproduzir | 06/09/2026 |
-| **`/precos` não existe como página** — é só uma constante em `components/marketing/routes.ts`, para onde apontam os CTAs de plano da landing. `/entrar`, `/cadastro` e `/convite/[token]` já existem | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |

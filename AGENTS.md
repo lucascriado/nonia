@@ -179,16 +179,96 @@ mudou payload, resposta ou cookie.
   `The file "./proxy.ts" must export a function`. Quem fizer o rename lendo só o
   aviso de depreciação derruba a aplicação inteira.
 - **`next build` sem `DATABASE_URL` falha** com "Failed to collect page data",
-  porque `lib/db.ts` instancia o Sequelize no import do módulo. É anterior à
-  Fase 1. Por isso o `Dockerfile` injeta uma `DATABASE_URL` fictícia só na etapa
-  de build — **aquela linha não é sobra; quem "limpar" quebra o build.**
+  porque `lib/db.ts` instancia o Sequelize no import do módulo. Por isso o
+  `Dockerfile` injeta uma `DATABASE_URL` fictícia só na etapa de build —
+  **aquela linha não é sobra; quem "limpar" quebra o build.**
 
-- **Não use `DataTypes.NOW` neste projeto.** Quando `lib/models.ts` é
-  reavaliado sobre a instância do Sequelize cacheada em `globalThis` (o hot
-  reload do `next dev`), o valor vira `Invalid date` e quebra o INSERT — o
-  cadastro morre. Não aparece no primeiro boot, só depois de um reload, então
-  é fácil culpar outra coisa. Use default explícito: `() => new Date()`
-  (ou `() => new Date().toISOString().slice(0, 10)` em `DATEONLY`).
+### Apurando fatos
+
+A quarta armadilha não é de código, é de método — e foi a que mais perto chegou
+de entrar na documentação como verdade.
+
+- **Não trate o que aparece no terminal de outro agente como fato.** Aquela tela
+  mostra também caixa de entrada não enviada, rascunho sendo redigido e saída
+  parcial. `maestri check` serve para saber **se o outro está ocupado**, não
+  para colher informação. Em 06/09/2026 uma frase afirmando que uma tarefa de
+  infra tinha sido executada foi lida assim — era texto solto numa caixa de
+  entrada, ninguém tinha dito aquilo, e a tarefa não tinha sido feita.
+- Quando precisar saber se algo aconteceu: **meça, ou pergunte a quem
+  respondeu**. No caso acima a medição de uma linha
+  (`loginctl show-user lucas --property=Linger`) devolveu o oposto do que a tela
+  sugeria, e foi só por isso que o documento não registrou uma afirmação falsa.
+- **Confira que você está olhando a tela certa.** Uma varredura de `/entrar` e
+  `/cadastro` feita com sessão aberta não valida nada: o `proxy.ts` manda quem
+  tem cookie direto para `/painel`, então o que foi inspecionado foi outra
+  página. Para validar tela de visitante, esteja deslogado.
+- **Antes de escrever uma proibição, cheque o objeto dela.** "Não commite `X`"
+  e "não commite a mudança de `X`" são regras diferentes, e a primeira apaga do
+  repositório um arquivo que talvez esteja versionado desde sempre — foi o que
+  quase aconteceu com o `next-env.d.ts`. Um `git log --diff-filter=A -- <arquivo>`
+  responde em um segundo.
+- **Ao afirmar o que está commitado, leia o commit, não o disco.**
+  `git show <ref>:<arquivo>`, não `cat`. O working tree carrega o resultado do
+  último comando que você rodou, e ele diverge do que está versionado com muito
+  mais frequência do que parece.
+- O mesmo vale para relato de terceiro sobre número, versão ou estado de
+  arquivo: se dá para abrir o código ou rodar o comando, abra e rode. Onde não
+  der, **escreva o que verificou e o que não** — "verificado estaticamente",
+  "relatado pelo backend", "pendente de confirmação".
+
+- **O nome do parâmetro de retorno é um contrato entre o `proxy.ts` e o
+  formulário de login.** O proxy manda `/entrar?redirect=<caminho>`; quem lê
+  precisa ler `redirect`. Em 06/09/2026 o proxy mandava `redirect` e o
+  formulário lia `next`: **nenhum dos dois estava errado sozinho**, e juntos
+  faziam todo mundo cair em `/painel` em vez de voltar para a página pretendida.
+  Bug que só existe na junção — e o argumento concreto a favor de integrar cedo,
+  porque nenhuma das duas branches conseguiria vê-lo.
+
+### Quando o culpado não é o seu código
+
+Três sintomas diferentes, o mesmo gênero: algo fora do que você escreveu — um
+arquivo gerado, uma instância em cache — se comporta como se o seu código
+estivesse quebrado. Antes de caçar o bug, descarte estes.
+
+#### `.next` é artefato, nunca evidência
+
+Três sintomas diferentes, a mesma causa: um `.next` que não corresponde ao
+código ou ao modo em que você está rodando. **Quando algo inexplicável
+acontecer, `rm -rf .next` antes de investigar** — e nunca use o conteúdo dele
+para concluir coisa alguma sobre o projeto.
+
+- **`typecheck` falhando em `.next/dev/types/validator.ts`**, com
+  `Cannot find module '../../../app/membros/page.js'` e mais oito iguais. O
+  `tsconfig` inclui `.next/dev/types/**/*.ts`, então o `tsc` valida um arquivo
+  **gerado** que ainda aponta para o caminho antigo — `app/membros/page.tsx`,
+  que depois da integração é `app/(app)/membros/page.tsx`. Não é erro do seu
+  código: é um `.next` de antes dos route groups.
+- **500 em tudo, com `ENOENT .next/dev/routes-manifest.json`.** Acontece ao
+  rodar `next build` e depois `next dev` **no mesmo `.next`**: o diretório fica
+  meio produção, meio desenvolvimento, e o servidor não sobe nada. Parece
+  integração quebrada e não é. **Limpe o `.next` ao trocar de modo.**
+#### Outros
+
+- **`next-env.d.ts` aparecendo sujo no `git status` sem você ter tocado nele.**
+  O arquivo **é versionado desde o primeiro commit do repositório e tem que
+  continuar** — sem ele, o Next reclama no primeiro build limpo. O que não se
+  commita **não é o arquivo, é a alternância**: a linha de `import` troca entre
+  `./.next/types/routes.d.ts` e `./.next/dev/types/routes.d.ts` conforme o
+  último comando ter sido `build` ou `dev`, e o Next regrava sozinho.
+  A versão canônica é a de **build** (`./.next/types/routes.d.ts`): é a que está
+  commitada e a que um `npm run build` limpo produz, então depois de um build o
+  `git status` fica limpo. Quem rodar `npm run dev` vai ver o arquivo sujo com a
+  variante de dev — é esperado.
+  **Descarte a mudança:** `git checkout -- next-env.d.ts`, que devolve exatamente
+  a canônica. Não commite a alternância, **não ponha no `.gitignore`** e **não
+  faça `git rm --cached`** — as duas últimas tiram o arquivo do repositório, que
+  é exatamente o que não pode acontecer.
+- **`DataTypes.NOW` virando `Invalid date` e quebrando o INSERT do cadastro.**
+  Acontece quando `lib/models.ts` é reavaliado sobre a instância do Sequelize
+  cacheada em `globalThis`, no hot reload do `next dev`. Não aparece no primeiro
+  boot, só depois de um reload. **Não use `DataTypes.NOW` neste projeto**; use
+  default explícito: `() => new Date()` (ou
+  `() => new Date().toISOString().slice(0, 10)` em `DATEONLY`).
 
 ## Backend e Sequelize
 

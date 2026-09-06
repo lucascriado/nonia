@@ -22,6 +22,8 @@ O banco do time roda 18.6.
 - `migrations/006_cross_tenant_foreign_keys.sql`: troca as FKs simples entre
   tabelas de domínio por FKs compostas com `organization_id`.
 - `migrations/007_plans.sql`: os planos comerciais com preços e limites.
+- `migrations/008_plan_limits.sql`: renomeia `plans.max_people` para
+  `plans.max_members` e prepara a aplicação dos tetos.
 - `seeds/dev_seed.sql`: dados de demonstração (só para desenvolvimento). Cria a
   organização `demo`, com acesso `demo@nonia.app` / `demo1234`.
 - `migrate.mjs`: executor de migrations multiplataforma (Node).

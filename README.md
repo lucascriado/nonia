@@ -46,8 +46,13 @@ app/            páginas (App Router) e APIs em app/api
 components/     componentes compartilhados (shell, sidebar, diálogos, skeletons)
 lib/            conexão (db.ts), models Sequelize, utilitários
 database/       migrations SQL, seed de desenvolvimento e executor (migrate.mjs)
+public/         arquivos estáticos — mantido versionado, ver abaixo
 proxy.ts        desvio de navegação no Edge
 ```
+
+`public/` é o diretório padrão de estáticos do Next e fica versionado mesmo
+vazio, com um `.gitkeep`: o `Dockerfile` faz `COPY` dele, e sem o diretório o
+build da imagem falha. Não apague.
 
 ## Onde continuar
 
