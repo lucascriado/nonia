@@ -29,6 +29,19 @@ um `cat >` por cima. Sobrescrever às cegas apaga o que outra pessoa acabou de
 pôr ali, e o `git status` só avisa depois. Se acontecer, `git checkout -- <arquivo>`
 antes de commitar.
 
+## Mensagens de commit
+
+- **Não inclua o rodapé `Claude-Session: https://claude.ai/code/session_…`.**
+  Decisão de 06/09/2026: o GitGuardian acusou o repositório por causa dele. O
+  identificador da sessão tem cara de token de alta entropia, e o scanner varre
+  **mensagem de commit**, não só o diff — no commit apontado (`69cff07`) o diff
+  estava limpo e a única string de alta entropia era essa linha.
+- `Co-Authored-By:` continua normalmente.
+- Os 36 commits que já têm o rodapé **ficam**. Não reescrevemos histórico
+  público para limpar isso.
+- O repositório é público: mensagem de commit é conteúdo publicado igual ao
+  código. Nada de senha, token, uuid de infra ou IP nela.
+
 ## Arquitetura
 
 - O App Router usa dois route groups, que **não** aparecem na URL:
