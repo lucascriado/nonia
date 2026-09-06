@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `488cc3d`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `562e267`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -115,16 +115,22 @@ Os parênteses são route groups e **não** aparecem na URL.
 
 Decisões fechadas. Reabrir só com o Lucas, não por conta própria.
 
+Onde a decisão depende de um fato técnico que pode mudar, **a condição de
+reabertura está escrita junto**. Não é convite para reabrir: é o contrário —
+decisão sem condição declarada é a que alguém desfaz em silêncio, por não ter
+com o que comparar a situação nova. Decisão que é gosto, e não fato, não tem
+condição e não ganha uma inventada.
+
 | Decisão | Conteúdo | Data |
 | --- | --- | --- |
 | **SaaS multi-igreja** | Cada igreja é uma `organization` (tenant). `organization_id` em toda tabela de domínio, isolamento total entre organizações | 06/09/2026 |
 | **Autenticação própria** | Sessão persistida em tabela + cookie httpOnly. **Sem Auth.js/NextAuth** | 06/09/2026 |
 | **Sem `AUTH_SECRET`** | O token de sessão é aleatório e **opaco**; o banco guarda só o SHA-256 dele. Não é JWT, não há nada para assinar — **não reintroduza essa variável**. A variável nunca chegou a ser aplicada em lugar nenhum (verificado no banco do Coolify em 06/09/2026) | 06/09/2026 |
 | **E-mail de usuário é único GLOBAL** | A identidade é `users`; o vínculo com cada igreja mora em `organization_members`. A mesma pessoa administra duas igrejas com um login só, e `POST /api/auth/switch` troca a organização ativa | 06/09/2026 |
-| **Senha com scrypt do `node:crypto`** | `N=2^15, r=8, p=1`, `maxmem` 96 MB. Escolhido porque bcrypt e argon2 exigem **dependência nativa**, que quebraria o `output: "standalone"` do Dockerfile e traria compilação para o deploy. O hash guarda os próprios parâmetros, então dá para subir o custo depois sem invalidar senha antiga | 06/09/2026 |
+| **Senha com scrypt do `node:crypto`** | `N=2^15, r=8, p=1`, `maxmem` 96 MB. Escolhido porque bcrypt e argon2 exigem **dependência nativa**, que quebraria o `output: "standalone"` do Dockerfile e traria compilação para o deploy. O hash guarda os próprios parâmetros, então dá para subir o custo depois sem invalidar senha antiga. **Reabrir se** o build deixar de ser `standalone` — é ele que torna dependência nativa um problema | 06/09/2026 |
 | **Secretaria não lança financeiro** | O papel `secretaria` fica com `finance.read` e **sem** `finance.write`. Quem lança dízimo e oferta é `admin` ou `owner` | 06/09/2026 |
 | **Planos comerciais definidos** | Semente, Comunidade e Rede — ver "Planos comerciais" abaixo | 06/09/2026 |
-| **Pagamento: Mercado Pago** | Escolhido pelo requisito de CPF (Pix/boleto). O schema de planos/assinaturas é **agnóstico ao gateway**: colunas `provider*` guardam o id externo, nenhuma regra de domínio depende do MP | 06/09/2026 |
+| **Pagamento: Mercado Pago** | Escolhido pelo requisito de CPF (Pix/boleto). O schema de planos/assinaturas é **agnóstico ao gateway**: colunas `provider*` guardam o id externo, nenhuma regra de domínio depende do MP. **Reabrir se** o requisito de CPF com Pix/boleto cair — é ele que escolheu o gateway, e o schema já não amarra | 06/09/2026 |
 | **Route groups** | `app/(marketing)/` para o site público e `app/(app)/` para o sistema logado. Route group não entra na URL; a única rota que mudou foi a dashboard, de `/` para **`/painel`** | 06/09/2026 |
 | **Cadastro nasce em avaliação e cai para o Semente** | Quem se cadastra entra em **avaliação de 14 dias**; terminado o prazo sem assinar, cai para o **Semente gratuito, sem expirar**. Resolve a divergência entre o `register`, que atribuía `avaliacao`, e a landing, que promete gratuito para até 100 membros sem prazo — as duas frases passam a ser verdadeiras. Ver "Plano efetivo" | 06/09/2026 |
 | **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
@@ -173,6 +179,10 @@ ali passa a ser tratada como página pública. Hoje a lista está em dia.
   `npm run auth:owner` cria o proprietário de uma organização órfã.
 
 ### Do frontend — `feat/ui-theme`
+
+Numa segunda leva (`562e267`) entraram `/precos` e o conserto do parâmetro de
+retorno do login — o bug de junção descrito em [`AGENTS.md`](AGENTS.md), que
+nenhuma das branches conseguia enxergar sozinha.
 
 - Route groups `(marketing)` e `(app)`, dashboard em `/painel`, título próprio
   por tela.
@@ -402,6 +412,4 @@ Datadas para que ninguém as leia como fato consumado.
 | --- | --- |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **Limites de plano não são aplicados.** Os tetos estão cadastrados na tabela `plans` desde a 007 e **nenhuma rota os consulta** — nada impede o 101º membro no Semente nem o 11º usuário no Comunidade. Ver "Planos comerciais" | 06/09/2026 |
-| **`/precos` responde 404 na `main`** — a página existe na branch do frontend (`ee51d44`) e a pendência fecha na integração | 06/09/2026 |
-| **O login não volta para a página pretendida na `main`.** O `proxy.ts` manda `/entrar?redirect=<caminho>` e o formulário lê `?next=`; todo mundo cai em `/painel`. Corrigido na branch do frontend, chega na integração | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |
