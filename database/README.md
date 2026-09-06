@@ -91,14 +91,15 @@ Consultas agregadas e views continuam usando SQL explícito por clareza. Não us
 `sequelize.sync()`: mudanças de schema devem ser feitas com uma nova migration
 SQL em `database/migrations/`.
 
-Em desenvolvimento local, mantenha o PostgreSQL fechado para a internet. Se o
-banco estiver em um servidor remoto, use um túnel SSH:
+Em desenvolvimento, use **Postgres na sua própria máquina** e mantenha-o fechado
+para a internet. Este repositório é auto-suficiente: as migrations criam o schema
+do zero e o seed cria a organização de demonstração — ver o README na raiz.
 
-```bash
-ssh -N -L 15432:127.0.0.1:5432 usuario@servidor
-```
-
-Depois aponte `DATABASE_URL` para `127.0.0.1:15432`.
+> Havia aqui um exemplo de túnel SSH encaminhando para `127.0.0.1:5432` no
+> servidor. **Foi removido em 06/09/2026 porque não funciona contra a nossa
+> VPS** e o sintoma engana: o Postgres não tem porta publicada no host, só é
+> alcançável dentro da rede docker, então o túnel sobe, aparenta estar de pé e
+> devolve *connection refused* — o que faz a pessoa investigar firewall.
 
 ## Planos
 

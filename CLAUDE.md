@@ -22,7 +22,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
 | Integração | **Feita.** `main` em `4c08947`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
-| Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
+| Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
 
@@ -78,7 +78,8 @@ As três branches estão em `origin` desde 06/09/2026.
   não commitada ali é varrida para dentro de um commit de merge, e foi o que
   aconteceu em 06/09/2026 com duas mudanças de documentação — o conteúdo
   sobreviveu, as mensagens de commit não.
-- `CLAUDE.md`, `AGENTS.md` e `README.md` são mantidos pelo documentador
+- `CLAUDE.md`, `AGENTS.md`, `README.md` e `database/README.md` são mantidos pelo
+  documentador — um arquivo, um dono
   (decidido em 06/09/2026). Devs não editam esses arquivos nas branches;
   mandam o conteúdo técnico pelo gerente.
 - Nada que exija uma tela entra na `main` sem a tela — senão o ambiente local
@@ -557,6 +558,29 @@ O `Dockerfile`, o `docker-compose.yml` e o `HEALTHCHECK` em `/api/health`
 continuam no repositório e funcionam localmente. Quando a hospedagem voltar ao
 escopo, o caminho é Coolify com build pack `dockerfile` na porta 3000, e as
 migrations rodam no boot do container — mas isso é plano, não estado.
+
+## Por que existe um banco compartilhado
+
+Não é desenho: é contorno. Nesta máquina não foi possível instalar PostgreSQL —
+o `sudo` pede uma senha que ninguém do time tem —, então o desenvolvimento
+aponta para o `nonia_dev`, remoto, por túnel SSH.
+
+**A limitação é desta máquina e não se transfere.** O repositório é
+auto-suficiente: 8 migrations, seed idempotente com login de demonstração, e
+`db:migrate`, `db:seed:dev`, `db:status` e `auth:owner` prontos. Quem tem
+administrador no próprio computador instala Postgres 15+, aponta a
+`DATABASE_URL` para `localhost` e não precisa de SSH, de túnel, de credencial de
+ninguém, nem de alguém para conceder e revogar acesso depois.
+
+Banco por pessoa também é **melhor**: o dado de teste de um não atrapalha o
+outro, e não existe o risco de apontar para o banco errado — que aconteceu duas
+vezes em 06/09/2026.
+
+> **O túnel não é compartilhável por construção.** Ele autentica com a
+> credencial de administração do servidor, que também roda outros sistemas.
+> Replicá-lo na máquina de outra pessoa seria entregar administração do
+> servidor inteiro, e não há como conceder "só o banco" por esse caminho. Quem
+> chega usa banco local — não é preferência, é a única forma segura.
 
 ## Infraestrutura — o que importa hoje
 
