@@ -39,56 +39,47 @@ const features = [
   {
     icon: Users,
     title: "Membros",
-    text: "Ficha completa com foto, contato e histórico, com busca e filtros que aguentam a igreja inteira.",
+    text: "Encontre qualquer pessoa da igreja em segundos, com a ficha inteira na mão.",
   },
   {
     icon: UserPlus,
     title: "Visitantes",
-    text: "Acompanhe quem chegou e converta em membro sem redigitar nada.",
+    text: "Saiba quem visitou e em que ponto da integração parou, sem deixar ninguém no caminho.",
   },
   {
     icon: Puzzle,
     title: "Ministérios",
-    text: "Equipes, responsáveis e presença nos encontros, para saber quem está servindo.",
+    text: "Saiba quem realmente está servindo, e quem parou de aparecer.",
   },
   {
     icon: CalendarDays,
     title: "Agenda",
-    text: "Cultos, reuniões e eventos, com os próximos compromissos sempre à vista.",
+    text: "A igreja inteira enxerga a mesma agenda, e ninguém marca duas coisas no mesmo horário.",
   },
   {
     icon: Wallet,
     title: "Financeiro",
-    text: "Entradas, saídas e saldo, com comprovante anexado em cada lançamento.",
+    text: "Preste contas sem medo: cada lançamento com o comprovante anexado.",
   },
 ];
 
 const steps = [
-  {
-    title: "Crie o espaço da sua igreja",
-    text: "Você cria a conta, dá nome à congregação e já entra num painel pronto. Nada de instalar servidor ou contratar técnico.",
-  },
-  {
-    title: "Traga as pessoas",
-    text: "Cadastre membros e visitantes e monte os ministérios. Cada registro guarda quem alterou o quê e quando.",
-  },
-  {
-    title: "Acompanhe pelo painel",
-    text: "Indicadores, aniversariantes do mês, próximos eventos e atividades recentes na primeira tela - a liderança enxerga a igreja de relance.",
-  },
+  { title: "Crie a conta da igreja", text: "Leva um minuto e você já entra num painel pronto." },
+  { title: "Traga as pessoas", text: "Cadastre membros e visitantes, ou mande a sua planilha que a gente importa." },
+  { title: "Abra o painel", text: "A partir daí a liderança vê a igreja inteira numa tela." },
 ];
 
 const differentials = [
-  { icon: HeartHandshake, title: "Pensado para igreja", text: "A linguagem é a da sua congregação: ministério, visitante, dízimo, não “cliente” e “lead”." },
-  { icon: Smartphone, title: "Funciona no celular", text: "Secretaria no computador, líder de ministério no telefone. As telas se adaptam de verdade, sem versão capenga." },
-  { icon: Lock, title: "Cada igreja no seu espaço", text: "Os dados da sua congregação ficam isolados dos das outras. Cada assinatura é um ambiente próprio." },
-  { icon: History, title: "Histórico de tudo", text: "Toda alteração relevante vira registro de atividade. Você sabe o que mudou, quem mudou e em que dia." },
+  { icon: HeartHandshake, title: "Pensado para igreja", text: "A linguagem é a da sua igreja: ministério, visitante, dízimo. Não “cliente” nem “lead”." },
+  { icon: Smartphone, title: "Funciona no celular", text: "Secretaria no computador, líder de ministério no telefone. As telas se adaptam de verdade." },
+  { icon: Lock, title: "Cada igreja no seu espaço", text: "Os dados da sua igreja ficam isolados dos das outras. Cada assinatura é um espaço próprio." },
+  { icon: History, title: "Histórico de tudo", text: "Toda alteração vira registro. Você sabe o que mudou, quem mudou e em que dia." },
 ];
 
 const faqPreview = [
   { question: "Preciso instalar alguma coisa?", answer: "Não. O nonia roda no navegador; a igreja só precisa de internet." },
-  { question: "Consigo migrar minha planilha atual?", answer: "Sim. A gente ajuda a importar a lista de membros no começo do plano Comunidade." },
-  { question: "Posso testar antes de pagar?", answer: "Toda igreja começa com 14 dias de avaliação, com 200 pessoas e 5 usuários liberados. Terminado o prazo, a conta continua no plano Semente, que é gratuito e não expira." },
+  { question: "Consigo migrar minha planilha atual?", answer: "Sim. A gente importa a sua lista de membros no começo." },
+  { question: "Mais de uma pessoa pode usar?", answer: "Pode. Cada uma entra com o próprio acesso e enxerga só o que o papel dela permite." },
 ];
 
 export default function LandingPage() {
@@ -98,7 +89,7 @@ export default function LandingPage() {
         <div className="mk-hero-glow" aria-hidden />
         <div className="mk-container mk-hero-inner">
           <Reveal className="mk-badge" as="span">
-            <Sparkles aria-hidden /> Tudo da sua igreja num sistema só
+            <Sparkles aria-hidden /> Para a igreja que ainda controla tudo na planilha
           </Reveal>
 
           <Reveal as="h1" className="mk-hero-title" delay={60}>
@@ -106,8 +97,8 @@ export default function LandingPage() {
           </Reveal>
 
           <Reveal as="p" className="mk-hero-text" delay={120}>
-            Membros, visitantes, ministérios, agenda e financeiro num painel só,
-            no lugar das planilhas.
+            Quem chegou domingo, quem está servindo e quanto entrou na oferta,
+            sempre no mesmo lugar.
           </Reveal>
 
           <Reveal className="mk-hero-actions" delay={180}>
@@ -123,7 +114,11 @@ export default function LandingPage() {
               app: na hora de decidir, falar do rebaixamento joga contra a
               própria oferta. */}
           <Reveal as="p" className="mk-hero-note" delay={240}>
-            14 dias com todos os recursos. Sem cartão de crédito.
+            <strong>14 dias com o sistema inteiro liberado</strong>, financeiro
+            incluído: até 200 pessoas cadastradas e 5 pessoas da equipe usando
+            junto.
+            <span>Não instala nada: abre no navegador, no computador e no celular.</span>
+            <span>Sem cartão de crédito, ninguém é cobrado no fim e não existe assinatura para cancelar.</span>
           </Reveal>
 
           <Reveal className="mk-hero-figure" delay={300}>
@@ -155,8 +150,8 @@ export default function LandingPage() {
             <span className="mk-eyebrow">Recursos</span>
             <h2>Cinco módulos que conversam entre si</h2>
             <p>
-              O visitante que você cadastra hoje vira membro amanhã e aparece na
-              escala do ministério, sem recadastrar nada.
+              Cadastre a pessoa uma vez. Ela vira membro, entra na escala do
+              ministério e aparece no relatório sem ninguém redigitar nada.
             </p>
           </Reveal>
 
@@ -308,10 +303,10 @@ export default function LandingPage() {
       <section className="mk-cta">
         <div className="mk-container">
           <Reveal className="mk-cta-card">
-            <h2>Sua igreja organizada já neste domingo</h2>
+            <h2>Comece pelo cadastro de hoje</h2>
             <p>
-              Crie a conta, cadastre os primeiros membros e veja o painel ganhar
-              vida. São 14 dias com todos os recursos liberados.
+              Abra a conta, jogue a sua lista de membros para dentro e use no
+              próximo domingo.
             </p>
             <div className="mk-cta-actions">
               <Link className="mk-button mk-button-primary mk-button-lg" href={signupHref()}>
