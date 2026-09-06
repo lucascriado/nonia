@@ -135,7 +135,8 @@ condição e não ganha uma inventada.
 | **Cadastro nasce em avaliação e cai para o Semente** | Quem se cadastra entra em **avaliação de 14 dias**; terminado o prazo sem assinar, cai para o **Semente gratuito, sem expirar**. Resolve a divergência entre o `register`, que atribuía `avaliacao`, e a landing, que promete gratuito para até 100 membros sem prazo — as duas frases passam a ser verdadeiras. Ver "Plano efetivo" | 06/09/2026 |
 | **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. *Ainda não implementado* | 06/09/2026 |
 | **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura. *Ainda não implementado* | 06/09/2026 |
-| **Mercado Pago: API de Pagamentos, não recorrência** | `POST /v1/payments`, Checkout Transparente. Ver "Cobrança" | 06/09/2026 |
+| **Bypass de contratação no lugar do gateway** | A igreja clica e a assinatura vale na hora, sem pagamento real. Atalho de desenvolvimento, **não é produto**, e nasce com guarda-corpo obrigatório. Ver "Cobrança" | 06/09/2026 |
+| **Mercado Pago: API de Pagamentos, não recorrência** | `POST /v1/payments`, Checkout Transparente. **Decisão suspensa**, não revogada: vale para quando o pagamento real entrar. **Retomar quando** houver hospedagem com URL pública. Ver "Cobrança" | 06/09/2026 |
 | **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
 | **Tema sage/verde-floresta FICA** | Uma paleta índigo foi proposta e **reprovada pelo Lucas em 06/09/2026**. O commit da proposta já foi revertido na branch de UI. Não reabrir | 06/09/2026 |
 
@@ -316,12 +317,48 @@ perde acesso e não tem nada apagado — a verificação é `uso >= teto` **na
 criação**, então a organização só não cresce. O papel não interfere: teto é
 comercial, não é permissão.
 
-## Cobrança — Mercado Pago
+## Cobrança
 
-**Decidido em 06/09/2026, nada implementado ainda.**
+### Bypass de contratação (06/09/2026) — decidido, em implementação
 
-A integração usa a **API de Pagamentos** (`POST /v1/payments`), em Checkout
-Transparente. As duas alternativas foram descartadas por motivo concreto:
+A igreja escolhe o plano, clica, e **a assinatura passa a valer na hora**: sem
+gateway, sem QR, sem webhook e sem credencial. O motivo é direto — o produto
+roda local, não há URL pública para receber webhook, e o que se quer agora é ver
+o fluxo funcionando ponta a ponta.
+
+**É atalho de desenvolvimento, não é produto.** Nada aqui substitui a integração
+de pagamento; ele existe para destravar o fluxo enquanto não há hospedagem.
+
+> ### ⚠ O bypass é uma porta dos fundos de faturamento
+>
+> O que está sendo construído é, literalmente, **"clicar e ganhar o plano
+> pago"**. Rodando local é inofensivo. No dia em que existir hospedagem,
+> qualquer pessoa se promoveria para o Comunidade sozinha.
+>
+> Por isso ele nasce com guarda-corpo, e **nenhum destes itens é opcional**:
+>
+> - atrás de variável de ambiente explícita, **desligada por padrão** — sem ela
+>   a rota **não existe**;
+> - recusa categórica se `NODE_ENV` for `production` sem a variável;
+> - nome que denuncia o que faz: **`BILLING_BYPASS`**;
+> - toda assinatura criada assim marcada na origem (`provider = 'bypass'`) e com
+>   `billing_event`, para **nunca** ser confundida com pagamento recebido por
+>   quem ler o banco depois.
+>
+> **Não ligar em ambiente exposto.** O bypass só sai de cena quando existir
+> pagamento real — enquanto isso, ele é a única forma de contratar, e essa é
+> exatamente a razão do cuidado.
+
+### Mercado Pago — decisão **suspensa**, não revogada (06/09/2026)
+
+A integração real está **suspensa** enquanto não houver hospedagem. A análise
+abaixo **continua valendo como a decisão de _como_ integrar** quando o pagamento
+real entrar — ela não é lixo, e é o que impede alguém de escolher `preapproval`
+por engano sem saber que ele não aceita Pix.
+
+Quando retomar, a integração usa a **API de Pagamentos** (`POST /v1/payments`),
+em Checkout Transparente. As duas alternativas foram descartadas por motivo
+concreto:
 
 | Alternativa | Por que não |
 | --- | --- |
@@ -332,9 +369,20 @@ Transparente. As duas alternativas foram descartadas por motivo concreto:
 > cobrança nova a cada ciclo, não automática.** É limitação do meio de
 > pagamento, não do desenho — nenhum arranjo de código faz Pix debitar sozinho.
 
-**Reabrir se** cartão virar meio de pagamento aceito: aí `preapproval` passa a
-fazer sentido, e `subscriptions.provider_subscription_id` já está reservado
-para ele.
+**Retomar quando** houver hospedagem com URL pública, que é o que falta para o
+webhook existir. **Reabrir a escolha de API** só se cartão virar meio de
+pagamento aceito: aí `preapproval` passa a fazer sentido, e
+`subscriptions.provider_subscription_id` já está reservado para ele.
+
+### O que não muda
+
+Somente leitura com 7 dias de carência, a máquina de estados da assinatura, as
+colunas `provider*` e o `payload jsonb` seguem como estão.
+
+> O desenho agnóstico ao gateway **acabou de provar o próprio valor**: trocamos
+> gateway real por bypass sem tocar em uma linha do domínio. É a justificativa
+> daquela decisão sendo paga na prática, e o argumento para mantê-la quando o
+> pagamento real chegar.
 
 ## Lacunas conhecidas do MVP
 
@@ -453,9 +501,13 @@ português em servidor anterior, em vez de estourar erro de sintaxe.
 | `DATABASE_URL` | **obrigatória**, única exigida hoje |
 | `PORT` | opcional, padrão 3000 |
 | `MIGRATE_CONNECT_ATTEMPTS` | opcional, tentativas de conexão do `migrate.mjs` (padrão 15) |
-| `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` | Mercado Pago, ainda não referenciadas no código |
+| `BILLING_BYPASS` | liga o bypass de contratação. **Desligada por padrão; sem ela a rota não existe.** Nunca em ambiente exposto *(chega com a implementação)* |
 
 Todas são **runtime**. Nenhuma pode virar `NEXT_PUBLIC_*`. Nunca commite valores.
+
+As credenciais do Mercado Pago (`MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) saíram
+desta lista em 06/09/2026: com a integração suspensa, não são necessárias.
+Voltam quando o pagamento real voltar.
 
 `APP_URL` saiu desta lista em 06/09/2026: ela só servia para montar o link de
 convite com um domínio público, que não existe mais no escopo. Sem ela, vale o
@@ -468,6 +520,6 @@ Datadas para que ninguém as leia como fato consumado.
 | Pendência | Desde |
 | --- | --- |
 | **Somente leitura na mensalidade vencida e a carência de 7 dias não existem** no código — são decisão de 06/09/2026 sem implementação. Hoje, vencer não muda nada além do plano efetivo cair para o `semente` | 06/09/2026 |
-| **Nada de Mercado Pago está implementado.** Não há checkout, webhook nem `MP_ACCESS_TOKEN` em uso — só o schema, que já é agnóstico. Ver "Cobrança" | 06/09/2026 |
+| **SEGURANÇA — o bypass de contratação não pode ser ligado em ambiente exposto.** Ele concede plano pago sem pagamento. Enquanto existir, precisa de `BILLING_BYPASS` desligada por padrão, recusa se `NODE_ENV=production` sem a variável, e toda assinatura marcada com `provider = 'bypass'` mais `billing_event`. **Só sai de cena quando existir pagamento real.** Ver "Cobrança" | 06/09/2026 |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. Está na `main` | 06/09/2026 |
