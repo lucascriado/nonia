@@ -3,8 +3,6 @@
 // testado mais de uma vez.
 import { organizationId, requireBillingWriteEvenWhenReadOnly } from "@/lib/auth";
 import { assertBypassEnabled, cancelPlan } from "@/lib/billing-bypass";
-import { addActivity } from "@/lib/activities";
-import { db } from "@/lib/db";
 import { planSnapshot } from "@/lib/plan-limits";
 import { apiError } from "@/lib/records";
 
@@ -19,10 +17,6 @@ export async function POST() {
     const auth = await requireBillingWriteEvenWhenReadOnly();
 
     const anterior = await cancelPlan(auth);
-
-    await db.transaction((transaction) =>
-      addActivity(transaction, auth, "system", "cancelou o plano", anterior.planName),
-    );
 
     return Response.json({ ok: true, plan: await planSnapshot(organizationId(auth)) });
   } catch (error) {

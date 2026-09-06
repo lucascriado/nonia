@@ -5,6 +5,7 @@ import { FinancialTransaction } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import { assertAffected } from "@/lib/tenant";
 import { financeAttributes, FinancePayload, validateFinancePayload } from "@/lib/finance-records";
+import { readJson } from "@/lib/http";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   try {
     const auth = await requirePermission("finance.write");
     const { id } = await context.params;
-    const payload = await request.json() as FinancePayload;
+    const payload = await readJson<FinancePayload>(request);
     const validationError = validateFinancePayload(payload);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 

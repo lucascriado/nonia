@@ -5,6 +5,7 @@ import { assignMembersToCell } from "@/lib/cell-membership";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization } from "@/lib/tenant";
 import { QueryTypes } from "sequelize";
+import { readJson } from "@/lib/http";
 
 export const runtime = "nodejs";
 
@@ -52,7 +53,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const auth = await requirePermission("cells.write");
-    const payload = await request.json() as CellPayload;
+    const payload = await readJson<CellPayload>(request);
     const name = payload.name?.trim();
     if (!name) return Response.json({ error: "Nome da célula é obrigatório." }, { status: 400 });
 

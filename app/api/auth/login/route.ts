@@ -5,7 +5,7 @@ import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
 import { createSession, jsonWithCookie, requestMeta, resolveSession, sessionCookie } from "@/lib/auth";
 import { sessionPayload } from "@/lib/auth-payloads";
-import { badRequest, forbidden, HttpError, unauthorized } from "@/lib/http";
+import { HttpError, badRequest, forbidden, readJson, unauthorized } from "@/lib/http";
 import { burnPasswordTime, verifyPassword } from "@/lib/passwords";
 import { normalizeEmail } from "@/lib/organizations";
 import { apiError } from "@/lib/records";
@@ -28,7 +28,7 @@ type UserRow = {
 
 export async function POST(request: Request) {
   try {
-    const payload = (await request.json()) as LoginPayload;
+    const payload = await readJson<LoginPayload>(request);
     const email = payload.email ? normalizeEmail(payload.email) : "";
     const password = payload.password ?? "";
 

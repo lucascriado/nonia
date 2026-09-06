@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { createSession, jsonWithCookie, requestMeta, resolveSession, sessionCookie } from "@/lib/auth";
 import { sessionPayload } from "@/lib/auth-payloads";
-import { badRequest, notFound, unauthorized } from "@/lib/http";
+import { badRequest, notFound, readJson, unauthorized } from "@/lib/http";
 import { hashInvitationToken } from "@/lib/invitations";
 import { Invitation, OrganizationMember, User } from "@/lib/models";
 import { hashPassword, validatePasswordStrength, verifyPassword } from "@/lib/passwords";
@@ -16,7 +16,7 @@ type AcceptPayload = { token?: string; fullName?: string; password?: string };
 
 export async function POST(request: Request) {
   try {
-    const payload = (await request.json()) as AcceptPayload;
+    const payload = await readJson<AcceptPayload>(request);
     const token = payload.token?.trim();
     if (!token) throw badRequest("Convite não informado.", "invalid_invitation");
     if (!payload.password) throw badRequest("Informe a senha.");
