@@ -228,11 +228,15 @@ estivesse quebrado. Antes de caçar o bug, descarte estes.
   que depois da integração é `app/(app)/membros/page.tsx`. Não é erro do seu
   código: é um `.next` de antes dos route groups. **Conserto: `rm -rf .next`.**
 - **`next-env.d.ts` aparecendo sujo no `git status` sem você ter tocado nele.**
-  O Next regrava o arquivo, e ele alterna entre `./.next/types/routes.d.ts` e
-  `./.next/dev/types/routes.d.ts` conforme o último comando ter sido `build` ou
-  `dev`. **Deixe como está e simplesmente não commite.** Não ponha no
-  `.gitignore`: o arquivo sumiria do repositório e o Next reclamaria no primeiro
-  build limpo.
+  O arquivo **é versionado desde o primeiro commit do repositório e tem que
+  continuar** — sem ele, o Next reclama no primeiro build limpo. O que não se
+  commita **não é o arquivo, é a alternância**: a linha de `import` troca entre
+  `./.next/types/routes.d.ts` e `./.next/dev/types/routes.d.ts` conforme o
+  último comando ter sido `build` ou `dev`, e o Next regrava sozinho.
+  **Descarte a mudança:** `git checkout -- next-env.d.ts`, que devolve a versão
+  commitada. Não commite a alternância, **não ponha no `.gitignore`** e **não
+  faça `git rm --cached`** — as duas últimas tiram o arquivo do repositório, que
+  é exatamente o que não pode acontecer.
 - **`DataTypes.NOW` virando `Invalid date` e quebrando o INSERT do cadastro.**
   Acontece quando `lib/models.ts` é reavaliado sobre a instância do Sequelize
   cacheada em `globalThis`, no hot reload do `next dev`. Não aparece no primeiro
