@@ -19,8 +19,24 @@ export async function GET(request: Request) {
     const { page, pageSize, offset } = paginacao(searchParams);
     const where = filtro.where.join(" AND ");
 
-    const contagem = await query<{ total: number }>(
-      `SELECT count(*)::int AS total FROM visitor_directory WHERE ${where}`,
+    // Indicadores na mesma consulta e sob o mesmo filtro do total -- ver o
+    // comentário em /api/members.
+    //
+    // Os três particionam o conjunto: primeira visita + intermediários +
+    // marcados como membro somam sempre o total. Isso vale porque converter um
+    // visitante APAGA a linha dele (POST /api/visitors/[id]/convert), e é essa
+    // exclusão que dá o sentido de `markedAsMember`: são as pessoas com a etapa
+    // "Membro" que CONTINUAM na lista de visitantes, ou seja, as que ninguém
+    // converteu. Não é "quantos viraram membros" -- esses não estão mais aqui.
+    const contagem = await query<{
+      total: number; firstVisit: number; integrating: number; markedAsMember: number;
+    }>(
+      `SELECT
+         count(*)::int AS total,
+         count(*) FILTER (WHERE membership_stage = 'visited')::int AS "firstVisit",
+         count(*) FILTER (WHERE membership_stage NOT IN ('visited', 'member'))::int AS integrating,
+         count(*) FILTER (WHERE membership_stage = 'member')::int AS "markedAsMember"
+       FROM visitor_directory WHERE ${where}`,
       filtro.valores,
     );
 
@@ -36,7 +52,8 @@ export async function GET(request: Request) {
       LIMIT $${filtro.valores.length + 1} OFFSET $${filtro.valores.length + 2}
     `, [...filtro.valores, pageSize, offset]);
 
-    return Response.json({ records: rows, total: contagem.rows[0].total, page, pageSize });
+    const { total, ...summary } = contagem.rows[0];
+    return Response.json({ records: rows, total, page, pageSize, summary });
   } catch (error) {
     return apiError(error);
   }
