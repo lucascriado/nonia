@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `b385ef0`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `85efe5d`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -633,6 +633,30 @@ esses passam pela guarda.
 Quem for decidir o próximo caso de cobrança: a pergunta é se a regra limita
 criação ou se ela alcança algo que já pertence a quem usa.
 
+## Recuperação de senha — desenho decidido (06/09/2026)
+
+**Nada implementado.** Fica para quando o DNS existir, porque depende de e-mail.
+
+**Tabela própria, `password_resets`, e não reuso de `invitations`.** O motivo é
+de segurança, não de organização:
+
+- `invitations` tem `organization_id` e `role_id` **NOT NULL**, e um reset é
+  sobre a **identidade** — quem acessa duas igrejas não tem "a" organização, e
+  reusar obrigaria a inventar valores;
+- um bug no fluxo de convite **não pode virar concessão de acesso a uma igreja**.
+  Tabelas separadas tornam isso impossível **por construção, não por cuidado**.
+
+| Regra | |
+| --- | --- |
+| Validade | **1 hora** |
+| Uso | único; pedir um novo invalida os anteriores; usar invalida todos |
+| Efeito | trocar a senha revoga todas as sessões |
+| Resposta do pedido | **200 exista o e-mail ou não**, pela mesma regra de não-enumeração do login |
+
+> **Por que 1 hora e não um dia:** o link chega por e-mail, que é canal durável,
+> encaminhável e sincronizado em outros aparelhos. Janela longa amplia o estrago
+> se a caixa for comprometida **depois**.
+
 ## Lacunas conhecidas do MVP
 
 Decididas, não esquecidas. Não "conserte" sem falar com o Lucas.
@@ -784,6 +808,25 @@ Voltam quando o pagamento real voltar.
 `APP_URL` saiu desta lista em 06/09/2026: ela só servia para montar o link de
 convite com um domínio público, que não existe mais no escopo. Sem ela, vale o
 host da requisição — que localmente é o que se quer.
+
+## Listagens: paginação e filtro no servidor
+
+As três listagens passaram a paginar e filtrar **no servidor**, no formato
+`{ records, total, page, pageSize }` — o mesmo que `/api/activities` já usava,
+**escolhido por ser o da casa, não por ser melhor**. O filtro roda **antes** de
+paginar.
+
+As duas metades vieram na mesma entrega de propósito: paginar no servidor
+mantendo o filtro no cliente faria a busca olhar só a página visível.
+
+> **Listagem e exportação tiram o filtro do mesmo lugar** (`lib/listings.ts`).
+> Antes cada uma tinha o seu `WHERE`, espelhados à mão — e espelho à mão só é
+> verdade enquanto ninguém mexe em um dos lados. "Exportar o que estou vendo"
+> dependia de disciplina; agora é estrutural. É o mesmo gênero das promessas
+> vazias que a gente vinha recusando.
+
+**A exportação não pagina, de propósito:** o arquivo leva tudo o que casa com o
+filtro.
 
 ## Listagens pesadas — próxima prioridade técnica
 
