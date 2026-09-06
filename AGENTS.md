@@ -70,13 +70,36 @@ vai junto. Verificado em 06/09/2026 com uma canária, passando o mesmo texto
 pelos dois caminhos: com aspas, tudo literal; sem aspas, o comando executou e a
 variável expandiu.
 
+### Duas defesas diferentes — só uma cobre o vazamento
+
+Não as confunda; concluir que uma cobre a outra é pior que não ter lido nada,
+porque a pessoa fica achando que está protegida.
+
+| Defesa | Protege | Não protege |
+| --- | --- | --- |
+| Valor da variável ser só letras e números | o **conteúdo**, quando ele é interpolado dentro de um heredoc | nada do vazamento |
+| **Heredoc com delimitador entre aspas simples** | o **conteúdo** e o **vazamento** | — |
+
+No vazamento o problema não é o formato do valor: é o texto **mencionar o nome
+da variável**. `$COOLIFY_API_TOKEN` escrito no corpo de um relatório expande
+seja qual for o valor. **Só o delimitador entre aspas cobre esse caso.**
+
 > **Vale para qualquer texto montado por interpolação, não só relatório — e o
-> dano escala com o que aquele texto controla.** Scripts gerados para rodar no
-> servidor usam heredoc, alguns sem aspas de propósito para injetar a senha do
-> banco. Funcionaram por **sorte parcial**: a senha ser só letras e números foi
-> escolha feita pensando em URL, e por acaso também a salvou do shell. Com uma
-> crase ou um cifrão, o script montado errado teria rodado **contra um banco**,
-> não contra um relatório.
+> dano escala com o que aquele texto controla.** Scripts montados para rodar no
+> servidor injetavam a senha do banco por heredoc sem aspas. Ali — e só ali — a
+> senha ser alfanumérica salvou por **sorte parcial**: foi escolha feita
+> pensando em URL, e por acaso também a protegeu do shell. Com uma crase ou um
+> cifrão, o script montado errado teria rodado **contra um banco**, não contra
+> um relatório.
+
+**A varredura dos artefatos não achou nada a mudar** (06/09/2026): nenhum
+heredoc sem aspas nos scripts que sobrevivem à sessão, o único existente já está
+na forma correta, e a senha do túnel nunca é interpolada nem entra em linha de
+comando — vem do ambiente por `SSH_ASKPASS`, então nem em `ps` aparece.
+
+> **O perigo estava nos scripts avulsos, montados na hora e que somem com a
+> sessão: no hábito, não em código instalado.** Arquivo nenhum conteria esse
+> defeito — a regra contém. É por isso que isto é convenção e não conserto.
 
 A mecânica e o caso de perda de informação estão em
 "[Apurando fatos](#apurando-fatos)", na armadilha do relatório adulterado.
@@ -452,6 +475,21 @@ quebrou.
   — uuid válido inexistente devolve 404 certo. **Valide o formato do id antes de
   usá-lo numa consulta**, senão o erro do driver vira erro de servidor.
 
+- **Armadilha registrada por quem a encontrou está completa para o terreno dele
+  e possivelmente incompleta para os outros.** Antes de fechar, pergunte a quem
+  tem contexto diferente se ela é pior no terreno dele — **não por cortesia, por
+  método**. O custo é uma pergunta; o que se descobre pode ser de outra classe.
+
+  **A quem perguntar** (senão vira "pergunte a todos", e ninguém pergunta a
+  ninguém): a quem tem **acesso, dado ou responsabilidade que você não tem** —
+  quem carrega o segredo, quem tem o banco, quem tem a tela, quem tem a máquina.
+
+  O incidente é esta seção. A armadilha do relatório adulterado foi registrada
+  como perda de informação, e estava certa assim. Quem carrega credencial no
+  ambiente olhou **a mesma mecânica** e viu vazamento de segredo — outra classe,
+  outra gravidade, mesma linha de código. A diferença não foi atenção: foi
+  contexto.
+
 #### O que essas armadilhas têm em comum
 
 Vale ler junto, porque separadas cada uma parece um caso isolado e o padrão é o
@@ -471,7 +509,9 @@ hora:
 
 Três assuntos técnicos diferentes, o mesmo método. Daí os dois corolários:
 
-> **Atenção não é defesa contra essa classe. Medir é.**
+> **Atenção não é defesa contra essa classe. Medir é** — e, do lado
+> construtivo, **contexto também**: a mesma observação lida por quem tem outro
+> acesso vira outra classe de risco.
 >
 > **Pista pequena e barata de conferir se confere na hora** — o custo de
 > conferir é quase sempre menor que o custo de estar errado por horas, e quem
