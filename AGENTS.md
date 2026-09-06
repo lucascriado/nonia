@@ -498,6 +498,30 @@ para concluir coisa alguma sobre o projeto.
   **Data que chega como texto é tratada como texto** — fatie a string, não
   converta em `Date` para reformatar.
 
+#### "Escrito em streaming" não é o mesmo que "usa memória constante"
+
+São **afirmações diferentes**, e a segunda **não decorre** da primeira. Só a
+medição com volume liga uma à outra.
+
+O download de comprovantes foi escrito em fluxo justamente para não segurar
+tudo em memória. Com 500 arquivos de ~1,4 MB, o processo subiu a **1298 MB** — a
+resposta inteira estava na memória. A causa: os pedaços eram enfileirados num
+**laço** dentro do `pull`. Devolvendo **um pedaço por chamada de `pull`**, o
+mesmo zip de 715 MB teve pico de **266 MB**. Cinco vezes menos.
+
+> **As duas versões parecem streaming lendo o código.** Nenhuma revisão pegaria:
+> o código não está errado, está **enganando**. E a medição só denuncia **com
+> volume** — com 10 comprovantes a memória fica plana nas duas, e 10 é
+> exatamente o que alguém testaria.
+
+- **Sinal de alerta no código:** laço que enfileira. Se o **produtor** decide
+  quantos pedaços entrega, em vez de o **consumidor** pedir, não há
+  contrapressão.
+- **Como evitar:** **meça com o volume que o pior caso real produz**, não com o
+  que é cômodo de montar.
+- Vale para qualquer otimização cuja propriedade é **invisível no código**:
+  lazy, paginação, cache, fila.
+
 #### Órfão: existe, não é chamado, e promete o que não entrega
 
 Irmão do resíduo, uma camada acima: não é uma regra que sobrou, é uma peça
@@ -555,7 +579,15 @@ hora:
 - um relato de integração não mencionou que a migration renomeava uma coluna;
   o código dizia, e a documentação teria envelhecido calada — **um `grep`**;
 - uma frase do próprio relatório ficou estranha ao reler; era o shell tendo
-  comido duas palavras — **uma releitura**.
+  comido duas palavras — **uma releitura**;
+- um download escrito em fluxo consumia 1298 MB; com 10 arquivos a memória fica
+  plana e o código parece certo nas duas versões — **uma medição com volume
+  real**.
+
+Repare em **por onde** cada uma engana: por artefato (`.next`), por documento (a
+migration órfã), por canal (o shell), por regra externa (o CNPJ) e pelo próprio
+código (o streaming). Camadas diferentes, mesma assinatura — e a defesa não
+muda.
 
 Três assuntos técnicos diferentes, o mesmo método. Daí os dois corolários:
 

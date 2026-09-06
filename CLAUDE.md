@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `85efe5d`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `3c0c153`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -301,6 +301,11 @@ por conta própria: banco compartilhado não é território de quem está numa b
   funcionado.
 
 ### Estado do MVP — sem bloqueadores (06/09/2026)
+
+**O lado do backend está fechado.** O que resta depende de decisão do Lucas: DNS
+para a recuperação de senha, exclusão lógica em membros e visitantes, os
+assentos do Semente e o `finance.delete`. O frontend está na primeira suíte de
+testes de tela do projeto.
 
 **Os cinco bloqueadores fecharam.** Uma igreja percorre a vida inteira dela pela
 interface — cadastra, convida a equipe, lança financeiro, bate no teto,
@@ -827,6 +832,18 @@ mantendo o filtro no cliente faria a busca olhar só a página visível.
 
 **A exportação não pagina, de propósito:** o arquivo leva tudo o que casa com o
 filtro.
+
+### Download dos comprovantes
+
+| Decisão | Motivo |
+| --- | --- |
+| Teto de **500 comprovantes**, expresso em **quantidade** e não em bytes, com `413` mandando filtrar por mês | a pessoa vê 501 lançamentos na tela e entende; "mais de 700 MB" não diz o que fazer. **Limite que se entende ganha de promessa que às vezes quebra** — mesmo princípio do guarda-corpo do bypass |
+| Nome de arquivo em **ISO** (`2026-09-06 - Entrada - Descrição.pdf`) | **decidido pelo teste, contra a preferência inicial**: no formato brasileiro, que casa melhor com a coluna do CSV, a pasta não ordena cronologicamente — 15 de agosto aparecia depois de 1º de setembro. Só aparece abrindo a pasta com meses diferentes |
+| **404 com mensagem**, não zip vazio | zip vazio que a pessoa abre e não entende é pior que uma recusa que diz o que fazer |
+
+> **Quem escreve o formato não pode ser o único a validá-lo.** O zip foi escrito
+> à mão e conferido com **três ferramentas externas**, não com o leitor do
+> próprio autor.
 
 ## Listagens pesadas — próxima prioridade técnica
 
