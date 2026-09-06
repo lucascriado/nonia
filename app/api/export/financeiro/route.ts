@@ -22,7 +22,8 @@ export async function GET(request: Request) {
     const comprovante = searchParams.get("attachment");
 
     const valores: unknown[] = [organizationId(auth)];
-    const filtros = ["organization_id = $1"];
+    // Excluído não sai em exportação nem em relatório.
+    const filtros = ["organization_id = $1", "deleted_at IS NULL"];
     if (busca) {
       valores.push(`%${busca}%`);
       filtros.push(`concat_ws(' ', description, counterparty) ILIKE $${valores.length}`);

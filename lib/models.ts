@@ -126,6 +126,11 @@ Activity.init({
 
 export class FinancialTransaction extends Model<InferAttributes<FinancialTransaction>, InferCreationAttributes<FinancialTransaction>> {
   declare id: CreationOptional<string>;
+  // Exclusão lógica explícita, e não o modo `paranoid` do Sequelize: as
+  // listagens e os relatórios são SQL cru, então o filtro precisa estar
+  // visível na consulta em vez de acontecer por mágica só nos Models.
+  declare deletedAt: Date | null;
+  declare deletedBy: string | null;
   declare organizationId: string;
   declare type: string;
   declare description: string;
@@ -154,6 +159,8 @@ FinancialTransaction.init({
   attachmentUrl: { type: DataTypes.TEXT, field: "attachment_url" },
   attachmentName: { type: DataTypes.STRING(160), field: "attachment_name" },
   notes: DataTypes.TEXT,
+  deletedAt: { type: DataTypes.DATE, field: "deleted_at" },
+  deletedBy: { type: DataTypes.UUID, field: "deleted_by" },
 }, { sequelize: db, tableName: "financial_transactions", createdAt: "created_at", updatedAt: "updated_at" });
 
 // ---------------------------------------------------------------------------

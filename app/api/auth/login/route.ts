@@ -3,7 +3,14 @@
 // (ou na informada em organizationSlug) e troca depois por /api/auth/switch.
 import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
-import { createSession, jsonWithCookie, requestMeta, resolveSession, sessionCookie } from "@/lib/auth";
+import {
+  createSession,
+  jsonWithCookie,
+  purgeStaleSessions,
+  requestMeta,
+  resolveSession,
+  sessionCookie,
+} from "@/lib/auth";
 import { sessionPayload } from "@/lib/auth-payloads";
 import { HttpError, badRequest, forbidden, readJson, unauthorized } from "@/lib/http";
 import { burnPasswordTime, verifyPassword } from "@/lib/passwords";
@@ -102,6 +109,13 @@ export async function POST(request: Request) {
       `UPDATE users SET last_login_at = now(), failed_login_attempts = 0, locked_until = NULL WHERE id = $1`,
       { bind: [user.id] },
     );
+
+    // Limpeza oportunista: a tabela de sessões cresce para sempre e não há
+    // tarefa agendada neste ambiente. Sem await e com catch, porque limpar
+    // lixo NUNCA pode fazer alguém não conseguir entrar.
+    void purgeStaleSessions().catch((error) => {
+      console.error("[sessions] falha ao limpar sessões vencidas:", error);
+    });
 
     const auth = await resolveSession(session.token);
     if (!auth) throw new Error("Sessão criada mas não pôde ser lida de volta.");

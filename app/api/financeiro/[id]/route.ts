@@ -20,7 +20,8 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
       SELECT id, type, description, category, counterparty, amount, status,
         transaction_date AS "transactionDate", payment_method AS "paymentMethod",
         attachment_url AS "attachmentUrl", attachment_name AS "attachmentName", notes
-      FROM financial_transactions WHERE id = $1 AND organization_id = $2
+      FROM financial_transactions
+      WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
     `, [id, organizationId(auth)]);
 
     if (!rows.length) throw notFound("Lançamento não encontrado.");
@@ -42,8 +43,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     const attributes = financeAttributes(payload);
     await db.transaction(async (transaction) => {
+      // Lançamento na lixeira não se edita: restaure primeiro.
       const [affected] = await FinancialTransaction.update(attributes, {
-        where: { id, organizationId: organizationId(auth) },
+        where: { id, organizationId: organizationId(auth), deletedAt: null },
         transaction,
       });
       assertAffected(affected, "Lançamento não encontrado.");
@@ -64,15 +66,16 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
 
     await db.transaction(async (transaction) => {
       const record = await FinancialTransaction.findOne({
-        where: { id, organizationId: organizationId(auth) },
+        where: { id, organizationId: organizationId(auth), deletedAt: null },
         transaction,
       });
       if (!record) assertAffected(0, "Lançamento não encontrado.");
 
-      await FinancialTransaction.destroy({
-        where: { id, organizationId: organizationId(auth) },
-        transaction,
-      });
+      // Marca, não remove. Dado contábil não some sem volta.
+      await FinancialTransaction.update(
+        { deletedAt: new Date(), deletedBy: auth.user.id },
+        { where: { id, organizationId: organizationId(auth), deletedAt: null }, transaction },
+      );
       await addActivity(transaction, auth, "financial", "excluiu o lançamento", record?.description);
     });
 
