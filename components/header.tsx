@@ -22,7 +22,7 @@ import {
 import { readPreferences, savePreferences } from "@/components/app-preferences";
 
 const searchItems = [
-  { title: "Dashboard", description: "Indicadores, atividades recentes e próximos eventos", href: "/", icon: LayoutDashboard, keywords: "inicio painel indicadores atividades eventos aniversario" },
+  { title: "Dashboard", description: "Indicadores, atividades recentes e próximos eventos", href: "/painel", icon: LayoutDashboard, keywords: "inicio painel indicadores atividades eventos aniversario" },
   { title: "Membros", description: "Cadastro, filtros, edição e visualização de membros", href: "/membros", icon: Users, keywords: "membros pessoas cadastro batismo ministerio celula" },
   { title: "Visitantes", description: "Acompanhamento, integração e conversão para membro", href: "/visitantes", icon: UserPlus, keywords: "visitantes acompanhamento contato integrado converter" },
   { title: "Calendário", description: "Agenda, eventos, cultos e reuniões", href: "/calendario", icon: CalendarDays, keywords: "calendario agenda eventos culto reuniao batismo" },

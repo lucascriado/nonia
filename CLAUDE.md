@@ -15,12 +15,20 @@ Next.js 16 (App Router) em TypeScript, com `sequelize` sobre `pg`,
 
 ```
 app/
-  api/  atividades/  calendario/  celulas/  configuracoes/
-  financeiro/  membros/  ministerios/  visitantes/
-  layout.tsx   page.tsx   icon.svg
+  (marketing)/   site publico: page.tsx (/), faq/, marketing.css, plans.ts
+  (app)/         app logado: painel/ atividades/ calendario/ celulas/
+                 configuracoes/ financeiro/ membros/ ministerios/ visitantes/
+  api/
+  layout.tsx   globals.css   icon.svg
+components/
+  marketing/     cabeçalho, rodapé, Reveal e rotas de CTA do site
 database/
   migrate.mjs  migrations/  seeds/
 ```
+
+Os parênteses são route groups do App Router: eles **não** aparecem na URL.
+`/` é a landing de venda e a dashboard vive em **`/painel`**; as demais rotas
+(`/membros`, `/financeiro`, …) continuam nos mesmos endereços de antes.
 
 ## Comandos
 

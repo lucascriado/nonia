@@ -22,11 +22,19 @@ git diff --check
 
 ## Arquitetura
 
-- Paginas ficam em `app/<rota>/page.tsx`.
+- O App Router usa dois route groups, que nao aparecem na URL:
+  `app/(marketing)/` para o site publico e `app/(app)/` para o app logado.
+- A landing de venda e `app/(marketing)/page.tsx` e responde em `/`.
+  A dashboard e `app/(app)/painel/page.tsx` e responde em `/painel`.
+- Paginas do app ficam em `app/(app)/<rota>/page.tsx`.
+- Todo CTA do site publico sai de `components/marketing/routes.ts`; ligar
+  cadastro e checkout depois e trocar as constantes desse arquivo.
 - APIs ficam em `app/api/<recurso>/route.ts`.
 - Componentes compartilhados ficam em `components/`.
 - Utilitarios e camada de dados ficam em `lib/`.
 - Estilos globais e tokens ficam em `app/globals.css`.
+- Estilos do site publico ficam em `app/(marketing)/marketing.css`, importado
+  pelo layout do grupo. Prefixo `mk-` nas classes, cores sempre por token.
 - Use `DashboardShell` nas paginas administrativas.
 - Use `AnimatedNumber` para indicadores carregados.
 - Use os skeletons de `components/skeleton.tsx` durante consultas ao servidor.

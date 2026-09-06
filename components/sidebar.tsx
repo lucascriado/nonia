@@ -26,7 +26,7 @@ import { usePathname } from "next/navigation";
 // Novas rotas de menu entram aqui. O campo `section` define em qual grupo o
 // item aparece; a ordem dos grupos segue a primeira ocorrência na lista.
 const primaryLinks = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/", section: "Visão geral" },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/painel", section: "Visão geral" },
   { label: "Calendário", icon: CalendarDays, href: "/calendario", section: "Visão geral" },
   { label: "Atividades", icon: ListChecks, href: "/atividades", section: "Visão geral" },
   { label: "Membros", icon: Users, href: "/membros", section: "Comunidade" },
@@ -48,7 +48,7 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
   return (
     <aside className="sidebar" ref={sidebarRef}>
       <div className="brand">
-        <Link className="brand-link" href="/" aria-label="Ir para a dashboard" title="Dashboard">
+        <Link className="brand-link" href="/painel" aria-label="Ir para a dashboard" title="Dashboard">
           <span className="brand-icon" aria-hidden><Church /></span>
           <span className="brand-text"><strong>Nonia</strong><small>Gestão ministerial</small></span>
         </Link>

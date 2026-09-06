@@ -37,7 +37,7 @@ export function DashboardShell({
   }
 
   useEffect(() => {
-    document.title = title === "Dashboard" ? "nonia.app" : `${title} | nonia.app`;
+    document.title = `${title} | nonia.app`;
   }, [title]);
 
   useEffect(() => {
