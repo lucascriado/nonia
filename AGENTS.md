@@ -41,6 +41,10 @@ diferentes e nenhuma passa pelo outro texto — quem vai implementar lê a seç�
 quem faz varredura antes de expor o sistema lê a tabela de pendências. Duplicar
 por preguiça de escolher onde vai é outra coisa.
 
+**Teste antes de dar uma entrada por pronta: se a frase não termina em algo que
+alguém faz, ela ainda não está pronta.** Descrever o que aconteceu é o que sobra
+quando quem escreve parou na observação e não perguntou o que ela deveria mudar.
+
 **Toda cópia deliberada aponta para a outra.** Uma linha em cada, dizendo onde
 está a irmã e que as duas mudam juntas. Sem isso a duplicação é dívida com
 prazo: alguém atualiza a que está lendo e nem descobre que a outra existe — foi
