@@ -18,10 +18,12 @@ export function LoginForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Para onde voltar depois de entrar. Só caminho interno: um `next` externo
-  // transformaria a tela de login num redirecionador aberto.
-  const next = params.get("next");
-  const destination = next && next.startsWith("/") && !next.startsWith("//") ? next : marketingRoutes.app;
+  // Para onde voltar depois de entrar. O nome do parâmetro é `redirect`
+  // porque é o que o proxy escreve ao barrar uma página protegida.
+  // Só caminho interno: um destino externo transformaria a tela de login num
+  // redirecionador aberto.
+  const requested = params.get("redirect");
+  const destination = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : marketingRoutes.app;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -44,10 +46,10 @@ export function LoginForm() {
       if (!(error instanceof AuthError)) throw error;
 
       // O backend responde igual para senha errada e e-mail inexistente, de
-      // propósito. A tela mantém esse sigilo em vez de apontar o campo.
-      if (error.code === "invalid_credentials") setFormError("E-mail ou senha incorretos.");
-      else setFormError(error.message);
-
+      // propósito. A tela mantém esse sigilo mostrando o erro no formulário,
+      // nunca apontando um campo — e usa a mensagem dele, que já vem pronta
+      // em português.
+      setFormError(error.message);
       setSubmitting(false);
     }
   }
