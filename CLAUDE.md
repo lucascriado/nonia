@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `24c643f`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `b385ef0`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -36,12 +36,10 @@ juntas, com `/entrar`, `/cadastro` e `/convite/[token]` prontas. Vale registrar
 o critério, porque ele se repete: nada que exija uma tela entra sem a tela, ou o
 ambiente local do time para de funcionar.
 
-> **Estado do `nonia_dev` em 06/09/2026:** 1 usuário e 3 convites pendentes
-> (`secretaria.teste@`, `marcos.lider@`, `ana.tesoureira@`). Os convites são
-> **fixtures temporários** deixados ao exercitar a tela; nenhum foi aceito, então
-> não viraram usuário, e serão limpos antes de fechar o MVP. `/usuarios` foi
-> exercitada de verdade contra esse banco: sem sessão responde **307** para
-> `/entrar`, com sessão responde **200**.
+> **Estado do `nonia_dev` em 06/09/2026:** Igreja Demonstração com **1 de 5
+> acessos**, 0 convites pendentes, 18 membros e avaliação com 14 dias. Os três
+> convites de teste foram limpos. `/usuarios` foi exercitada de verdade contra
+> esse banco: sem sessão responde **307** para `/entrar`, com sessão **200**.
 
 > **O PostgreSQL embarcado na porta 54329 não é do nonia.** Ele pertence a
 > outra sessão de agente nesta máquina e não faz parte do projeto — não aponte
@@ -157,6 +155,10 @@ primeira.
 | **Cadastro nasce em avaliação e cai para o Semente** | Quem se cadastra entra em **avaliação de 14 dias**; terminado o prazo sem assinar, cai para o **Semente gratuito, sem expirar**. Resolve a divergência entre o `register`, que atribuía `avaliacao`, e a landing, que promete gratuito para até 100 membros sem prazo — as duas frases passam a ser verdadeiras. Ver "Plano efetivo" | 06/09/2026 |
 | **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. Ver "Assinatura e acesso" | 06/09/2026 |
 | **Cancelar avaliação vigente é recusado** | `409 trial_not_cancelable`. Parece restritivo e não é: quem clica quer uma de duas coisas e nenhuma é atendida. "Não quero ser cobrado" já está garantido — a avaliação termina sozinha e a igreja cai no gratuito. "Quero sair do produto" é apagar a conta, que é outra coisa e não existe. Em troca, a ação seria **irreversível**: perde os dias restantes e não há volta para `trialing`, nem contratando. **Ação irreversível sem benefício nenhum é caso de recusar, não de confirmar na tela.** Só vale enquanto a avaliação é **válida** — vencida é linha morta, e recusar ali produziria a mensagem errada; `incomplete` continua cancelável | 06/09/2026 |
+| **`slug` da organização não é editável** | `400 slug_not_editable`, em vez de ignorar em silêncio — ignorar faria a pessoa achar que mudou. Ele aparece no nome dos arquivos exportados e é aceito como identificador no login. O argumento é assimétrico: a igreja **não vê o slug em tela nenhuma**, então não poder editar não custa nada; desfazer link quebrado custa | 06/09/2026 |
+| **`timezone` não é exposto** | A coluna existe e **nada no código a usa**. Seletor de fuso que não muda nada seria promessa vazia | 06/09/2026 |
+| **Perfil próprio em rota própria** | `PATCH /api/auth/profile`, não um caso especial dentro de `/api/users/[id]` — aquela rota existe para agir sobre **terceiros**, e todas as guardas dela são recusas de agir sobre si | 06/09/2026 |
+| **Coluna órfã fica; permissão órfã sai** | A `timezone` fica, as `people.*` saíram na migration **010**. A coluna **não promete nada a ninguém**, porque não aparece em lugar nenhum; a permissão aparece no seletor de papéis e promete poder que não existe. Papéis agora: owner 22, admin 21, secretaria 18, líder 12, leitura 9 | 06/09/2026 |
 | **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura | 06/09/2026 |
 | **Somente leitura vem de DÍVIDA, não de ausência de plano pago** | Cancelar leva ao gratuito, com o teto do gratuito; **atrasar** leva a somente leitura. Sem essa distinção, cancelar seria melhor que atrasar e o somente leitura seria contornável em um clique | 06/09/2026 |
 | **Exportar entra no MVP** | A promessa "quem quiser sair leva o que é seu" só era verdadeira pela API — não havia botão de exportar em lugar nenhum. Decidido implementar em vez de recuar a promessa. Formato e cuidados em [`AGENTS.md`](AGENTS.md) | 06/09/2026 |
@@ -294,12 +296,16 @@ por conta própria: banco compartilhado não é território de quem está numa b
   e levava `409 already_subscribed` — achando que não funcionou quando havia
   funcionado.
 
-### Estado do MVP
+### Estado do MVP — sem bloqueadores (06/09/2026)
 
-Sobrou **um bloqueador**: os avisos de cobrança, em construção. Saíram o
-impasse, a tela de usuários, o convite alcançável (link copiável, e e-mail
-quando houver domínio) e a tela de contratação. A tela de convite foi
-exercitada com token de verdade pela primeira vez.
+**Os cinco bloqueadores fecharam.** Uma igreja percorre a vida inteira dela pela
+interface — cadastra, convida a equipe, lança financeiro, bate no teto,
+contrata, atrasa, exporta — **sem ninguém tocar no banco**.
+
+Verificado **rodando**, não compilando: as 10 telas do app e as 5 públicas
+respondem 200; `session` traz avaliação com 14 dias e acesso `full`; `users`,
+`organization` e `billing/plans` respondem; `canSubscribe` é `true`; o CSV sai
+com BOM e CRLF.
 
 ## Isolamento entre organizações
 
@@ -521,6 +527,25 @@ próprios dados**: consultar, buscar e exportar continuam valendo no pior estado
 Sem data de vencimento a igreja fica na carência e **nunca** é trancada por
 falta de dado nosso — falha para o lado de quem usa.
 
+### Avisos de cobrança
+
+Faixa em **toda tela do app**, não só em Configurações: avisar alguém de que vai
+perder acesso não pode depender de a pessoa visitar uma tela específica.
+
+Aparece **só quando há o que fazer**, em ordem de gravidade: somente leitura,
+carência com os dias restantes, avaliação vencida, avaliação terminando em 5
+dias ou menos, teto perto ou estourado.
+
+> **O "só quando há o que fazer" é o desenho, não economia de tela.** Aviso
+> diário de "faltam 14 dias" vira ruído e deixa de ser lido — que é o oposto do
+> que a carência precisa fazer. Com isso a carência de 7 dias finalmente serve
+> para alguma coisa: ela existia para avisar antes de cortar, e o aviso não
+> chegava.
+
+O texto de somente leitura diz **o que continua funcionando** — consultar,
+buscar, exportar —, não só o que parou. É a diferença entre a conta parecer
+bloqueada e estar limitada.
+
 ## A exceção que resolve o impasse
 
 A guarda de somente leitura barrava **contratar e cancelar** — as duas ações que
@@ -562,6 +587,18 @@ Para o envio funcionar de verdade faltam três registros DNS: **MX** em `send`,
 > raiz. **Verificar não exige hospedar nada**, então isso é possível mesmo com o
 > deploy fora de escopo.
 
+## Convite pendente ocupa assento
+
+Medido pelo frontend sem querer: 2 usuários mais 3 convites deram **5 de 5**, e
+a tela mostrou "acessos esgotados" com dois nomes na lista.
+
+**Não existe rota de revogar convite**, então um e-mail digitado errado consome
+um assento **para sempre**. Numa igreja no Comunidade são 10 assentos; três
+enganos custam 30% do que ela paga. Está sendo feito.
+
+E isso agrava o caso abaixo: no Semente há 1 acesso, o dono já o ocupa, e um
+convite pendente jamais caberia.
+
 ## No plano Semente ninguém convida ninguém
 
 Consequência visível, descoberta percorrendo a jornada: o Semente dá **1
@@ -571,6 +608,26 @@ equipe; quando a avaliação vence, os convites param.
 
 Isso é a promessa da landing sendo cumprida, não defeito — mas muda o que o
 produto entrega no plano gratuito, e está com o Lucas.
+
+## O princípio por trás das decisões de acesso
+
+Cinco decisões separadas, tomadas em momentos diferentes, com o mesmo princípio
+por baixo — **o produto nunca usa o dado da igreja como refém. A cobrança limita
+o que se cria; nunca o que já é seu.**
+
+| Decisão | O que ela recusa |
+| --- | --- |
+| Somente leitura em vez de bloqueio | trancar a igreja para fora do próprio cadastro |
+| Somente leitura vem de **dívida**, não de ausência de plano pago | punir quem simplesmente não assinou |
+| Sem data de vencimento, a igreja fica na carência | punir por falta de dado **nosso** |
+| Exportar continua no pior estado | transformar limitação em sequestro de dado |
+| O perfil da pessoa fica fora da guarda de somente leitura | fazer a inadimplência da igreja alcançar o nome e a foto de alguém |
+
+O nome e a foto de uma pessoa são dela, não da igreja. Os **dados da igreja**,
+esses passam pela guarda.
+
+Quem for decidir o próximo caso de cobrança: a pergunta é se a regra limita
+criação ou se ela alcança algo que já pertence a quem usa.
 
 ## Lacunas conhecidas do MVP
 
@@ -724,6 +781,27 @@ Voltam quando o pagamento real voltar.
 convite com um domínio público, que não existe mais no escopo. Sem ela, vale o
 host da requisição — que localmente é o que se quer.
 
+## Listagens pesadas — próxima prioridade técnica
+
+Medido pelo backend: as listagens trazem **tudo**, e trazem a foto em base64.
+
+| Registros | Payload |
+| --- | --- |
+| 10 membros | 0,9 MB |
+| 50 | 4,3 MB |
+| 100 | 8,6 MB |
+| 500 | ~43 MB |
+
+Por carregamento. Na mesma base o painel devolve **1 KB** e o CSV **10 KB**.
+`/visitantes` e `/financeiro` têm o mesmo desenho, e no financeiro o anexo chega
+a 2 MB por lançamento.
+
+> **Por que é a próxima e não uma entre outras:** é o único item que **piora
+> sozinho com o tempo**, e o limite não é técnico, é comercial. A Semente
+> esconde o problema atrás do teto de 100 registros; quem assina o Comunidade
+> porque cresceu é exatamente quem encontra os 43 MB. **O cliente que paga é o
+> que sofre.**
+
 ## Pendências
 
 Datadas para que ninguém as leia como fato consumado.
@@ -736,5 +814,10 @@ Datadas para que ninguém as leia como fato consumado.
 | **Secretaria pode excluir lançamento financeiro.** A 009 concede `finance.write`, e o modelo não distingue criar de editar e apagar — as três rotas pedem a mesma permissão. Se excluir for demais, o caminho é uma permissão separada. Está com o Lucas | 06/09/2026 |
 | **No plano Semente não há assento para convidar ninguém.** Consequência do teto de 1 usuário; está com o Lucas | 06/09/2026 |
 | **E-mail de convite não envia** enquanto o domínio não estiver verificado no Resend — faltam três registros DNS, e no Cloudflare com proxy desligado. O convite por link funciona | 06/09/2026 |
+| **RISCO — não existe exclusão lógica em lugar nenhum do schema.** Desde a 009 a secretaria pode **apagar lançamento financeiro** — dado contábil — sem confirmação no servidor, sem lixeira e sem backup. O histórico registra que alguém excluiu; o dado sumiu. **O enquadramento importa: talvez a resposta não seja tirar a permissão, e sim fazer exclusão que dê para desfazer** — de "quem pode apagar" para "o que acontece quando se apaga". Está com o Lucas | 06/09/2026 |
+| **Não há como revogar convite pendente**, e cada um ocupa um assento para sempre. Está sendo feito | 06/09/2026 |
+| **Listagens pesadas** — ver a seção acima. Próxima prioridade técnica | 06/09/2026 |
+| **`purgeStaleSessions()` existe em `lib/auth.ts` e ninguém chama** — a tabela `sessions` cresce para sempre. Levantado pelo próprio backend logo após remover as permissões órfãs, para não ficar com dois pesos | 06/09/2026 |
+| **`PATCH /api/users/<id>` com id malformado devolve 500 em vez de 404.** Uuid válido inexistente devolve 404 certo; o malformado cai no catch genérico — mesmo gênero do JSON malformado | 06/09/2026 |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. É arquivo do backend pela regra de propriedade, e está com ele | 06/09/2026 |

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getSession, type SessionOrganization, type SessionPayload, type SessionPlan } from "@/components/auth/session";
 
 export type CurrentUser = {
@@ -22,6 +22,8 @@ type SessionState = {
   /** A sondagem ainda não voltou — não conclua "deslogado" a partir disto. */
   loading: boolean;
   authenticated: boolean;
+  /** Re-sonda a sessão. Usado depois de editar o próprio perfil. */
+  refresh: () => void;
 };
 
 /**
@@ -43,6 +45,7 @@ const initialState: SessionState = {
   plan: null,
   loading: true,
   authenticated: false,
+  refresh: () => {},
 };
 
 const SessionContext = createContext<SessionState>(initialState);
@@ -53,9 +56,7 @@ function toState(payload: SessionPayload): SessionState {
       name: payload.user.name,
       role: payload.role.name,
       email: payload.user.email,
-      // O telefone não vem no SessionPayload; ele mora na ficha da pessoa e
-      // entra quando a tela de perfil for ligada em /api/users.
-      phone: null,
+      phone: payload.user.phone,
       avatarUrl: payload.user.avatarUrl,
     },
     organization: payload.organization,
@@ -63,6 +64,7 @@ function toState(payload: SessionPayload): SessionState {
     plan: payload.plan ?? null,
     loading: false,
     authenticated: true,
+    refresh: () => {},
   };
 }
 
@@ -76,24 +78,24 @@ export function CurrentUserProvider({
 }) {
   const [state, setState] = useState<SessionState>(() => (session ? toState(session) : initialState));
 
-  useEffect(() => {
-    if (session) return;
-    let active = true;
-
+  const load = useCallback(() => {
     getSession()
       .then((response) => {
-        if (!active) return;
-        if (response.authenticated) setState(toState(response));
-        else setState({ ...initialState, loading: false });
+        if (response.authenticated) setState({ ...toState(response), refresh: load });
+        else setState({ ...initialState, loading: false, refresh: load });
       })
-      // Sem sessão a tela não quebra: o middleware é quem redireciona. Aqui
-      // basta não travar em "carregando" para sempre.
-      .catch(() => active && setState({ ...initialState, loading: false }));
+      // Sem sessão a tela não quebra: o proxy é quem redireciona. Aqui basta
+      // não travar em "carregando" para sempre.
+      .catch(() => setState({ ...initialState, loading: false, refresh: load }));
+  }, []);
 
-    return () => {
-      active = false;
-    };
-  }, [session]);
+  useEffect(() => {
+    if (session) {
+      setState({ ...toState(session), refresh: load });
+      return;
+    }
+    load();
+  }, [session, load]);
 
   return <SessionContext.Provider value={state}>{children}</SessionContext.Provider>;
 }
