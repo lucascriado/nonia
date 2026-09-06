@@ -12,6 +12,7 @@ import {
   Network,
   Puzzle,
   Settings,
+  ShieldCheck,
   UserPlus,
   Users,
   Wallet,
@@ -33,6 +34,7 @@ const primaryLinks = [
   { label: "Células", icon: Network, href: "/celulas", section: "Comunidade" },
   { label: "Ministérios", icon: Puzzle, href: "/ministerios", section: "Comunidade" },
   { label: "Financeiro", icon: Wallet, href: "/financeiro", section: "Administração" },
+  { label: "Usuários", icon: ShieldCheck, href: "/usuarios", section: "Administração" },
   { label: "Configurações", icon: Settings, href: "/configuracoes", section: "Administração" },
 ];
 
