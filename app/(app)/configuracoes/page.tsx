@@ -3,6 +3,7 @@
 import { Mail, Phone } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { Avatar } from "@/components/avatar";
+import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { useCurrentUser } from "@/components/current-user";
 
 export default function SettingsPage() {
@@ -32,7 +33,7 @@ export default function SettingsPage() {
               <span><Phone />Telefone</span>
               <strong className={user.phone ? undefined : "profile-info-empty"}>{user.phone ?? "Não informado"}</strong>
             </div>
-            <button type="button">Editar informações básicas</button>
+            <ChangePasswordForm />
           </article>
         </section>
       </main>

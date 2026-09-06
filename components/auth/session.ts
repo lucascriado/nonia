@@ -59,6 +59,8 @@ const fallbackMessages: Record<string, string> = {
   offline: "Não foi possível falar com o servidor. Verifique sua conexão e tente de novo.",
   unexpected: "Algo deu errado de nosso lado. Tente de novo em instantes.",
   too_many_attempts: "Muitas tentativas seguidas. Espere alguns minutos antes de tentar de novo.",
+  password_locked:
+    "Muitas tentativas com a senha atual. Por segurança, seu acesso fica bloqueado por 15 minutos — isso vale também para entrar de novo. Tente mais tarde.",
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -131,6 +133,16 @@ export function getInvite(token: string) {
 
 export function acceptInvite(input: { token: string; password: string; fullName?: string }) {
   return request<SessionPayload>("/api/auth/invite/accept", json(input));
+}
+
+/**
+ * Troca da própria senha. Exige sessão e a senha atual.
+ *
+ * O 200 vem com um cookie de sessão NOVO: as outras sessões da pessoa são
+ * revogadas, mas quem trocou continua logado. Não redirecione para /entrar.
+ */
+export function changePassword(input: { currentPassword: string; newPassword: string }) {
+  return request<{ ok: true }>("/api/auth/password", json(input));
 }
 
 export function switchOrganization(input: { organizationSlug?: string; organizationId?: string }) {
