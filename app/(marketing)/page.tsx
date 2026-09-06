@@ -4,12 +4,12 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
-  ClipboardList,
   HeartHandshake,
+  History,
   Lock,
+  MessageCircleQuestion,
   Network,
   Puzzle,
-  ShieldCheck,
   Smartphone,
   Sparkles,
   UserPlus,
@@ -88,7 +88,7 @@ const differentials = [
   { icon: HeartHandshake, title: "Pensado para igreja", text: "A linguagem é a da sua congregação: célula, ministério, visitante, dízimo — não “cliente” e “lead”." },
   { icon: Smartphone, title: "Funciona no celular", text: "Secretaria no computador, líder de célula no telefone. As telas se adaptam de verdade, sem versão capenga." },
   { icon: Lock, title: "Cada igreja no seu espaço", text: "Os dados da sua congregação ficam isolados dos das outras. Cada assinatura é um ambiente próprio." },
-  { icon: ShieldCheck, title: "Histórico de tudo", text: "Toda alteração relevante vira registro de atividade. Você sabe o que mudou, quem mudou e em que dia." },
+  { icon: History, title: "Histórico de tudo", text: "Toda alteração relevante vira registro de atividade. Você sabe o que mudou, quem mudou e em que dia." },
 ];
 
 const faqPreview = [
@@ -294,7 +294,7 @@ export default function LandingPage() {
           <div className="mk-faq-list">
             {faqPreview.map((item, index) => (
               <Reveal as="article" className="mk-faq-item" delay={index * 90} key={item.question}>
-                <span aria-hidden><ClipboardList /></span>
+                <span aria-hidden><MessageCircleQuestion /></span>
                 <div>
                   <h3>{item.question}</h3>
                   <p>{item.answer}</p>

@@ -5,13 +5,11 @@ import {
   ChevronLeft,
   ChevronsUpDown,
   Church,
-  CircleHelp,
+  History,
   LayoutDashboard,
   LifeBuoy,
-  ListChecks,
   LogOut,
   Network,
-  Plus,
   Puzzle,
   Settings,
   UserPlus,
@@ -29,7 +27,7 @@ import { useCurrentUser } from "@/components/current-user";
 const primaryLinks = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/painel", section: "Visão geral" },
   { label: "Calendário", icon: CalendarDays, href: "/calendario", section: "Visão geral" },
-  { label: "Atividades", icon: ListChecks, href: "/atividades", section: "Visão geral" },
+  { label: "Atividades", icon: History, href: "/atividades", section: "Visão geral" },
   { label: "Membros", icon: Users, href: "/membros", section: "Comunidade" },
   { label: "Visitantes", icon: UserPlus, href: "/visitantes", section: "Comunidade" },
   { label: "Células", icon: Network, href: "/celulas", section: "Comunidade" },
@@ -55,7 +53,7 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
           <span className="brand-text"><strong>Nonia</strong><small>Gestão ministerial</small></span>
         </Link>
         <Link className="brand-action" href="/membros" aria-label="Cadastrar novo membro" title="Novo membro">
-          <Plus />
+          <UserPlus />
         </Link>
         <label className="sidebar-collapse-button" htmlFor="sidebar-collapse" aria-label="Recolher menu" title="Recolher menu">
           <ChevronLeft />
@@ -82,15 +80,14 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
           </div>
         ))}
 
-        <Link className="sidebar-promo" href="/atividades" title="Histórico de atividades">
+        <a className="sidebar-promo" href="mailto:suporte@nonia.app" title="Falar com o suporte">
           <i aria-hidden><LifeBuoy /></i>
-          <span><strong>Central de apoio</strong><small>Acompanhe o que mudou</small></span>
-        </Link>
+          <span><strong>Central de apoio</strong><small>Fale com a gente</small></span>
+        </a>
       </div>
 
       <div className="sidebar-footer">
         <nav className="nav-list nav-footer" aria-label="Navegação secundária">
-          <a href="mailto:suporte@nonia.app" title="Suporte"><CircleHelp aria-hidden /><span>Suporte</span></a>
           <a href="#" title="Sair"><LogOut aria-hidden /><span>Sair</span></a>
         </nav>
 
