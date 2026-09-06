@@ -1,6 +1,8 @@
 import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
+import { organizationId, requirePermission } from "@/lib/auth";
 import { apiError } from "@/lib/records";
+import { assertOwnedResource, filterOwnedMemberIds } from "@/lib/tenant";
 import { QueryTypes } from "sequelize";
 
 export const runtime = "nodejs";
@@ -12,7 +14,10 @@ type AttendancePayload = {
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requirePermission("attendance.read");
     const { id } = await params;
+    await assertOwnedResource("ministries", id, organizationId(auth), "Ministério não encontrado.");
+
     const url = new URL(request.url);
     const history = url.searchParams.get("history") === "1";
     const date = url.searchParams.get("date") || new Date().toISOString().slice(0, 10);
@@ -27,12 +32,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           COUNT(ar.member_id) FILTER (WHERE ar.present)::int AS "presentCount",
           COUNT(ar.member_id) FILTER (WHERE NOT ar.present)::int AS "absentCount"
         FROM ministry_attendance_sessions s
-        LEFT JOIN ministry_attendance_records ar ON ar.session_id = s.id
-        WHERE s.ministry_id = $1
+        LEFT JOIN ministry_attendance_records ar
+          ON ar.session_id = s.id AND ar.organization_id = s.organization_id
+        WHERE s.ministry_id = $1 AND s.organization_id = $2
         GROUP BY s.id
         ORDER BY s.meeting_date DESC
         LIMIT 12
-      `, [id]);
+      `, [id, organizationId(auth)]);
       return Response.json({ records: rows });
     }
 
@@ -44,12 +50,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         COALESCE(ar.present, false) AS present,
         ar.notes
       FROM members m
-      JOIN people p ON p.id = m.person_id
-      LEFT JOIN ministry_attendance_sessions s ON s.ministry_id = m.ministry_id AND s.meeting_date = $2
-      LEFT JOIN ministry_attendance_records ar ON ar.session_id = s.id AND ar.member_id = m.person_id
-      WHERE m.ministry_id = $1
+      JOIN people p ON p.id = m.person_id AND p.organization_id = m.organization_id
+      LEFT JOIN ministry_attendance_sessions s
+        ON s.ministry_id = m.ministry_id AND s.meeting_date = $2 AND s.organization_id = m.organization_id
+      LEFT JOIN ministry_attendance_records ar
+        ON ar.session_id = s.id AND ar.member_id = m.person_id AND ar.organization_id = m.organization_id
+      WHERE m.ministry_id = $1 AND m.organization_id = $3
       ORDER BY p.full_name
-    `, [id, date]);
+    `, [id, date, organizationId(auth)]);
 
     return Response.json({ date, members });
   } catch (error) {
@@ -59,32 +67,53 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requirePermission("attendance.write");
     const { id } = await params;
     const payload = await request.json() as AttendancePayload;
     if (!payload.date) return Response.json({ error: "Data da chamada é obrigatória." }, { status: 400 });
 
     await db.transaction(async (transaction) => {
+      await assertOwnedResource("ministries", id, organizationId(auth), "Ministério não encontrado.", transaction);
+
       const sessionRows = await db.query<{ id: string }>(`
-        INSERT INTO ministry_attendance_sessions (ministry_id, meeting_date)
-        VALUES ($1, $2)
+        INSERT INTO ministry_attendance_sessions (ministry_id, organization_id, meeting_date)
+        VALUES ($1, $2, $3)
         ON CONFLICT (ministry_id, meeting_date)
         DO UPDATE SET updated_at = now()
         RETURNING id
-      `, { bind: [id, payload.date], transaction, type: QueryTypes.SELECT });
+      `, { bind: [id, organizationId(auth), payload.date], transaction, type: QueryTypes.SELECT });
       const sessionId = sessionRows[0].id;
 
-      for (const record of payload.records) {
+      const records = Array.isArray(payload.records) ? payload.records : [];
+      // Só entram na chamada os membros da própria organização.
+      const owned = new Set(
+        await filterOwnedMemberIds(records.map((record) => record.memberId), organizationId(auth), transaction),
+      );
+
+      for (const record of records) {
+        if (!owned.has(record.memberId)) continue;
         await db.query(`
-          INSERT INTO ministry_attendance_records (session_id, member_id, present, notes)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO ministry_attendance_records (session_id, member_id, organization_id, present, notes)
+          VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (session_id, member_id)
           DO UPDATE SET present = EXCLUDED.present, notes = EXCLUDED.notes, updated_at = now()
-        `, { bind: [sessionId, record.memberId, record.present, record.notes?.trim() || null], transaction });
+        `, {
+          bind: [sessionId, record.memberId, organizationId(auth), record.present, record.notes?.trim() || null],
+          transaction,
+        });
       }
 
-      const ministryRows = await db.query<{ name: string }>(`SELECT name FROM ministries WHERE id = $1`, { bind: [id], transaction, type: QueryTypes.SELECT });
-      const ministry = ministryRows[0];
-      await addActivity(transaction, "members", "registrou presença da escola bíblica em", ministry?.name ?? "Ministério");
+      const ministryRows = await db.query<{ name: string }>(
+        `SELECT name FROM ministries WHERE id = $1 AND organization_id = $2`,
+        { bind: [id, organizationId(auth)], transaction, type: QueryTypes.SELECT },
+      );
+      await addActivity(
+        transaction,
+        auth,
+        "members",
+        "registrou presença da escola bíblica em",
+        ministryRows[0]?.name ?? "Ministério",
+      );
     });
 
     return Response.json({ ok: true });

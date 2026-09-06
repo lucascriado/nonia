@@ -1,5 +1,7 @@
 import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
+import { organizationId, requirePermission } from "@/lib/auth";
+import { notFound } from "@/lib/http";
 import { apiError, nullable } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -15,11 +17,14 @@ type EventPayload = {
 
 export async function GET(request: Request) {
   try {
+    const auth = await requirePermission("events.read");
     const { searchParams } = new URL(request.url);
     const from = searchParams.get("from");
     const to = searchParams.get("to");
-    const values: unknown[] = [];
-    const filters: string[] = [];
+
+    // O tenant é sempre o primeiro parâmetro; os filtros vêm depois dele.
+    const values: unknown[] = [organizationId(auth)];
+    const filters: string[] = ["organization_id = $1"];
 
     if (from) {
       values.push(from);
@@ -31,11 +36,10 @@ export async function GET(request: Request) {
       filters.push(`starts_at < $${values.length}`);
     }
 
-    const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
     const { rows } = await query(`
       SELECT id, title, description, location, starts_at AS "startsAt",
         ends_at AS "endsAt", category, color
-      FROM events ${where}
+      FROM events WHERE ${filters.join(" AND ")}
       ORDER BY starts_at ASC
     `, values);
 
@@ -47,6 +51,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requirePermission("events.write");
     const payload = await request.json() as EventPayload;
     const title = payload.title?.trim();
     const location = payload.location?.trim();
@@ -59,14 +64,22 @@ export async function POST(request: Request) {
 
     const id = await db.transaction(async (transaction) => {
       const [rows] = await db.query(`
-        INSERT INTO events (title, description, location, starts_at, ends_at, color)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO events (organization_id, title, description, location, starts_at, ends_at, color)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id
       `, {
-        bind: [title, nullable(payload.description), location, startsAt, nullable(payload.endsAt), color],
+        bind: [
+          organizationId(auth),
+          title,
+          nullable(payload.description),
+          location,
+          startsAt,
+          nullable(payload.endsAt),
+          color,
+        ],
         transaction,
       });
-      await addActivity(transaction, "calendar", "criou o evento", title, location);
+      await addActivity(transaction, auth, "calendar", "criou o evento", title, location);
       return (rows as Array<{ id: string }>)[0].id;
     });
 
@@ -78,16 +91,24 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = await requirePermission("events.write");
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) return Response.json({ error: "Evento não informado." }, { status: 400 });
 
     await db.transaction(async (transaction) => {
-      const [rows] = await db.query(`SELECT title, location FROM events WHERE id = $1`, { bind: [id], transaction });
+      const [rows] = await db.query(
+        `SELECT title, location FROM events WHERE id = $1 AND organization_id = $2`,
+        { bind: [id, organizationId(auth)], transaction },
+      );
       const event = (rows as Array<{ title: string; location: string }>)[0];
-      if (!event) return;
-      await db.query(`DELETE FROM events WHERE id = $1`, { bind: [id], transaction });
-      await addActivity(transaction, "calendar", "excluiu o evento", event.title, event.location);
+      if (!event) throw notFound("Evento não encontrado.");
+
+      await db.query(`DELETE FROM events WHERE id = $1 AND organization_id = $2`, {
+        bind: [id, organizationId(auth)],
+        transaction,
+      });
+      await addActivity(transaction, auth, "calendar", "excluiu o evento", event.title, event.location);
     });
 
     return Response.json({ ok: true });

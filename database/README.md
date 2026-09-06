@@ -48,7 +48,7 @@ backfill.
 proprietário de uma organização que ficou sem usuário — o caso da organização
 gerada pelo backfill da `005`.
 
-Para mudar o schema, crie uma nova migration numerada, seguindo a sequência.
+Para mudar o schema, crie uma nova migration numerada (a próxima é `008_...sql`).
 Não altere migrations já aplicadas.
 
 ## Multi-tenancy no schema

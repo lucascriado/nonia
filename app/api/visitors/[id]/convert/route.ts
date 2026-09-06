@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
+import { organizationId, requirePermission } from "@/lib/auth";
+import { notFound } from "@/lib/http";
 import { Member, Person, Visitor } from "@/lib/models";
 import { apiError } from "@/lib/records";
 
@@ -7,18 +9,25 @@ export const runtime = "nodejs";
 
 export async function POST(_: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requirePermission("members.write");
     const { id } = await context.params;
 
     await db.transaction(async (transaction) => {
-      const person = await Person.findByPk(id, { transaction });
-      if (!person) {
-        throw new Error("Pessoa não encontrada.");
-      }
+      const person = await Person.findOne({
+        where: { id, organizationId: organizationId(auth) },
+        transaction,
+      });
+      if (!person) throw notFound("Pessoa não encontrada.");
 
-      const existingMember = await Member.findByPk(id, { transaction });
+      const existingMember = await Member.findOne({
+        where: { personId: id, organizationId: organizationId(auth) },
+        transaction,
+      });
+
       if (!existingMember) {
         await Member.create({
           personId: id,
+          organizationId: organizationId(auth),
           ministryId: null,
           role: "Membro Comum",
           status: "active",
@@ -28,8 +37,11 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
         }, { transaction });
       }
 
-      await Visitor.destroy({ where: { personId: id }, transaction });
-      await addActivity(transaction, "members", "converteu visitante em membro", person.fullName);
+      await Visitor.destroy({
+        where: { personId: id, organizationId: organizationId(auth) },
+        transaction,
+      });
+      await addActivity(transaction, auth, "members", "converteu visitante em membro", person.fullName);
     });
 
     return Response.json({ ok: true });

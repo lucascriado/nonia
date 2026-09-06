@@ -51,17 +51,24 @@ em `/home/lucas/www/`.
 | `/home/lucas/www/nonia-auth` | `feat/auth-multitenant` | backend/DBA |
 | `/home/lucas/www/nonia-ui` | `feat/ui-theme` | frontend |
 
-As branches dos devs existem **só localmente** — não estão em `origin`.
+As três branches estão em `origin` desde 06/09/2026.
 
 ### Regras de processo
 
-- **Ninguém dá push na `main`.** Cada dev trabalha no seu worktree e na sua
-  branch; o gerente integra.
+- **Dê push na sua branch** ao terminar cada bloco de trabalho, sem pedir
+  permissão. É backup: até 06/09/2026 o dia inteiro de trabalho existia em uma
+  máquina só.
+- **Ninguém dá push na `main`** — ela é a árvore de integração e é do gerente,
+  que faz o merge das branches quando a hora chega.
+- **O repositório é público.** Antes de qualquer push, confira que o diff não
+  leva senha, token, uuid de infra, IP nem conteúdo de `.env`. É por isso que a
+  regra de manter identificador de infra fora do repo existe.
 - Não mexa no worktree de outro dev — eles estão em movimento.
 - `CLAUDE.md`, `AGENTS.md` e `README.md` são mantidos pelo documentador
   (decidido em 06/09/2026). Devs não editam esses arquivos nas branches;
   mandam o conteúdo técnico pelo gerente.
-- Nada de deploy enquanto as rotas de `app/api` estiverem sem autenticação.
+- A branch de auth não entra na `main` antes das telas de login existirem —
+  ver "Escopo atual".
 
 ## Stack
 
@@ -126,7 +133,7 @@ usa `LOGIN = "/entrar"` e o frontend aponta para lá em
 Descrito aqui porque já é arquitetura de pé, não projeto. **Nada disso está na
 `main`.**
 
-### `feat/auth-multitenant` (backend/DBA) — Fase 1 entregue, 8 commits
+### `feat/auth-multitenant` (backend/DBA) — Fase 1 entregue, 10 commits
 
 Validação relatada pelo backend: `typecheck` e `build` limpos, **97 casos
 automatizados contra PostgreSQL 18.6 real, 0 falhas**.
@@ -142,7 +149,7 @@ automatizados contra PostgreSQL 18.6 real, 0 falhas**.
   `lib/invitations.ts`, `lib/organizations.ts`, `lib/cell-membership.ts`.
 - `proxy.ts` no Edge (era `middleware.ts`): só desvia navegação pela presença
   do cookie `nonia_session`; quem valida de verdade é o handler.
-- **12 endpoints** de autenticação e gestão de usuários, com escopo de tenant
+- **13 endpoints** de autenticação e gestão de usuários, com escopo de tenant
   aplicado em **todas** as 26 rotas de `app/api`. O contrato está em
   [`AGENTS.md`](AGENTS.md#autenticação-e-multi-tenancy) — é lá que o frontend
   deve olhar.
@@ -228,18 +235,19 @@ Decididas, não esquecidas. Não "conserte" sem falar com o Lucas.
 
 ### Senha: o que entrou e o que continua de fora (06/09/2026)
 
-**Trocar a própria senha ENTROU no escopo.** Decisão do Lucas: hoje ninguém
-consegue trocar a própria senha, nem o dono do sistema, então quem desconfia que
-a senha vazou não tem o que fazer. Não custa e-mail nenhum. A rota pede **senha
-atual e senha nova**; o backend está implementando — *ainda não existe no
-código quando isto foi escrito.*
+**Trocar a própria senha ENTROU no escopo e já existe.** Decisão do Lucas:
+ninguém conseguia trocar a própria senha, nem o dono do sistema, então quem
+desconfiasse que a senha vazou não tinha o que fazer — e isso não custa e-mail
+nenhum. `POST /api/auth/password` pede **senha atual e senha nova**, tem a mesma
+trava de tentativas do login, revoga todas as sessões e emite uma nova (ninguém
+é deslogado). Entregue na branch de auth.
 
 > **Troca com senha atual e `self_password_reset` são coisas diferentes, e as
 > duas continuam certas.** O `403 self_password_reset` do
 > `PATCH /api/users/[id]` bloqueia **redefinição sem confirmação** da própria
-> senha; a rota nova é **troca com confirmação**. Quem "unificar" as duas
-> pensando que são a mesma coisa abre um buraco: passa a permitir redefinir a
-> própria senha sem provar que sabe a atual.
+> senha; `POST /api/auth/password` é **troca com confirmação**. O que separa as
+> duas é a senha atual — sem ela, a troca viraria "quem pegou uma sessão aberta
+> troca a senha e toma a conta". Quem "unificar" as duas abre esse buraco.
 
 Continuam como lacunas conhecidas:
 
@@ -250,8 +258,9 @@ escopo, ficou mais caro ainda. O caminho `/recuperar-senha` aparece em
 promessa.
 
 **2. Quem acessa duas igrejas e ESQUECE a senha continua sem saída.** A nuance
-importa: quem ainda lembra da senha vai poder trocá-la pela rota nova. Quem
-esqueceu, não — não há recuperação por e-mail, e o socorro pelo
+importa: quem ainda lembra da senha troca por `POST /api/auth/password` — que
+funciona justamente em multi-organização, porque a pessoa provou saber a senha.
+Quem esqueceu, não — não há recuperação por e-mail, e o socorro pelo
 `PATCH /api/users/[id]` recusa esse caso com **403
 `user_in_multiple_organizations`**, porque a senha é da identidade, não do
 vínculo, e um `owner` de uma igreja não pode mexer na credencial que dá acesso a
@@ -263,6 +272,14 @@ aparecer um usuário multi-igreja de verdade.
 Nada aqui foi esquecido nem apagado: foi feito, estava certo para o contexto de
 então, e o contexto mudou. Está escrito para que ninguém refaça achando que
 faltou.
+
+### "Ninguém dá push" — regra revista em 06/09/2026
+
+A proibição de push valia por um motivo específico: push na `main` disparava
+deploy em produção pelo GitHub App. **Com a aplicação do Coolify excluída, esse
+gatilho não existe mais**, e o risco se inverteu — o trabalho todo passou a
+viver numa máquina só. Push na própria branch virou obrigação, não permissão.
+O que sobreviveu da regra antiga é a `main`, que continua sendo do gerente.
 
 ### Hospedagem, domínio e deploy — fora de escopo em 06/09/2026
 

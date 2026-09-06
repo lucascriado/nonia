@@ -93,6 +93,7 @@ aceite de convite, troca de organização e `GET /api/auth/session`:
 | `POST /api/auth/register` | cadastra igreja + proprietário, abre sessão |
 | `POST /api/auth/login` | autentica e abre sessão |
 | `POST /api/auth/logout` | revoga a sessão e limpa o cookie |
+| `POST /api/auth/password` | **troca da própria senha**, com `currentPassword` e `newPassword` |
 | `GET /api/auth/session` | devolve a sessão corrente |
 | `POST /api/auth/switch` | troca a organização ativa (`organizationId` ou `organizationSlug`) |
 | `GET /api/auth/invite` | lê um convite pelo token |
@@ -103,8 +104,27 @@ aceite de convite, troca de organização e `GET /api/auth/session`:
 | `DELETE /api/users/[id]` | remove o vínculo com a organização |
 | `GET /api/roles` | papéis disponíveis |
 
-Redefinir senha por `PATCH /api/users/[id]` **revoga todas as sessões** daquele
-usuário. Códigos de erro dessa rota e de `POST /api/users`:
+**Trocar a própria senha e redefinir a de outra pessoa são rotas diferentes, de
+propósito. Não unifique.**
+
+| | `POST /api/auth/password` | `PATCH /api/users/[id]` |
+| --- | --- | --- |
+| quem usa | o dono da conta | um responsável (`users.write`) |
+| prova a senha atual | **sim** | não — é socorro |
+| vale para si mesmo | sim | não (`self_password_reset`) |
+| vale em multi-organização | sim | não (`user_in_multiple_organizations`) |
+
+O que separa as duas é a senha atual. Sem ela, a troca viraria "quem pegou uma
+sessão aberta troca a senha e toma a conta".
+
+`POST /api/auth/password` tem a mesma trava do login (5 tentativas, 15 minutos),
+revoga **todas** as sessões e emite uma nova no mesmo response — o cookie repõe
+a sessão, ninguém é deslogado. Erros próprios: `400` sem senha atual ou nova,
+`400 weak_password`, `401 invalid_credentials` (mesmo código do login, para não
+revelar nada a mais) e `429 too_many_attempts`.
+
+Redefinir senha por `PATCH /api/users/[id]` também **revoga todas as sessões**
+daquele usuário. Códigos de erro dessa rota e de `POST /api/users`:
 
 | Código | Situação |
 | --- | --- |
@@ -114,7 +134,8 @@ usuário. Códigos de erro dessa rota e de `POST /api/users`:
 | `403 insufficient_role_level` | papel do autor não alcança o papel do alvo |
 | `403 user_in_multiple_organizations` | o alvo acessa mais de uma igreja; a senha é da identidade, não do vínculo |
 
-Nenhuma rota de `app/api/auth` mudou payload, resposta ou cookie.
+Fora a inclusão de `POST /api/auth/password`, nenhuma rota de `app/api/auth`
+mudou payload, resposta ou cookie.
 
 ### Regras ao escrever rota
 
@@ -171,6 +192,29 @@ Nenhuma rota de `app/api/auth` mudou payload, resposta ou cookie.
   isso for mais claro que Models e associações.
 - Sequelize gerencia conexão, pool e transações. As migrations SQL continuam
   sendo a fonte de verdade do schema.
+
+## Autenticacao e multi-tenancy
+
+- Cada igreja e uma `organization`; todo dado de dominio tem `organization_id`.
+- A identidade de login e `users` (e-mail unico global); o vinculo com a
+  igreja e o papel ficam em `organization_members`.
+- Sessao propria: token aleatorio opaco no cookie httpOnly `nonia_session`,
+  com o SHA-256 dele em `sessions`. Nao ha JWT nem AUTH_SECRET.
+- Senha com scrypt de `node:crypto` (`lib/passwords.ts`), sem dependencia
+  nativa. O hash guarda os proprios parametros de custo.
+- `middleware.ts` roda no Edge e so desvia navegacao pela presenca do cookie.
+  Quem valida sessao e permissao e o handler, via `lib/auth.ts`.
+- Toda rota de `app/api` comeca com `requirePermission(...)` e usa
+  `organizationId(auth)` em todo SELECT, UPDATE, DELETE e INSERT.
+- Ids vindos do payload (`leaderId`, `memberIds`) passam por
+  `assertBelongsToOrganization`/`filterOwnedMemberIds` de `lib/tenant.ts`.
+- Papeis do sistema: `owner`, `admin`, `secretaria`, `lider`, `leitura`.
+  As permissoes sao pares `recurso.acao` em `permissions`/`role_permissions`.
+- `addActivity` agora recebe o contexto da sessao e grava o tenant e o autor.
+- Acesso de desenvolvimento apos `npm run db:seed:dev`:
+  `demo@nonia.app` / `demo1234`.
+- `npm run auth:owner -- --email ... --name ... --password ...` cria o
+  proprietario de uma organizacao que ficou sem usuario.
 
 ## Banco e migrations
 
