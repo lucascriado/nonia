@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `562e267`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `cbc31c1`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -184,6 +184,19 @@ Numa segunda leva (`562e267`) entraram `/precos` e o conserto do parâmetro de
 retorno do login — o bug de junção descrito em [`AGENTS.md`](AGENTS.md), que
 nenhuma das branches conseguia enxergar sozinha.
 
+Numa terceira (`cbc31c1`), o calendário no celular e a avaliação de 14 dias
+contada nas telas:
+
+- **Calendário em 390px: "mês para achar, agenda para ler".** O mês vira
+  navegação — número do dia e até três pontos de evento, com o dia inteiro como
+  alvo de toque — e o conteúdo vai para a agenda do dia. A visão Semana empilha
+  os sete dias em vez de rolar de lado. A barra de controle caiu de ~250px para
+  133px. **No desktop nada muda de aparência.**
+- A avaliação de 14 dias entrou no herói, no CTA, na seção de planos, no
+  `/cadastro`, nas dúvidas — com uma pergunta nova sobre o 15º dia — e numa
+  faixa em `/precos`. O texto aprovado pelo Lucas ficou intacto; só ganhou a
+  primeira metade da história.
+
 - Route groups `(marketing)` e `(app)`, dashboard em `/painel`, título próprio
   por tela.
 - Site público: landing em `/`, FAQ em `/faq`, e as telas de sessão `/entrar`,
@@ -256,8 +269,10 @@ significam ilimitado.
 
 ## Plano efetivo — derivado na leitura
 
-**Decidido em 06/09/2026, implementação em andamento.** Ainda não está no
-código.
+**Decidido em 06/09/2026, implementação em andamento.** As telas já contam essa
+história desde `cbc31c1`, mas **a derivação ainda não existe no código**:
+verificado em 06/09/2026 que `app/api/auth/register` continua atribuindo
+`avaliacao` e que nada em `lib/` ou `app/api/` calcula plano efetivo.
 
 Toda organização nasce em `avaliacao` (14 dias). O plano que vale a cada momento
 é **calculado na leitura**, nesta ordem:

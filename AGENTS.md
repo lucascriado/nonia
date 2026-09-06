@@ -202,6 +202,15 @@ de entrar na documentação como verdade.
   `/cadastro` feita com sessão aberta não valida nada: o `proxy.ts` manda quem
   tem cookie direto para `/painel`, então o que foi inspecionado foi outra
   página. Para validar tela de visitante, esteja deslogado.
+- **Antes de escrever uma proibição, cheque o objeto dela.** "Não commite `X`"
+  e "não commite a mudança de `X`" são regras diferentes, e a primeira apaga do
+  repositório um arquivo que talvez esteja versionado desde sempre — foi o que
+  quase aconteceu com o `next-env.d.ts`. Um `git log --diff-filter=A -- <arquivo>`
+  responde em um segundo.
+- **Ao afirmar o que está commitado, leia o commit, não o disco.**
+  `git show <ref>:<arquivo>`, não `cat`. O working tree carrega o resultado do
+  último comando que você rodou, e ele diverge do que está versionado com muito
+  mais frequência do que parece.
 - O mesmo vale para relato de terceiro sobre número, versão ou estado de
   arquivo: se dá para abrir o código ou rodar o comando, abra e rode. Onde não
   der, **escreva o que verificou e o que não** — "verificado estaticamente",
@@ -233,8 +242,12 @@ estivesse quebrado. Antes de caçar o bug, descarte estes.
   commita **não é o arquivo, é a alternância**: a linha de `import` troca entre
   `./.next/types/routes.d.ts` e `./.next/dev/types/routes.d.ts` conforme o
   último comando ter sido `build` ou `dev`, e o Next regrava sozinho.
-  **Descarte a mudança:** `git checkout -- next-env.d.ts`, que devolve a versão
-  commitada. Não commite a alternância, **não ponha no `.gitignore`** e **não
+  A versão canônica é a de **build** (`./.next/types/routes.d.ts`): é a que está
+  commitada e a que um `npm run build` limpo produz, então depois de um build o
+  `git status` fica limpo. Quem rodar `npm run dev` vai ver o arquivo sujo com a
+  variante de dev — é esperado.
+  **Descarte a mudança:** `git checkout -- next-env.d.ts`, que devolve exatamente
+  a canônica. Não commite a alternância, **não ponha no `.gitignore`** e **não
   faça `git rm --cached`** — as duas últimas tiram o arquivo do repositório, que
   é exatamente o que não pode acontecer.
 - **`DataTypes.NOW` virando `Invalid date` e quebrando o INSERT do cadastro.**
