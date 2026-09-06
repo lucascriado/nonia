@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Camera, Check, Church, LoaderCircle, MapPin, Save, Trash2, TriangleAlert, UserRound, X } from "lucide-react";
+import { initialsFrom } from "@/components/avatar";
+import { digitsOnly, maskCpf, maskPhone, maskZipCode } from "@/components/masks";
 
 export type PersonKind = "member" | "visitor";
 export type DeleteRecordKind = PersonKind | "cell" | "ministry" | "event" | "financial";
@@ -340,28 +342,6 @@ function FormSection({ title, icon, className, children }: { title: string; icon
 
 function Field({ label, wide, required, children }: { label: string; wide?: boolean; required?: boolean; children: React.ReactNode }) {
   return <label className={wide ? "record-field wide" : "record-field"}><span>{label}{required && <b aria-hidden="true"> *</b>}</span>{children}</label>;
-}
-
-function initialsFrom(name: string) {
-  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
-}
-
-function digitsOnly(value: string, maxLength: number) {
-  return value.replace(/\D/g, "").slice(0, maxLength);
-}
-
-function maskCpf(value: string) {
-  return digitsOnly(value, 11).replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1-$2");
-}
-
-function maskPhone(value: string) {
-  const digits = digitsOnly(value, 11);
-  if (digits.length <= 10) return digits.replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d)/, "$1-$2");
-  return digits.replace(/^(\d{2})(\d)(\d)/, "($1) $2 $3").replace(/(\d{4})(\d)/, "$1-$2");
-}
-
-function maskZipCode(value: string) {
-  return digitsOnly(value, 8).replace(/^(\d{5})(\d)/, "$1-$2");
 }
 
 export function DeleteRecordDialog({

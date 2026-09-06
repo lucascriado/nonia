@@ -3,6 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
+import { CurrentUserProvider } from "@/components/current-user";
+import type { SessionPayload } from "@/components/auth/session";
 import { Toaster } from "sonner";
 
 const sidebarStorageKey = "nonia-sidebar-collapsed";
@@ -10,9 +12,15 @@ const sidebarStorageKey = "nonia-sidebar-collapsed";
 export function DashboardShell({
   children,
   title,
+  session,
 }: {
   children: React.ReactNode;
   title: string;
+  /**
+   * Sessão já resolvida. Fora ela, o provider sonda `GET /api/auth/session`
+   * sozinho; este prop existe para quando a sessão vier do servidor.
+   */
+  session?: SessionPayload;
 }) {
   const sidebarRef = useRef<HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -35,10 +43,6 @@ export function DashboardShell({
     setSidebarCollapsed(value);
     window.localStorage.setItem(sidebarStorageKey, String(value));
   }
-
-  useEffect(() => {
-    document.title = title === "Dashboard" ? "nonia.app" : `${title} | nonia.app`;
-  }, [title]);
 
   useEffect(() => {
     function closeSidebarOnOutsideClick(event: PointerEvent) {
@@ -70,7 +74,7 @@ export function DashboardShell({
   }, []);
 
   return (
-    <>
+    <CurrentUserProvider session={session}>
       <input checked={mobileOpen} className="menu-toggle" id="menu-toggle" onChange={(event) => setMobileOpen(event.target.checked)} type="checkbox" />
       <input checked={sidebarCollapsed} className="sidebar-collapse" id="sidebar-collapse" onChange={(event) => collapseSidebar(event.target.checked)} type="checkbox" />
       <Sidebar sidebarRef={sidebarRef} />
@@ -78,6 +82,6 @@ export function DashboardShell({
       <Header title={title} />
       {children}
       <Toaster position="top-right" richColors closeButton />
-    </>
+    </CurrentUserProvider>
   );
 }

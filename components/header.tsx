@@ -1,28 +1,26 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bell,
   CalendarDays,
   History,
   LayoutDashboard,
   Menu,
-  Moon,
   Network,
   Puzzle,
   Search,
   Settings,
-  Sun,
   UserPlus,
   Users,
   Wallet,
 } from "lucide-react";
-import { readPreferences, savePreferences } from "@/components/app-preferences";
+import { Avatar } from "@/components/avatar";
+import { useCurrentUser } from "@/components/current-user";
 
 const searchItems = [
-  { title: "Dashboard", description: "Indicadores, atividades recentes e próximos eventos", href: "/", icon: LayoutDashboard, keywords: "inicio painel indicadores atividades eventos aniversario" },
+  { title: "Dashboard", description: "Indicadores, atividades recentes e próximos eventos", href: "/painel", icon: LayoutDashboard, keywords: "inicio painel indicadores atividades eventos aniversario" },
   { title: "Membros", description: "Cadastro, filtros, edição e visualização de membros", href: "/membros", icon: Users, keywords: "membros pessoas cadastro batismo ministerio celula" },
   { title: "Visitantes", description: "Acompanhamento, integração e conversão para membro", href: "/visitantes", icon: UserPlus, keywords: "visitantes acompanhamento contato integrado converter" },
   { title: "Calendário", description: "Agenda, eventos, cultos e reuniões", href: "/calendario", icon: CalendarDays, keywords: "calendario agenda eventos culto reuniao batismo" },
@@ -30,7 +28,7 @@ const searchItems = [
   { title: "Células", description: "Pequenos grupos, líderes, membros e encontros", href: "/celulas", icon: Network, keywords: "celulas pequenos grupos lider membros presenca" },
   { title: "Ministérios", description: "Equipes, voluntários e chamada da escola bíblica", href: "/ministerios", icon: Puzzle, keywords: "ministerios voluntarios escola biblica chamada presenca domingo" },
   { title: "Financeiro", description: "Entradas, saídas, comprovantes e saldo disponível", href: "/financeiro", icon: Wallet, keywords: "financeiro dizimo oferta despesa saldo lancamento comprovante" },
-  { title: "Configurações", description: "Perfil, tema, idioma e preferências da plataforma", href: "/configuracoes", icon: Settings, keywords: "configuracoes preferencias tema idioma fonte perfil" },
+  { title: "Configurações", description: "Perfil da conta", href: "/configuracoes", icon: Settings, keywords: "configuracoes perfil conta usuario" },
 ];
 
 // Algumas páginas passam um título mais longo ("Gestão de Células"), então a
@@ -42,19 +40,9 @@ function subtitleFor(title: string) {
 }
 
 export function Header({ title }: { title: string }) {
+  const user = useCurrentUser();
   const [search, setSearch] = useState("");
   const [focused, setFocused] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    setTheme(readPreferences().theme);
-  }, []);
-
-  function toggleTheme() {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    savePreferences({ theme: next });
-  }
 
   const subtitle = subtitleFor(title);
   const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
@@ -101,19 +89,11 @@ export function Header({ title }: { title: string }) {
         )}
       </label>
 
-      <button
-        className="icon-button"
-        onClick={toggleTheme}
-        aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}
-        title={theme === "dark" ? "Tema claro" : "Tema escuro"}
-      >
-        {theme === "dark" ? <Sun /> : <Moon />}
-      </button>
       <button className="icon-button has-dot" aria-label="Notificações"><Bell /></button>
       <span className="divider" />
       <div className="user">
-        <span><strong>Pr. Renato</strong><small>Administrador</small></span>
-        <Image src="/renato.png" alt="Pr. Renato" width={30} height={30} priority />
+        <span><strong>{user.name}</strong><small>{user.role}</small></span>
+        <Avatar name={user.name} photoUrl={user.avatarUrl} size={30} />
       </div>
     </header>
   );
