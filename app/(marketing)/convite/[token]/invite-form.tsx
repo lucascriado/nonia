@@ -120,7 +120,7 @@ export function InviteForm({ token }: { token: string }) {
           autoComplete={hasAccount ? "current-password" : "new-password"}
           autoFocus={hasAccount}
           error={fieldErrors.password}
-          hint={hasAccount ? "Você já tem conta no nonia — use a senha dela." : "Pelo menos 8 caracteres, misturando letras e números."}
+          hint={hasAccount ? "Você já tem conta no nonia - use a senha dela." : "Pelo menos 8 caracteres, misturando letras e números."}
           label={hasAccount ? "Senha da sua conta" : "Crie uma senha"}
           onChange={(event) => setPassword(event.target.value)}
           type="password"

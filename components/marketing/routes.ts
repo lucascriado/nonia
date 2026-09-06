@@ -1,7 +1,7 @@
 // Destinos das chamadas para ação do site público.
 //
 // Cadastro e checkout ainda não existem. Todo CTA da landing e do FAQ passa por
-// aqui, então ligar o fluxo real depois é trocar as constantes deste arquivo —
+// aqui, então ligar o fluxo real depois é trocar as constantes deste arquivo -
 // nenhuma página precisa ser tocada.
 export const marketingRoutes = {
   signup: "/cadastro",

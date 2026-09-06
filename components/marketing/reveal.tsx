@@ -15,7 +15,7 @@ type RevealProps = {
 /**
  * Revela o conteúdo quando ele entra na viewport. A animação é CSS puro; aqui
  * só entra a classe `is-visible`. Sem IntersectionObserver o conteúdo aparece
- * imediatamente, e quem pediu menos movimento nunca chega a esconder nada —
+ * imediatamente, e quem pediu menos movimento nunca chega a esconder nada -
  * o atributo `data-motion` do `<html>` só é ligado fora de `reduced-motion`.
  */
 export function Reveal({ children, as: Tag = "div", className, delay = 0, style }: RevealProps) {

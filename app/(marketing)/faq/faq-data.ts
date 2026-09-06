@@ -39,7 +39,7 @@ export const faqTopics: FaqTopic[] = [
       {
         question: "Quantos membros cabem no cadastro?",
         answer:
-          "No plano Semente, até 100. Nos planos Comunidade e Rede não há limite — a listagem é paginada e filtrada no servidor, então o tamanho da igreja não deixa a tela lenta.",
+          "No plano Semente, até 100. Nos planos Comunidade e Rede não há limite - a listagem é paginada e filtrada no servidor, então o tamanho da igreja não deixa a tela lenta.",
       },
       {
         question: "Consigo importar a planilha que a secretaria já usa?",
@@ -59,7 +59,7 @@ export const faqTopics: FaqTopic[] = [
     eyebrow: "Comunidade",
     title: "Visitantes",
     summary:
-      "Visitante não é membro — e também não é um nome perdido num caderno. O nonia acompanha a integração do primeiro culto até a membresia.",
+      "Visitante não é membro - e também não é um nome perdido num caderno. O nonia acompanha a integração do primeiro culto até a membresia.",
     points: [
       "Etapas de integração visíveis em cada ficha",
       "Abas por situação, para separar quem chegou de quem já está em acompanhamento",
@@ -163,7 +163,7 @@ export const faqTopics: FaqTopic[] = [
     eyebrow: "Administração",
     title: "Financeiro",
     summary:
-      "Entradas, saídas, pendências e saldo disponível — com comprovante anexado onde importa.",
+      "Entradas, saídas, pendências e saldo disponível - com comprovante anexado onde importa.",
     points: [
       "Lançamentos de entrada e saída com categoria, origem ou destino e forma de pagamento",
       "Situação paga ou pendente, para o saldo refletir a realidade",
@@ -206,7 +206,7 @@ export const faqTopics: FaqTopic[] = [
       {
         question: "O que acontece quando terminam os 14 dias de avaliação?",
         answer:
-          "A conta passa para o plano Semente, que é gratuito e não expira. Nada é apagado e ninguém é cobrado — se a igreja quiser seguir com células, ministérios e financeiro, aí sim assina o Comunidade.",
+          "A conta passa para o plano Semente, que é gratuito e não expira. Nada é apagado e ninguém é cobrado - se a igreja quiser seguir com células, ministérios e financeiro, aí sim assina o Comunidade.",
       },
       {
         question: "Se eu cancelar, perco meus dados?",
@@ -231,7 +231,7 @@ export const faqTopics: FaqTopic[] = [
       "Cada igreja em seu próprio espaço, isolada das demais assinaturas",
       "Conexão sempre por HTTPS",
       "Histórico de atividades como trilha de auditoria do que mudou",
-      "Exportação dos seus dados sempre disponível — eles são da igreja, não nossos",
+      "Exportação dos seus dados sempre disponível - eles são da igreja, não nossos",
     ],
     questions: [
       {
@@ -242,7 +242,7 @@ export const faqTopics: FaqTopic[] = [
       {
         question: "O nonia atende à LGPD?",
         answer:
-          "O sistema fornece as ferramentas — acesso restrito por usuário, trilha de alterações e exportação. A igreja segue sendo a controladora dos dados dos seus membros.",
+          "O sistema fornece as ferramentas - acesso restrito por usuário, trilha de alterações e exportação. A igreja segue sendo a controladora dos dados dos seus membros.",
       },
     ],
   },

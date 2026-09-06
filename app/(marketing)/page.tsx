@@ -8,7 +8,6 @@ import {
   History,
   Lock,
   MessageCircleQuestion,
-  Network,
   Puzzle,
   Smartphone,
   Sparkles,
@@ -21,14 +20,14 @@ import { marketingRoutes, signupHref } from "@/components/marketing/routes";
 import { plans } from "./plans";
 
 export const metadata: Metadata = {
-  title: "nonia — gestão ministerial para a sua igreja",
+  title: "nonia - a sua igreja organizada, do cadastro ao caixa",
   description:
-    "Membros, visitantes, células, ministérios, agenda e financeiro num só lugar. O nonia organiza a secretaria da sua igreja para que a liderança volte a cuidar de pessoas.",
+    "Membros, visitantes, ministérios, agenda e financeiro num painel só, no lugar das planilhas.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "nonia — gestão ministerial para a sua igreja",
+    title: "nonia - a sua igreja organizada, do cadastro ao caixa",
     description:
-      "Membros, visitantes, células, ministérios, agenda e financeiro num só lugar.",
+      "Membros, visitantes, ministérios, agenda e financeiro num painel só.",
     url: "/",
     siteName: "nonia.app",
     locale: "pt_BR",
@@ -40,32 +39,27 @@ const features = [
   {
     icon: Users,
     title: "Membros",
-    text: "Cadastro completo com foto, contato, endereço, célula e histórico. Busca, filtros e listagem que aguentam a igreja inteira.",
+    text: "Ficha completa com foto, contato e histórico, com busca e filtros que aguentam a igreja inteira.",
   },
   {
     icon: UserPlus,
     title: "Visitantes",
-    text: "Acompanhe quem chegou, em que ponto da integração está e converta em membro sem redigitar nada.",
-  },
-  {
-    icon: Network,
-    title: "Células",
-    text: "Grupos, líderes, endereços e composição de cada célula — quem está em qual grupo deixa de ser adivinhação.",
+    text: "Acompanhe quem chegou e converta em membro sem redigitar nada.",
   },
   {
     icon: Puzzle,
     title: "Ministérios",
-    text: "Equipes, responsáveis e registro de presença nos encontros, para saber quem realmente está servindo.",
+    text: "Equipes, responsáveis e presença nos encontros, para saber quem está servindo.",
   },
   {
     icon: CalendarDays,
     title: "Agenda",
-    text: "Calendário de cultos, reuniões e eventos, com os próximos compromissos sempre à vista na abertura do sistema.",
+    text: "Cultos, reuniões e eventos, com os próximos compromissos sempre à vista.",
   },
   {
     icon: Wallet,
     title: "Financeiro",
-    text: "Entradas, saídas, pendências e saldo disponível, com comprovante anexado em cada lançamento e filtros por categoria.",
+    text: "Entradas, saídas e saldo, com comprovante anexado em cada lançamento.",
   },
 ];
 
@@ -76,16 +70,16 @@ const steps = [
   },
   {
     title: "Traga as pessoas",
-    text: "Cadastre membros e visitantes, organize as células e monte os ministérios. Cada registro guarda quem alterou o quê e quando.",
+    text: "Cadastre membros e visitantes e monte os ministérios. Cada registro guarda quem alterou o quê e quando.",
   },
   {
     title: "Acompanhe pelo painel",
-    text: "Indicadores, aniversariantes do mês, próximos eventos e atividades recentes na primeira tela — a liderança enxerga a igreja de relance.",
+    text: "Indicadores, aniversariantes do mês, próximos eventos e atividades recentes na primeira tela - a liderança enxerga a igreja de relance.",
   },
 ];
 
 const differentials = [
-  { icon: HeartHandshake, title: "Pensado para igreja", text: "A linguagem é a da sua congregação: célula, ministério, visitante, dízimo — não “cliente” e “lead”." },
+  { icon: HeartHandshake, title: "Pensado para igreja", text: "A linguagem é a da sua congregação: ministério, visitante, dízimo, não “cliente” e “lead”." },
   { icon: Smartphone, title: "Funciona no celular", text: "Secretaria no computador, líder de célula no telefone. As telas se adaptam de verdade, sem versão capenga." },
   { icon: Lock, title: "Cada igreja no seu espaço", text: "Os dados da sua congregação ficam isolados dos das outras. Cada assinatura é um ambiente próprio." },
   { icon: History, title: "Histórico de tudo", text: "Toda alteração relevante vira registro de atividade. Você sabe o que mudou, quem mudou e em que dia." },
@@ -104,17 +98,16 @@ export default function LandingPage() {
         <div className="mk-hero-glow" aria-hidden />
         <div className="mk-container mk-hero-inner">
           <Reveal className="mk-badge" as="span">
-            <Sparkles aria-hidden /> Gestão ministerial completa, em português
+            <Sparkles aria-hidden /> Tudo da sua igreja num sistema só
           </Reveal>
 
           <Reveal as="h1" className="mk-hero-title" delay={60}>
-            A secretaria da sua igreja <em>organizada</em>, para a liderança voltar a cuidar de pessoas.
+            A sua igreja <em>organizada</em>, do cadastro ao caixa.
           </Reveal>
 
           <Reveal as="p" className="mk-hero-text" delay={120}>
-            Membros, visitantes, células, ministérios, agenda e financeiro num
-            só lugar. O nonia substitui a pilha de planilhas, cadernos e grupos
-            de WhatsApp por um painel que toda a equipe entende.
+            Membros, visitantes, ministérios, agenda e financeiro num painel só,
+            no lugar das planilhas.
           </Reveal>
 
           <Reveal className="mk-hero-actions" delay={180}>
@@ -126,9 +119,11 @@ export default function LandingPage() {
             </Link>
           </Reveal>
 
+          {/* Só a avaliação. O que acontece no 15º dia está no FAQ e dentro do
+              app: na hora de decidir, falar do rebaixamento joga contra a
+              própria oferta. */}
           <Reveal as="p" className="mk-hero-note" delay={240}>
-            14 dias de avaliação com tudo liberado. Depois a igreja continua
-            de graça no plano Semente. Sem cartão de crédito.
+            14 dias com todos os recursos. Sem cartão de crédito.
           </Reveal>
 
           <Reveal className="mk-hero-figure" delay={300}>
@@ -139,11 +134,13 @@ export default function LandingPage() {
 
       <section className="mk-strip" aria-label="O que o nonia resolve">
         <div className="mk-container mk-strip-inner">
+          {/* Encurtados para caber em UMA linha em maiúsculo, sem apelar para
+              fonte menor: em versal o mesmo texto ocupa mais largura. */}
           {[
-            "Cadastro de membros sempre atualizado",
-            "Visitantes acompanhados até virarem membros",
-            "Prestação de contas com comprovante",
-            "Agenda que a igreja inteira enxerga",
+            "Cadastro sempre em dia",
+            "Visitante virando membro",
+            "Contas com comprovante",
+            "Agenda de todo mundo",
           ].map((item, index) => (
             <Reveal as="span" delay={index * 70} key={item}>
               <Check aria-hidden /> {item}
@@ -156,11 +153,10 @@ export default function LandingPage() {
         <div className="mk-container">
           <Reveal className="mk-section-head">
             <span className="mk-eyebrow">Recursos</span>
-            <h2>Tudo que a gestão da igreja pede, num sistema só</h2>
+            <h2>Cinco módulos que conversam entre si</h2>
             <p>
-              Seis módulos que conversam entre si. O visitante que você cadastra
-              hoje vira membro amanhã, entra numa célula na semana seguinte e
-              aparece na escala do ministério — sem recadastrar nada.
+              O visitante que você cadastra hoje vira membro amanhã e aparece na
+              escala do ministério, sem recadastrar nada.
             </p>
           </Reveal>
 
@@ -232,10 +228,8 @@ export default function LandingPage() {
             <span className="mk-eyebrow">Planos</span>
             <h2>Um plano por igreja, do primeiro cadastro à rede inteira</h2>
             <p>
-              Toda igreja começa com 14 dias de avaliação, com 200 pessoas e 5
-              usuários liberados. Depois continua no Semente, de graça, ou
-              assina um plano. Assinatura mensal, sem fidelidade — cancele
-              quando quiser e leve seus dados.
+              Toda igreja começa com 14 dias liberados, com 200 pessoas e 5
+              usuários. Assinatura mensal, sem fidelidade.
             </p>
           </Reveal>
 
@@ -317,8 +311,7 @@ export default function LandingPage() {
             <h2>Sua igreja organizada já neste domingo</h2>
             <p>
               Crie a conta, cadastre os primeiros membros e veja o painel ganhar
-              vida. São 14 dias de avaliação e, depois deles, o plano Semente
-              gratuito, que não expira.
+              vida. São 14 dias com todos os recursos liberados.
             </p>
             <div className="mk-cta-actions">
               <Link className="mk-button mk-button-primary mk-button-lg" href={signupHref()}>
@@ -336,14 +329,14 @@ export default function LandingPage() {
 }
 
 /**
- * Miniatura do painel. É decoração — dados ilustrativos e `aria-hidden`, para
+ * Miniatura do painel. É decoração - dados ilustrativos e `aria-hidden`, para
  * o leitor de tela não anunciar números que não existem em lugar nenhum.
  */
 function PainelPreview() {
   const cards = [
     { label: "Membros ativos", value: "482", icon: Users },
     { label: "Visitantes no mês", value: "37", icon: UserPlus },
-    { label: "Células ativas", value: "24", icon: Network },
+    { label: "Ministérios", value: "9", icon: Puzzle },
     { label: "Aniversariantes", value: "19", icon: CalendarDays },
   ];
 

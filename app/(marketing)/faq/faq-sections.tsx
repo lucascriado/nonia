@@ -74,7 +74,7 @@ function Accordion({ question, answer }: { question: string; answer: string }) {
 
 /**
  * Marca no índice lateral o recurso que está sendo lido. Usa o mesmo
- * IntersectionObserver das animações — a faixa central da tela decide quem
+ * IntersectionObserver das animações - a faixa central da tela decide quem
  * está ativo, então rolar rápido não pisca entre duas seções.
  */
 function useActiveTopic() {

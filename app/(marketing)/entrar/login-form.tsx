@@ -47,7 +47,7 @@ export function LoginForm() {
 
       // O backend responde igual para senha errada e e-mail inexistente, de
       // propósito. A tela mantém esse sigilo mostrando o erro no formulário,
-      // nunca apontando um campo — e usa a mensagem dele, que já vem pronta
+      // nunca apontando um campo - e usa a mensagem dele, que já vem pronta
       // em português.
       setFormError(error.message);
       setSubmitting(false);
