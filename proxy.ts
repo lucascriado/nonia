@@ -40,6 +40,7 @@ const APP_PAGES = [
   "/financeiro",
   "/atividades",
   "/configuracoes",
+  "/usuarios",
 ];
 
 /** Páginas que deixam de fazer sentido depois de entrar. */
