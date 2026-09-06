@@ -6,7 +6,7 @@ import { initialsFrom } from "@/components/avatar";
 import { digitsOnly, maskCpf, maskPhone, maskZipCode } from "@/components/masks";
 
 export type PersonKind = "member" | "visitor";
-export type DeleteRecordKind = PersonKind | "cell" | "ministry" | "event" | "financial";
+export type DeleteRecordKind = PersonKind | "ministry" | "event" | "financial";
 
 export type PersonRecordValues = {
   name: string;
@@ -23,7 +23,6 @@ export type PersonRecordValues = {
   state: string;
   role: string;
   ministry: string;
-  cell: string;
   baptismDate: string;
   status: string;
   membershipStage: string;
@@ -47,7 +46,6 @@ const emptyValues: PersonRecordValues = {
   state: "São Paulo",
   role: "Membro Comum",
   ministry: "Nenhum",
-  cell: "Sem célula",
   baptismDate: "",
   status: "Ativo",
   membershipStage: "Visitou a igreja",
@@ -102,7 +100,6 @@ export function PersonRecordDialog({
   const [photoError, setPhotoError] = useState("");
   const [zipCodeStatus, setZipCodeStatus] = useState<"idle" | "loading" | "found" | "not-found">("idle");
   const [ministryOptions, setMinistryOptions] = useState<string[]>(["Nenhum", "Louvor", "Missões", "Acolhimento", "Infantil"]);
-  const [cellOptions, setCellOptions] = useState<string[]>(["Sem célula"]);
 
   useEffect(() => {
     if (open) {
@@ -166,18 +163,11 @@ export function PersonRecordDialog({
     const controller = new AbortController();
     async function loadOptions() {
       try {
-        const [ministriesResponse, cellsResponse] = await Promise.all([
-          fetch("/api/ministries", { signal: controller.signal, cache: "no-store" }),
-          fetch("/api/cells", { signal: controller.signal, cache: "no-store" }),
-        ]);
+        const ministriesResponse = await fetch("/api/ministries", { signal: controller.signal, cache: "no-store" });
         if (ministriesResponse.ok) {
-          const data = await ministriesResponse.json() as { ministries?: Array<{ name: string }> };
-          const names = data.ministries?.map((ministry) => ministry.name).filter(Boolean) ?? [];
-          setMinistryOptions(["Nenhum", ...names.filter((name) => name !== "Nenhum")]);
-        }
-        if (cellsResponse.ok) {
-          const data = await cellsResponse.json() as Array<{ name: string }>;
-          setCellOptions(["Sem célula", ...data.map((cell) => cell.name).filter((name) => name !== "Sem célula")]);
+          const payload = await ministriesResponse.json() as { ministries: Array<{ name: string }> } | Array<{ name: string }>;
+          const list = Array.isArray(payload) ? payload : payload.ministries;
+          setMinistryOptions(["Nenhum", ...list.map((item) => item.name).filter((name) => name !== "Nenhum")]);
         }
       } catch (error) {
         if ((error as Error).name !== "AbortError") return;
@@ -292,7 +282,6 @@ export function PersonRecordDialog({
             <>
               <Field label="Cargo/Função" required><select required value={values.role} onChange={(event) => update("role", event.target.value)}><option>Membro Comum</option><option>Líder</option><option>Pastor</option></select></Field>
               <Field label="Ministério Principal" required><select required value={values.ministry} onChange={(event) => update("ministry", event.target.value)}>{ministryOptions.map((option) => <option key={option}>{option}</option>)}</select></Field>
-              <Field label="Célula" required><select required value={values.cell} onChange={(event) => update("cell", event.target.value)}>{cellOptions.map((option) => <option key={option}>{option}</option>)}</select></Field>
               <Field label="Data de Batismo"><input type="date" value={values.baptismDate} onChange={(event) => update("baptismDate", event.target.value)} /></Field>
               <Field label="Situação" required><select required value={values.status} onChange={(event) => update("status", event.target.value)}><option>Ativo</option><option>Inativo</option></select></Field>
             </>
@@ -368,7 +357,6 @@ export function DeleteRecordDialog({
   const subjectByKind: Record<DeleteRecordKind, string> = {
     member: "o membro",
     visitor: "o visitante",
-    cell: "a célula",
     ministry: "o ministério",
     event: "o evento",
     financial: "o lançamento",
@@ -376,7 +364,6 @@ export function DeleteRecordDialog({
   const relationByKind: Record<DeleteRecordKind, string> = {
     member: "ministeriais",
     visitor: "de acompanhamento",
-    cell: "dos membros vinculados",
     ministry: "ministeriais e chamadas vinculadas",
     event: "do calendário",
     financial: "financeiros",

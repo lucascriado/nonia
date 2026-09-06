@@ -5,7 +5,7 @@ import { SlidersHorizontal } from "lucide-react";
 
 /**
  * No celular o bloco de filtros ficava aberto e empurrava o conteúdo para
- * fora da primeira tela — em /celulas eram 564px de cabeçalho, indicadores e
+ * fora da primeira tela — em /ministerios eram 564px de cabeçalho, indicadores e
  * filtros antes do primeiro cartão, ou seja, nenhum dado visível sem rolar.
  * Aqui os filtros começam recolhidos atrás de um botão que diz quantos estão
  * ativos.
