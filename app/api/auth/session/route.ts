@@ -4,6 +4,7 @@ import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
 import { clearedSessionCookie, getSession, jsonWithCookie } from "@/lib/auth";
 import { sessionPayload } from "@/lib/auth-payloads";
+import { planSnapshot } from "@/lib/plan-limits";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -18,6 +19,10 @@ export async function GET() {
       return jsonWithCookie({ authenticated: false }, clearedSessionCookie());
     }
 
+    // O plano entra AQUI e não no requireSession de propósito: o banner de
+    // avaliação precisa dele em toda tela, mas resolvê-lo em toda requisição
+    // autenticada custaria uma consulta a mais em cada chamada de API. A tela
+    // já busca /api/auth/session, então aqui ele vem de graça.
     const organizations = await db.query<{ id: string; name: string; slug: string; roleSlug: string }>(
       `SELECT o.id, o.name, o.slug, r.slug AS "roleSlug"
        FROM organization_members om
@@ -28,7 +33,9 @@ export async function GET() {
       { bind: [auth.user.id], type: QueryTypes.SELECT },
     );
 
-    return Response.json({ ...sessionPayload(auth), organizations });
+    const plan = await planSnapshot(auth.organization.id);
+
+    return Response.json({ ...sessionPayload(auth), organizations, plan });
   } catch (error) {
     // Organização suspensa chega aqui como HttpError e sai como 403.
     return apiError(error);
