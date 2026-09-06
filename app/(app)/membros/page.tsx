@@ -15,6 +15,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -54,6 +55,7 @@ type Member = {
 const pageSize = 6;
 
 export default function MembersPage() {
+  const readOnly = useReadOnly();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -156,7 +158,7 @@ export default function MembersPage() {
         <section className="members-heading">
           <div><h2>Gestão de Membros</h2><p>Visualize, filtre e gerencie todos os membros da congregação.</p></div>
           <ExportButton resource="members" permission="members.read" filters={{ search, ministry, status, baptism }} />
-          <button className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>
+          <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>
         </section>
 
         <section className="members-content">
@@ -202,7 +204,7 @@ export default function MembersPage() {
                       <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${member.name}`} onClick={() => { setSelectedMember(member); setDialogMode("view"); }}><Eye /></button><button aria-label={`Editar ${member.name}`} onClick={() => { setSelectedMember(member); setDialogMode("edit"); }}><Pencil /></button><button aria-label={`Excluir ${member.name}`} onClick={() => setDeleteTarget(member)}><Trash2 /></button></div></td>
                     </tr>
                   ))}
-                  {!loading && !visibleMembers.length && <tr><td className="members-empty" colSpan={7}>Nenhum membro encontrado com esses filtros.</td></tr>}
+                  {!loading && !visibleMembers.length && <tr><td className="members-empty" colSpan={7}>{members.length ? "Nenhum membro encontrado com esses filtros." : "Nenhum membro cadastrado ainda. Comece pelo botão Novo Membro, no topo da tela."}</td></tr>}
                 </tbody>
               </table>
             </div>

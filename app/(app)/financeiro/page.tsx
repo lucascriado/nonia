@@ -17,6 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { ExportButton } from "@/components/export-button";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -44,6 +45,7 @@ type FinancialTransaction = {
 const pageSize = 8;
 
 export default function FinancePage() {
+  const readOnly = useReadOnly();
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -144,7 +146,7 @@ export default function FinancePage() {
         <section className="resource-heading">
           <div><h2>Gestão Financeira</h2><p>Acompanhe entradas, saídas, pendências e comprovantes das movimentações.</p></div>
           <ExportButton resource="financeiro" permission="finance.read" filters={{ search, type, status, category, attachment }} />
-          <button className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>
+          <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>
         </section>
 
         <section className="resource-stats finance-summary" aria-label="Resumo financeiro">
@@ -212,7 +214,7 @@ export default function FinancePage() {
                       <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${item.description}`} onClick={() => { setSelectedTransaction(item); setDialogMode("view"); }}><Eye /></button><button aria-label={`Editar ${item.description}`} onClick={() => { setSelectedTransaction(item); setDialogMode("edit"); }}><Pencil /></button><button aria-label={`Excluir ${item.description}`} onClick={() => setDeleteTarget(item)}><Trash2 /></button></div></td>
                     </tr>
                   ))}
-                  {!loading && !visibleTransactions.length && <tr><td className="members-empty" colSpan={8}>Nenhum lançamento encontrado com esses filtros.</td></tr>}
+                  {!loading && !visibleTransactions.length && <tr><td className="members-empty" colSpan={8}>{transactions.length ? "Nenhum lançamento encontrado com esses filtros." : "Nenhum lançamento registrado ainda. Comece pelo botão Novo Lançamento."}</td></tr>}
                 </tbody>
               </table>
             </div>

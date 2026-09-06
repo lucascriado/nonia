@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CalendarClock, Clock, Edit3, Eye, LoaderCircle, MapPin, Network, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -47,6 +48,7 @@ const emptyCell: CellFormValues = {
 };
 
 export default function CellsPage() {
+  const readOnly = useReadOnly();
   const [cells, setCells] = useState<Cell[]>([]);
   const [members, setMembers] = useState<MemberOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,7 +152,7 @@ export default function CellsPage() {
             <h2>Gestão de Células</h2>
             <p>Gerencie e acompanhe o crescimento dos pequenos grupos.</p>
           </div>
-          {!mode && <button className="primary-action" onClick={() => openForm("create")}><Plus />Nova Célula</button>}
+          {!mode && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => openForm("create")}><Plus />Nova Célula</button>}
         </section>
 
         {mode ? (
@@ -198,7 +200,7 @@ export default function CellsPage() {
                   </footer>
                 </article>
               ))}
-              {!loading && !filteredCells.length && <p className="data-empty">Nenhuma célula encontrada.</p>}
+              {!loading && !filteredCells.length && <p className="data-empty">{cells.length ? "Nenhuma célula encontrada com esses filtros." : "Nenhuma célula cadastrada ainda. Crie a primeira pelo botão Nova Célula."}</p>}
             </section>
 
           </>
