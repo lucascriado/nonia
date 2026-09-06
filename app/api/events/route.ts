@@ -1,7 +1,7 @@
 import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { notFound } from "@/lib/http";
+import { notFound, readJson } from "@/lib/http";
 import { apiError, nullable } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const auth = await requirePermission("events.write");
-    const payload = await request.json() as EventPayload;
+    const payload = await readJson<EventPayload>(request);
     const title = payload.title?.trim();
     const location = payload.location?.trim();
     const startsAt = payload.startsAt?.trim();

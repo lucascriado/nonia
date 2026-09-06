@@ -31,6 +31,7 @@
 import { randomUUID } from "node:crypto";
 import { QueryTypes, type Transaction } from "sequelize";
 import { db } from "@/lib/db";
+import { addActivity } from "@/lib/activities";
 import { badRequest, conflict, notFound } from "@/lib/http";
 import { canTransition, loadSubscription, type SubscriptionStatus } from "@/lib/subscription-state";
 import type { AuthContext } from "@/lib/auth";
@@ -168,6 +169,11 @@ export async function activatePlan(auth: AuthContext, planSlug: string) {
       { plan: plano.slug, previousStatus: atual?.status ?? null, previousPlan: atual?.planSlug ?? null },
       transaction,
     );
+    // Na MESMA transação da assinatura, de propósito: em transação separada,
+    // uma falha aqui deixaria a assinatura já trocada e devolveria 500 ao
+    // chamador, que reenviaria e levaria 409 already_subscribed achando que
+    // não tinha funcionado.
+    await addActivity(transaction, auth, "system", "contratou o plano", plano.name);
 
     return plano;
   });
@@ -178,6 +184,29 @@ export async function cancelPlan(auth: AuthContext) {
   return db.transaction(async (transaction) => {
     const atual = await loadSubscription(auth.organization.id, { lock: true, transaction });
     if (!atual) throw conflict("Não há assinatura vigente para cancelar.", "no_subscription");
+
+    // Cancelar uma avaliação EM CURSO não serve a nenhuma das duas intenções
+    // possíveis. "Não quero ser cobrado": já não vai ser, a avaliação termina
+    // sozinha no plano gratuito. "Quero sair do produto": isso é apagar a
+    // conta, que é outra coisa. E cobra um preço alto: perde os dias
+    // restantes, o teto do gratuito passa a valer na hora, e NÃO TEM VOLTA --
+    // não há caminho de volta para 'trialing', nem contratando, porque
+    // contratar o plano de avaliação é recusado logo acima.
+    //
+    // Ação irreversível sem benefício nenhum se recusa, não se confirma.
+    //
+    // Só quando a avaliação AINDA VALE: cancelar uma cobrança 'incomplete'
+    // (gerou o pagamento e mudou de ideia) é legítimo e continua valendo, e
+    // uma avaliação já vencida é linha morta que não custa nada limpar.
+    const fimDaAvaliacao = atual.trialEndsAt ? new Date(atual.trialEndsAt) : null;
+    if (atual.status === "trialing" && fimDaAvaliacao && fimDaAvaliacao.getTime() > Date.now()) {
+      const dias = Math.max(1, Math.ceil((fimDaAvaliacao.getTime() - Date.now()) / 86_400_000));
+      throw conflict(
+        `Sua avaliação termina sozinha em ${dias} ${dias === 1 ? "dia" : "dias"} e a igreja segue ` +
+          "no plano gratuito, sem cobrança. Não é preciso cancelar.",
+        "trial_not_cancelable",
+      );
+    }
     if (!canTransition(atual.status as SubscriptionStatus, "canceled")) {
       throw conflict(`Uma assinatura em "${atual.status}" não pode ser cancelada.`, "invalid_transition");
     }
@@ -196,6 +225,7 @@ export async function cancelPlan(auth: AuthContext) {
       { plan: atual.planSlug, previousStatus: atual.status },
       transaction,
     );
+    await addActivity(transaction, auth, "system", "cancelou o plano", atual.planName);
 
     return atual;
   });

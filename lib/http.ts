@@ -29,3 +29,19 @@ export const badRequest = (message: string, code = "invalid_payload") =>
 
 export const conflict = (message: string, code = "conflict") =>
   new HttpError(409, message, code);
+
+/**
+ * Lê o corpo JSON da requisição.
+ *
+ * `request.json()` estoura em corpo malformado ou ausente, e sem isto o erro
+ * cai no catch genérico da rota e vira 500 -- que é erro de servidor para uma
+ * requisição errada do cliente. Log cheio de 500 que na verdade é o chamador
+ * mandando corpo torto envenena qualquer investigação depois.
+ */
+export async function readJson<T>(request: Request): Promise<T> {
+  try {
+    return (await request.json()) as T;
+  } catch {
+    throw badRequest("Corpo da requisição inválido: esperado JSON.", "invalid_json");
+  }
+}
