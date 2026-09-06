@@ -232,6 +232,16 @@ de entrar na documentação como verdade.
   respondeu**. No caso acima a medição de uma linha
   (`loginctl show-user lucas --property=Linger`) devolveu o oposto do que a tela
   sugeria, e foi só por isso que o documento não registrou uma afirmação falsa.
+- **Build passando não é prova de que o schema está aplicado.** `typecheck` e
+  `build` não abrem conexão com o banco: passam iguais com a migration aplicada
+  ou não. Em 06/09/2026 a `008` foi integrada na `main` sem ser rodada no
+  `nonia_dev`, os dois comandos passaram, e `GET /api/auth/session` respondia
+  **500** com `column p.max_members does not exist` — o código já consultava a
+  coluna nova, o banco ainda tinha a antiga. Verificou-se a coisa errada e
+  chamou-se de verificado.
+- **Rota dando 500 e falando de coluna que não existe: o primeiro palpite é
+  migration não aplicada, não bug de código.** Custa um `SELECT` em
+  `schema_migrations`.
 - **Prefira uma verificação que roda em tudo a uma inspeção que depende de
   reparar.** A sobreposição do cartão no celular foi achada por um detector
   escrito para o caso — não por olhar tela por tela procurando. Olhar encontra o

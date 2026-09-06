@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e ninguém vai consertar por ora.** Sem domínio no escopo atual — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `ed865cd`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `4c08947`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **É a única infra que o projeto usa hoje.** `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -65,6 +65,14 @@ As três branches estão em `origin` desde 06/09/2026.
 - **O repositório é público.** Antes de qualquer push, confira que o diff não
   leva senha, token, uuid de infra, IP nem conteúdo de `.env`. É por isso que a
   regra de manter identificador de infra fora do repo existe.
+- **Integrar branch que traz migration inclui rodar `npm run db:migrate` contra
+  o `nonia_dev`, na mesma operação, antes de anunciar a integração.** Não é
+  opcional e não depende de alguém pedir — o banco é compartilhado e ninguém
+  mais tem permissão de aplicar por conta própria. Ver "Migration órfã".
+- **Quem entrega uma rodada com migration nova avisa explicitamente no
+  relatório.** Teste em banco efêmero é o certo — teste destrutivo não toca o
+  banco compartilhado —, mas justamente por isso o compartilhado **nunca**
+  recebe a migration por efeito colateral de teste.
 - **Trabalhe só no seu worktree**, inclusive para documentação. O
   `/home/lucas/www/nonia` é onde o gerente troca de branch e faz merge: edição
   não commitada ali é varrida para dentro de um commit de merge, e foi o que
@@ -234,6 +242,31 @@ duas criações simultâneas não furem o teto juntas.
 - **Conserto de sobreposição, escala de espaço e centralização** (`c29dc74`).
 - **Exportação em CSV** (`ed865cd`): `lib/csv.ts` e `app/api/export/{members,
   visitors,financeiro}`. **A API está pronta; o botão ainda não existe.**
+
+### Migration órfã — incidente de 06/09/2026
+
+`GET /api/auth/session` respondia **500** na `main` com
+`column p.max_members does not exist`. O `nonia_dev` estava na `007`, com a
+coluna ainda chamada `max_people`, enquanto o código integrado já consultava
+`max_members`. Resolvido rodando `npm run db:migrate` contra o `nonia_dev`.
+
+Duas causas, e nenhuma é descuido de uma pessoa:
+
+- O backend testa em **Postgres efêmero**, que é o certo — teste destrutivo não
+  pode tocar o banco compartilhado. A consequência é que o compartilhado nunca
+  recebe a migration como efeito colateral de teste: ela fica órfã.
+- A integração verificou `typecheck` e `build`, **que não abrem conexão com o
+  banco**, e chamou de verificado.
+
+> **Build passando não é prova de que o schema está aplicado.** É o mesmo falso
+> positivo do `.next`: artefato de compilação não é evidência de que o sistema
+> funciona. As regras de processo acima existem por causa deste incidente.
+
+Foi encontrado porque o frontend testou a troca de senha **ponta a ponta contra
+o banco de verdade**, em vez de confiar no contrato — a terceira vez no dia em
+que testar contra a realidade derrubou algo que passara em `typecheck` e
+`build`. E foi encontrado sem estrago porque quem achou **não** rodou a migration
+por conta própria: banco compartilhado não é território de quem está numa branch.
 
 ## Isolamento entre organizações
 
