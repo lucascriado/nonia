@@ -452,6 +452,21 @@ quebrou.
   — uuid válido inexistente devolve 404 certo. **Valide o formato do id antes de
   usá-lo numa consulta**, senão o erro do driver vira erro de servidor.
 
+- **Armadilha registrada por quem a encontrou está completa para o terreno dele
+  e possivelmente incompleta para os outros.** Antes de fechar, pergunte a quem
+  tem contexto diferente se ela é pior no terreno dele — **não por cortesia, por
+  método**. O custo é uma pergunta; o que se descobre pode ser de outra classe.
+
+  **A quem perguntar** (senão vira "pergunte a todos", e ninguém pergunta a
+  ninguém): a quem tem **acesso, dado ou responsabilidade que você não tem** —
+  quem carrega o segredo, quem tem o banco, quem tem a tela, quem tem a máquina.
+
+  O incidente é esta seção. A armadilha do relatório adulterado foi registrada
+  como perda de informação, e estava certa assim. Quem carrega credencial no
+  ambiente olhou **a mesma mecânica** e viu vazamento de segredo — outra classe,
+  outra gravidade, mesma linha de código. A diferença não foi atenção: foi
+  contexto.
+
 #### O que essas armadilhas têm em comum
 
 Vale ler junto, porque separadas cada uma parece um caso isolado e o padrão é o
@@ -471,7 +486,9 @@ hora:
 
 Três assuntos técnicos diferentes, o mesmo método. Daí os dois corolários:
 
-> **Atenção não é defesa contra essa classe. Medir é.**
+> **Atenção não é defesa contra essa classe. Medir é** — e, do lado
+> construtivo, **contexto também**: a mesma observação lida por quem tem outro
+> acesso vira outra classe de risco.
 >
 > **Pista pequena e barata de conferir se confere na hora** — o custo de
 > conferir é quase sempre menor que o custo de estar errado por horas, e quem
