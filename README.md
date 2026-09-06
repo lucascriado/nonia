@@ -1,15 +1,20 @@
-# Nonia
+# nonia
 
 Plataforma de gestão ministerial: membros, visitantes, células, ministérios,
-agenda, financeiro e histórico de atividades.
+agenda, financeiro e histórico de atividades. Em transformação para SaaS
+multi-igreja.
 
 - **Stack**: Next.js 16 (App Router), React 19, TypeScript, Sequelize v6 e PostgreSQL.
-- **Frontend**: CSS global com design tokens (sem Tailwind), Lucide e Sonner.
+- **Frontend**: CSS global com design tokens (sem Tailwind), fonte Inter, Lucide e Sonner.
 - **Backend**: Route Handlers em `app/api`, banco versionado por migrations SQL.
+
+> **O nonia não está em produção** e não deve ser publicado enquanto as rotas de
+> `app/api` estiverem sem autenticação. Estado do projeto, decisões e pendências
+> em [`CLAUDE.md`](CLAUDE.md).
 
 ## Desenvolvimento local
 
-Pré-requisitos: Node 22+ e um PostgreSQL 13+ acessível.
+Pré-requisitos: Node 22+ e PostgreSQL **13 ou superior** (a produção roda 18.6).
 
 ```bash
 cp .env.example .env        # ajuste a DATABASE_URL
@@ -19,7 +24,7 @@ npm run db:seed:dev         # (opcional) dados de demonstração
 npm run dev                 # http://localhost:3000
 ```
 
-Também dá para subir tudo com Docker Compose (app + PostgreSQL):
+Também dá para subir app + banco com Docker Compose:
 
 ```bash
 docker compose up --build
@@ -27,33 +32,12 @@ docker compose up --build
 
 ## Validação
 
+Rode os dois antes de finalizar qualquer alteração:
+
 ```bash
 npm run typecheck
 npm run build
 ```
-
-## Deploy no Dokploy
-
-O projeto está pronto para deploy direto pelo Dockerfile. As migrations rodam
-automaticamente na inicialização do container — um banco vazio é preparado
-sozinho no primeiro boot.
-
-1. **Banco**: no Dokploy, crie um serviço **PostgreSQL** (16/17). Anote usuário,
-   senha e o host interno do serviço.
-2. **Aplicação**: crie uma **Application** apontando para este repositório.
-   - Build Type: `Dockerfile` (na raiz).
-   - Porta do container: `3000`.
-3. **Variáveis de ambiente** da aplicação:
-
-   ```env
-   DATABASE_URL=postgresql://usuario:senha@host-interno-do-postgres:5432/nonia
-   ```
-
-4. **Domínio**: adicione `nonia.io` (ou o subdomínio desejado) com HTTPS.
-   Health check disponível em `GET /api/health`.
-
-Alternativamente, use o `docker-compose.yml` como projeto **Compose** no
-Dokploy — ele já sobe app e banco juntos (defina `POSTGRES_PASSWORD`).
 
 ## Estrutura
 
@@ -65,5 +49,10 @@ database/       migrations SQL, seed de desenvolvimento e executor (migrate.mjs)
 public/         arquivos estáticos
 ```
 
-Mais detalhes sobre banco e migrations em [`database/README.md`](database/README.md).
-Convenções de código e arquitetura em [`AGENTS.md`](AGENTS.md).
+## Onde continuar
+
+| Assunto | Arquivo |
+| --- | --- |
+| Estado real, decisões de arquitetura, worktrees, deploy e pendências | [`CLAUDE.md`](CLAUDE.md) |
+| Convenções de código, arquitetura e regras para agentes | [`AGENTS.md`](AGENTS.md) |
+| Banco, migrations e valores persistidos | [`database/README.md`](database/README.md) |
