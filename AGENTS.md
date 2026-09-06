@@ -183,6 +183,26 @@ mudou payload, resposta ou cookie.
   `Dockerfile` injeta uma `DATABASE_URL` fictícia só na etapa de build —
   **aquela linha não é sobra; quem "limpar" quebra o build.**
 
+### Apurando fatos
+
+A quarta armadilha não é de código, é de método — e foi a que mais perto chegou
+de entrar na documentação como verdade.
+
+- **Não trate o que aparece no terminal de outro agente como fato.** Aquela tela
+  mostra também caixa de entrada não enviada, rascunho sendo redigido e saída
+  parcial. `maestri check` serve para saber **se o outro está ocupado**, não
+  para colher informação. Em 06/09/2026 uma frase afirmando que uma tarefa de
+  infra tinha sido executada foi lida assim — era texto solto numa caixa de
+  entrada, ninguém tinha dito aquilo, e a tarefa não tinha sido feita.
+- Quando precisar saber se algo aconteceu: **meça, ou pergunte a quem
+  respondeu**. No caso acima a medição de uma linha
+  (`loginctl show-user lucas --property=Linger`) devolveu o oposto do que a tela
+  sugeria, e foi só por isso que o documento não registrou uma afirmação falsa.
+- O mesmo vale para relato de terceiro sobre número, versão ou estado de
+  arquivo: se dá para abrir o código ou rodar o comando, abra e rode. Onde não
+  der, **escreva o que verificou e o que não** — "verificado estaticamente",
+  "relatado pelo backend", "pendente de confirmação".
+
 ### Quando o culpado não é o seu código
 
 Três sintomas diferentes, o mesmo gênero: algo fora do que você escreveu — um
