@@ -230,12 +230,25 @@ Três sintomas diferentes, o mesmo gênero: algo fora do que você escreveu — 
 arquivo gerado, uma instância em cache — se comporta como se o seu código
 estivesse quebrado. Antes de caçar o bug, descarte estes.
 
+#### `.next` é artefato, nunca evidência
+
+Três sintomas diferentes, a mesma causa: um `.next` que não corresponde ao
+código ou ao modo em que você está rodando. **Quando algo inexplicável
+acontecer, `rm -rf .next` antes de investigar** — e nunca use o conteúdo dele
+para concluir coisa alguma sobre o projeto.
+
 - **`typecheck` falhando em `.next/dev/types/validator.ts`**, com
   `Cannot find module '../../../app/membros/page.js'` e mais oito iguais. O
   `tsconfig` inclui `.next/dev/types/**/*.ts`, então o `tsc` valida um arquivo
   **gerado** que ainda aponta para o caminho antigo — `app/membros/page.tsx`,
   que depois da integração é `app/(app)/membros/page.tsx`. Não é erro do seu
-  código: é um `.next` de antes dos route groups. **Conserto: `rm -rf .next`.**
+  código: é um `.next` de antes dos route groups.
+- **500 em tudo, com `ENOENT .next/dev/routes-manifest.json`.** Acontece ao
+  rodar `next build` e depois `next dev` **no mesmo `.next`**: o diretório fica
+  meio produção, meio desenvolvimento, e o servidor não sobe nada. Parece
+  integração quebrada e não é. **Limpe o `.next` ao trocar de modo.**
+#### Outros
+
 - **`next-env.d.ts` aparecendo sujo no `git status` sem você ter tocado nele.**
   O arquivo **é versionado desde o primeiro commit do repositório e tem que
   continuar** — sem ele, o Next reclama no primeiro build limpo. O que não se
