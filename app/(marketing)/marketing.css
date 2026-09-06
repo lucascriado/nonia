@@ -591,58 +591,6 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 .mk-auth-form { display: grid; gap: 18px; margin-top: 26px; }
 .mk-auth-form .mk-button { width: 100%; margin-top: 6px; }
 
-.mk-field { display: grid; gap: 7px; }
-.mk-field > label { color: var(--heading); font-size: 0.8125rem; font-weight: 600; }
-.mk-field-input { position: relative; display: flex; align-items: center; }
-.mk-field input {
-  width: 100%;
-  min-height: 46px;
-  padding: 0 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  outline: none;
-  background: var(--panel);
-  color: var(--text);
-  font-size: 0.9375rem;
-  transition: border-color .2s ease, box-shadow .2s ease;
-}
-.mk-field input::placeholder { color: var(--muted); }
-.mk-field input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
-.mk-field.has-error input { border-color: var(--danger); }
-.mk-field.has-error input:focus { box-shadow: 0 0 0 3px var(--danger-soft); }
-.mk-field input[type="password"], .mk-field-input:has(.mk-field-reveal) input { padding-right: 46px; }
-.mk-field-reveal {
-  position: absolute;
-  right: 4px;
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-  transition: color .2s ease, background .2s ease;
-}
-.mk-field-reveal:hover { background: var(--panel-soft); color: var(--text); }
-.mk-field-reveal svg { width: var(--icon-md); }
-.mk-field > small { color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
-.mk-field > small.mk-field-error { color: var(--danger); font-weight: 500; }
-
-.mk-auth-alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 22px 0 0;
-  padding: 12px 14px;
-  border: 1px solid var(--danger-border);
-  border-radius: var(--radius-sm);
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-.mk-auth-alert svg { width: var(--icon-md); flex: 0 0 var(--icon-md); margin-top: 1px; }
 
 .mk-auth-foot { margin: 22px 0 0; color: var(--muted); font-size: 0.875rem; text-align: center; }
 .mk-auth-foot a { color: var(--primary); font-weight: 600; }
