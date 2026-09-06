@@ -37,7 +37,6 @@ type Visitor = {
   date: string;
   invitedBy: string;
   membershipStage: "Visitou a igreja" | "Contato realizado" | "Visita em casa" | "Batismo" | "Membro";
-  recent?: boolean;
   phone?: string;
   birthDate?: string;
   gender?: string;
@@ -52,6 +51,13 @@ type Visitor = {
 };
 
 const pageSize = 4;
+/**
+ * A faixa de indicadores, contada pelo SERVIDOR na mesma consulta da página e
+ * com o MESMO filtro — inclusive a aba. Ela resume o que está na tela, não a
+ * igreja inteira.
+ */
+type Summary = { firstVisit: number; integrating: number; markedAsMember: number };
+
 const tabs = ["Todos", "Recentes", "Pendentes"] as const;
 const membershipStages: Visitor["membershipStage"][] = ["Visitou a igreja", "Contato realizado", "Visita em casa", "Batismo", "Membro"];
 type Tab = typeof tabs[number];
@@ -85,7 +91,7 @@ export default function VisitorsPage() {
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [total, setTotal] = useState(0);
   const [inviters, setInviters] = useState<string[]>([]);
-  const [counts, setCounts] = useState({ todos: 0, primeiraVisita: 0 });
+  const [summary, setSummary] = useState<Summary>({ firstVisit: 0, integrating: 0, markedAsMember: 0 });
   const [loading, setLoading] = useState(true);
   /** Status HTTP da última leitura que falhou, ou `null`. Ver LoadFailure. */
   const [failed, setFailed] = useState<number | null>(null);
@@ -125,8 +131,10 @@ export default function VisitorsPage() {
       const payload = await response.json() as {
         records: Array<Omit<Visitor, "initials" | "membershipStage" | "date"> & { membershipStage?: string; date: string }>;
         total: number;
+        summary: Summary;
       };
       setTotal(payload.total);
+      setSummary(payload.summary);
       const records = payload.records;
       setVisitors(records.map((visitor) => ({ ...visitor, initials: initialsFrom(visitor.name), membershipStage: membershipStageFromDb(visitor.membershipStage), date: formatDate(visitor.date) })));
       setFailed(null);
@@ -145,20 +153,6 @@ export default function VisitorsPage() {
     const timer = window.setTimeout(() => void loadVisitors(listQuery), delay);
     return () => window.clearTimeout(timer);
   }, [listQuery, loadVisitors, search]);
-
-  /** Contagens por aba: cada uma lê o `total`, que já respeita o filtro. */
-  useEffect(() => {
-    let active = true;
-    const count = async (filter: string) => {
-      const response = await fetch(`/api/visitors?pageSize=1${filter}`, { cache: "no-store" });
-      if (!response.ok) return 0;
-      return (await response.json()).total as number;
-    };
-    Promise.all([count(""), count("&tab=Pendentes")])
-      .then(([todos, primeiraVisita]) => active && setCounts({ todos, primeiraVisita }))
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, [visitors]);
 
   // Quem convidou não pode sair da página: a lista viria incompleta.
   useEffect(() => {
@@ -267,13 +261,20 @@ export default function VisitorsPage() {
           />
         ) : (
         <>
+        {/* A aba conta como filtro: em "Pendentes" os outros dois indicadores
+            zeram por construção, porque a aba já os tirou da lista. Zero certo
+            sem explicação parece defeito; com a frase, é informação. */}
+        {(activeFilters > 0 || tab !== "Todos") && <p className="stats-caption">Números do que está filtrado, não da igreja inteira.</p>}
         <section className="visitor-stats" aria-label="Indicadores de visitantes">
-          <VisitorStat loading={loading} label="Total de visitantes" value={counts.todos} color="default" />
-          <VisitorStat loading={loading} label="Primeira visita" value={counts.primeiraVisita} detail="Novo" color="new" />
-          {/* "Em integração" e "Membros" sairiam da PÁGINA, não do total: não há
-              filtro na API para etapa de integração, e o número seria 25 de
-              137. Indicador errado é pior que indicador a menos — voltam
-              quando o backend expuser a contagem por etapa. */}
+          <VisitorStat loading={loading} label="Total de visitantes" value={total} color="default" />
+          <VisitorStat loading={loading} label="Primeira visita" value={summary.firstVisit} detail="Novo" color="new" />
+          <VisitorStat loading={loading} label="Em integração" value={summary.integrating} color="default" />
+          {/* NÃO é "quantos viraram membros": converter visitante em membro
+              APAGA a linha daqui, então quem virou não está mais nesta lista.
+              O que este número conta é quem foi MARCADO como membro e ninguém
+              converteu — uma fila de pendências, e o rótulo antigo dizia o
+              oposto disso. */}
+          <VisitorStat loading={loading} label="Marcados como membro" value={summary.markedAsMember} color="default" />
         </section>
 
         <FilterDisclosure activeCount={activeFilters}>
