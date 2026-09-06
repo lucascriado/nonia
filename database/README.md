@@ -201,6 +201,37 @@ diz o teto, onde a igreja está e qual plano resolve — quem esbarra é quem a
 gente quer que assine. O plano sugerido sai do banco (`trial_days = 0`, o mais
 barato que resolve), então `avaliacao` nunca é sugerido como upgrade.
 
+## Contratação sem gateway (bypass)
+
+Não há integração de pagamento. A igreja escolhe um plano, clica, e a
+assinatura passa a valer na hora — é atalho de desenvolvimento, porque o
+produto roda localmente e não há URL pública para receber webhook.
+
+| Rota | Papel | O que faz |
+| --- | --- | --- |
+| `GET /api/billing/plans` | `billing.read` | planos contratáveis, o atual e `canSubscribe` |
+| `POST /api/billing/subscribe` | `billing.write` | ativa o plano na hora |
+| `POST /api/billing/cancel` | `billing.write` | cancela; a igreja volta ao gratuito |
+
+**Só existe com `BILLING_BYPASS=1` no ambiente, e nunca em produção.** Sem a
+variável as rotas respondem 404. Com ela e `NODE_ENV=production`, as rotas
+continuam respondendo 404 e o servidor grita no log — porque o que isto faz é,
+literalmente, "clicar e ganhar o plano pago", e num ambiente hospedado seria
+uma falha de cobrança.
+
+A assinatura nasce com status `active` direto, sem passar por `trialing`,
+porque o efeito pedido é "clicou, adquiriu". A consequência é que a regra 1 do
+plano efetivo passa a valer sem que pagamento nenhum tenha existido: **o status
+não distingue uma assinatura paga de uma assinatura dada.** `provider =
+'bypass'`, o `provider_subscription_id` prefixado e a linha em `billing_events`
+são a única coisa que separa as duas no banco, e é disso que depende quem for
+somar faturamento um dia. Nenhuma linha é criada em `subscription_payments`,
+porque não houve pagamento.
+
+Quando a integração real entrar, `lib/billing-bypass.ts` e `app/api/billing/`
+são apagados inteiros. `lib/subscription-state.ts` não sabe que o bypass
+existe, e continua igual.
+
 ## Valores persistidos
 
 | Banco | Interface |
