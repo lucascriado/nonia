@@ -94,6 +94,47 @@ test.describe("caixa de entrada do WhatsApp", () => {
 
     const largura = await page.locator(".wa-sync-barra > i").evaluate((e) => (e as HTMLElement).style.width);
     expect(largura, "a barra encheu antes de a sincronização terminar").not.toBe("100%");
+
+    // A segunda pergunta de quem abre a caixa: "já dá para ler?". A resposta é
+    // agora -- abrir uma conversa traz o histórico dela na hora, mesmo as que a
+    // sincronização de fundo ainda não alcançou. Sem isso ele espera o fim
+    // para começar a usar.
+    await expect(faixa).toContainText("Já dá para ler");
+  });
+
+  /**
+   * TERMINAR TEM DE SER DITO.
+   *
+   * Antes a faixa sumia ao acabar, e aí "acabou" e "nunca começou" produziam a
+   * MESMA tela: nada. Ausência não é confirmação -- quem abre a caixa não sabe
+   * se está pronta ou se travou.
+   *
+   * E a frase é sobre CONVERSAS, nunca sobre mensagens: o que veio de cada
+   * conversa foram as mais recentes, e há mais atrás. "Tudo carregado" trocaria
+   * uma dúvida honesta por uma afirmação falsa, e quem rolasse até o topo de
+   * uma conversa descobriria sozinho.
+   */
+  test("quando termina, a caixa afirma que terminou -- e não promete as mensagens", async ({ page }) => {
+    const resposta = await page.request.get("/api/whatsapp/conversas?pageSize=1");
+    test.skip(!resposta.ok(), `a rota de conversas respondeu ${resposta.status()}`);
+    const { sync, total } = await resposta.json();
+    test.skip(sync.state !== "idle" || sync.chatsConhecidos === 0, "esta caixa não está sincronizada");
+
+    await page.goto("/whatsapp");
+    await waitForSettled(page);
+
+    const faixa = page.locator(".wa-sync.is-pronta");
+    await expect(faixa, "terminou e a tela não disse nada").toBeVisible();
+    await expect(faixa).toContainText(`${sync.chatsConhecidos}`);
+    await expect(faixa).toContainText("conversa");
+
+    const texto = (await faixa.innerText()).toLocaleLowerCase("pt-BR");
+    // A armadilha: prometer que as MENSAGENS estão todas aqui.
+    expect(
+      /todas as mensagens|mensagens carregadas|tudo carregado/.test(texto),
+      "a faixa prometeu que as mensagens estão todas carregadas, e não estão",
+    ).toBe(false);
+    expect(total, "há conversas carregadas mas a lista veio vazia").toBeGreaterThan(0);
   });
 
   /**
