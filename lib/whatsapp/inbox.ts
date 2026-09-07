@@ -45,6 +45,8 @@ const MARCADOR: Record<string, string> = {
   product: "[produto]",
   masked: "[mensagem protegida]",
   unknown: "[mensagem não suportada]",
+  // Aviso do WhatsApp, não mensagem de gente. Fica fora da conversa; ver `tipoParaGuardar`.
+  system: "[aviso do WhatsApp]",
 };
 
 /**
@@ -120,6 +122,41 @@ const TIPOS_COM_LEGENDA = new Set([...Object.keys(TIPOS_COM_MIDIA), "poll"]);
  * Mesma regra da prévia, de propósito: onde o corpo não é legenda de gente, ele
  * não é texto nosso para guardar. Uma regra só, nos dois lugares.
  */
+/**
+ * O TIPO A GRAVAR -- e existe um tipo que o OpenWA não tem: `system`.
+ *
+ * MEDIDO na conta real em 07/09/2026, e o número é o argumento: das 2.300
+ * mensagens carregadas, **224 são `unknown`** -- o terceiro tipo mais comum. E
+ * elas não estão espalhadas: um grupo tinha 155 de 155, outro 10 de 10. Duas
+ * conversas do Lucas abriam como uma parede de "[mensagem não suportada]", da
+ * primeira linha à última.
+ *
+ * O que separa uma coisa da outra é uma medida limpa: **TODA `unknown` de grupo
+ * veio com o corpo VAZIO** -- 100/100, 9/9, 6/6, 4/4, 1/1, nos oito grupos
+ * medidos. Corpo vazio e tipo que ninguém sabe ler é uma linha sem conteúdo
+ * NENHUM: não há o que mostrar, e mostrar "[mensagem não suportada]" 155 vezes
+ * é ruído honesto, que continua sendo ruído.
+ *
+ * Já a `unknown` COM corpo é outra coisa: no chat "WhatsApp Business" ela
+ * trazia 78.336 caracteres -- um JPEG inteiro. Ali existe conteúdo, ainda que a
+ * gente não saiba abri-lo, e o marcador é a resposta certa.
+ *
+ * Por isso a divisão é pelo CORPO e não por um palpite sobre o que a mensagem é.
+ * Não sei se são avisos de grupo, notificação de criptografia ou reação: o
+ * OpenWA colapsa tudo o que não mapeia num `unknown` só, e o tipo cru do motor
+ * morre no `default` do `mapWwebjsMessageType` sem ser registrado. Enquanto
+ * ninguém do lado de lá expuser o tipo cru, "sem corpo" é o que dá para medir,
+ * e é o que está escrito aqui em vez de um palpite disfarçado de certeza.
+ *
+ * Elas continuam GRAVADAS. Some da lista de mensagens, não do banco: a conversa
+ * informa quantas foram omitidas, porque conversa que encolhe sem explicação é
+ * o mesmo vazio que mente com outra roupa.
+ */
+export function tipoParaGuardar(tipo: string, corpo: string | null | undefined): string {
+  if (tipo === "unknown" && !(corpo ?? "").trim()) return "system";
+  return tipo;
+}
+
 export function corpoParaGuardar(tipo: string, corpo: string | null | undefined): string | null {
   if (tipo !== "text" && !TIPOS_COM_LEGENDA.has(tipo)) return null;
   return corpo ?? null;
@@ -233,24 +270,34 @@ async function acharPessoa(organizationId: string, telefone: string | null): Pro
 }
 
 /**
- * GRUPO: DEFENDIDO NO CÓDIGO, NUNCA EXERCITADO CONTRA UM GRUPO DE VERDADE.
+ * GRUPO: AGORA MEDIDO CONTRA GRUPOS DE VERDADE. Antes aqui havia um aviso em
+ * caixa alta dizendo que nada disto tinha sido exercitado -- a conta pareada não
+ * tinha nenhum grupo. Em 07/09/2026 ela passou a ter 16, e o aviso saiu porque
+ * a medição chegou. O que ela disse, número por número:
  *
- * Isto está escrito para não ser lido como "funciona". Em 07/09/2026 medi
- * contra a conta real pareada: `/chats` devolveu 5 conversas, **zero** com
- * `@g.us`, e `/groups` devolveu `[]`. Não havia o que medir, então não afirmo.
+ *  - `kind` = "group" e chatId terminando em `@g.us`: **8 de 8** grupos
+ *    conferidos. `kind` sai do `isGroup` do OpenWA, não de palpite sobre o
+ *    sufixo do id, e os dois concordaram em todos.
+ *  - `author` preenchido em **655 de 655** mensagens reais de grupo. É dele que
+ *    tudo aqui depende -- em grupo o remetente do chat é o GRUPO --, e ele veio
+ *    em todas.
+ *  - `author` VAZIO em conversa individual: 0 de 30 e 0 de 15 nas duas
+ *    conferidas. O discriminador vale para os dois lados, que é o que faz dele
+ *    um discriminador e não uma coincidência.
+ *  - `resolverTelefonesPendentes` pula grupo, e continua certo: grupo não tem
+ *    telefone, e vincular pessoa do cadastro não se aplica.
  *
- * O que o código faz por conta disso, e por quê:
+ * E A MEDIÇÃO ACHOU UM BURACO, que é o motivo de ela valer mais que o aviso que
+ * estava aqui: **`author_name` veio vazio em 655 de 655**. O nome que eu leio de
+ * `contact.pushName` vem do `notifyName` do payload cru, que existe no evento AO
+ * VIVO e **não** no histórico lido por `fetchMessages` -- e o histórico é
+ * justamente por onde a caixa carrega tudo. Ou seja: o campo que existe para o
+ * grupo não virar um monte de balão sem dono está nulo em todo grupo real.
  *
- *  - `kind` sai de `isGroup` do OpenWA, não de adivinhação sobre o sufixo do id;
- *  - em grupo, `from` é o GRUPO -- quem falou está em `author`, e o nome em
- *    `author_name`. Sem isso a conversa vira um monte de balão sem dono;
- *  - `resolverTelefonesPendentes` PULA grupo: grupo não tem telefone, e pedir a
- *    resolução de um seria uma chamada de rede garantidamente inútil por
- *    conversa;
- *  - vincular a pessoa do cadastro não se aplica a grupo, pelo mesmo motivo.
- *
- * Quando existir um grupo real na conta, medir de novo -- e o primeiro lugar a
- * olhar é se `author` vem preenchido, porque é dele que depende tudo aqui.
+ * O conserto é o mesmo padrão do `@lid`: resolver o `author` para um nome pela
+ * rota de contato do OpenWA, sob demanda, com teto e com memória. Está anotado
+ * e não feito -- e fica anotado aqui, e não numa lista fora do código, porque
+ * quem for mexer em grupo é quem precisa saber disto.
  */
 
 /** Traz a LISTA de conversas. Uma requisição, e é ela que cumpre "carregou meus chats". */
@@ -329,7 +376,8 @@ export async function sincronizarMensagens(
          quoted_wa_message_id = COALESCE(EXCLUDED.quoted_wa_message_id, whatsapp_messages.quoted_wa_message_id)`,
       [conversaId, conexao.organizationId, m.id, Boolean(m.fromMe), m.author ?? null,
        m.contact?.name ?? m.contact?.pushName ?? null,
-       m.type ?? "text", corpoParaGuardar(m.type ?? "text", m.body), m.quotedMessage?.id ?? null, m.timestamp || 0],
+       tipoParaGuardar(m.type ?? "text", m.body),
+       corpoParaGuardar(m.type ?? "text", m.body), m.quotedMessage?.id ?? null, m.timestamp || 0],
     );
     ultimo = m.id;
   }

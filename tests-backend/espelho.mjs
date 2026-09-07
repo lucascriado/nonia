@@ -39,7 +39,7 @@ const u = Date.now().toString(36);
 const agora = Math.floor(Date.now() / 1000);
 
 let r = await call("POST", "/api/auth/register", { body: { organizationName: `Esp ${u}`, fullName: "Dona", email: `e${u}@x.test`, password: "senha1234" } });
-const A = r.c;
+const A = r.c, orgA = r.d.organization.id;
 await call("POST", "/api/billing/subscribe", { cookie: A, body: { planSlug: "comunidade" } });
 await call("POST", "/api/members", { cookie: A, body: { name: "Maria Membro", phone: "(11) 98888-1111" } });
 await call("POST", "/api/members", { cookie: A, body: { name: "Zeca Sem Telefone" } });
@@ -166,6 +166,29 @@ r = await call("GET", `/api/whatsapp/conversas/${idOutra}`, { cookie: A });
 ok(r.d.messages.find((m) => m.waMessageId === "c-img")?.preview === "[foto] olha o cartaz do culto",
    "foto COM legenda continua mostrando as duas coisas -- o conserto nao comeu isso",
    JSON.stringify(r.d.messages.find((m) => m.waMessageId === "c-img")?.preview));
+
+console.log("\n== AVISO DO WHATSAPP NAO E MENSAGEM DE GENTE ==");
+// Medido na conta real: das 2.300 mensagens, 224 sao `unknown` -- e um grupo
+// tinha 155 de 155. TODA `unknown` de grupo veio com o corpo VAZIO. Aqui vao as
+// duas: a sem corpo (ruido) e a com corpo (conteudo que nao sabemos abrir).
+caixa.mensagens.get("111@lid").push(
+  { id: "s1", chatId: "111@lid", from: "111@lid", body: "", type: "unknown", timestamp: agora - 260, fromMe: false },
+  { id: "s2", chatId: "111@lid", from: "111@lid", body: "", type: "unknown", timestamp: agora - 259, fromMe: false },
+  { id: "s3", chatId: "111@lid", from: "111@lid", body: CARGA_REAL, type: "unknown", timestamp: agora - 258, fromMe: false });
+r = await call("GET", `/api/whatsapp/conversas/${idMaria}`, { cookie: A });
+ok(!r.d.messages.some((m) => ["s1", "s2"].includes(m.waMessageId)),
+   "unknown SEM corpo nao aparece na conversa -- linha sem conteudo nenhum", "");
+ok(r.d.avisosIgnorados === 2,
+   "mas a conversa DIZ quantas foram omitidas -- conversa que encolhe sem explicacao mente", r.d?.avisosIgnorados);
+ok(r.d.messages.find((m) => m.waMessageId === "s3")?.preview === "[mensagem não suportada]",
+   "unknown COM corpo continua aparecendo: ali ha conteudo, so nao sabemos abrir", "");
+const guardado = (await sql.query(
+  "SELECT type FROM whatsapp_messages WHERE wa_message_id = 's1' AND organization_id = $1", [orgA])).rows[0];
+ok(guardado?.type === "system", "e ela continua GRAVADA: some da lista, nao do banco", guardado?.type);
+r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
+ok(r.d.records.find((c) => c.chatId === "111@lid").preview !== "[aviso do WhatsApp]",
+   "e a previa da lista nao vira aviso quando a ultima fala foi de gente",
+   r.d.records.find((c) => c.chatId === "111@lid")?.preview);
 
 console.log("\n== o contrato não pode ter dois nomes para o mesmo campo ==");
 r = await call("GET", `/api/whatsapp/conversas/${idMaria}`, { cookie: A });
