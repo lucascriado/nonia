@@ -478,9 +478,45 @@ export async function resolverNomesDeAutores(conexao: Conexao, conversaId: strin
  * minutos sem receber uma única mensagem numa conta com 116 conversas. Listar
  * funcionava. Receber, não. A tela dizia "conectado".
  *
- * O sinal honesto disponível HOJE é comparar a última mensagem RECEBIDA com o
- * relógio. Só recebida: o que a própria igreja envia sai por esta máquina e
- * continuaria "andando" numa sessão que não recebe nada.
+ * O sinal honesto disponível HOJE é comparar a última movimentação da caixa com
+ * o relógio. E QUAL COLUNA responde isso é a parte que já errei uma vez:
+ *
+ * "ÚLTIMA MENSAGEM" EXISTE EM DOIS LUGARES NESTE BANCO, COM FRESCURAS
+ * DIFERENTES, E O MAIS ÓBVIO É O ERRADO.
+ *
+ *   whatsapp_messages.sent_at        parece o dado certo, e não é. A tabela de
+ *                                    mensagens só avança quando alguém ABRE uma
+ *                                    conversa -- `avancarSincronizacao` empurra
+ *                                    três por leitura, de propósito. Ela mede A
+ *                                    NOSSA DEFASAGEM DE SINCRONIZAÇÃO, não o
+ *                                    movimento da caixa.
+ *   whatsapp_conversations.last_message_at  acompanha o gateway a cada leitura
+ *                                    da LISTA, que é a primeira coisa que a tela
+ *                                    faz. É este.
+ *
+ * Foi um caso real que separou os dois: em 07/09/2026, com a sessão já
+ * restabelecida e conversa de 16:39 na lista, o campo tirado de
+ * `whatsapp_messages` dizia "96 minutos sem receber" -- porque ninguém tinha
+ * aberto conversa nenhuma desde as 15:10. Trocaríamos um selo que mentia
+ * dizendo "conectado" por uma frase que mente dizendo "parado". As duas colunas
+ * parecem a mesma coisa e não são; quem mexer aqui vai achar que são.
+ *
+ * O QUE ESTE CAMPO CONTA, DITO SEM ENFEITE: a última vez que o serviço nos
+ * mostrou movimento em alguma conversa. Isso INCLUI o que a própria igreja
+ * enviou, e eu tinha excluído envio de propósito -- porque envio sai desta
+ * máquina e "andaria" numa sessão desvinculada. **Fui conferir e o argumento
+ * não se sustenta:** `registrarEnviada` só grava DEPOIS de o gateway aceitar a
+ * mensagem, e numa sessão desvinculada toda escrita falha com 503. Um envio
+ * nosso que chega a mexer nesta coluna já é prova de que o gateway está vivo.
+ * Então incluir envio não estraga o sinal -- e o recorte que eu tinha feito
+ * custava o frescor, que era a única coisa que importava.
+ *
+ * O payload do chat NÃO diz se a última mensagem é `fromMe`: o
+ * `ChatSummaryDto` do OpenWA traz `lastMessage` como texto puro, e o
+ * `chat.lastMessage.fromMe` do whatsapp-web.js morre antes de chegar aqui.
+ * Conferido no DTO e no adaptador, não suposto. Se um dia ele expuser, dá para
+ * ter frescor E o recorte -- mas hoje é escolher, e a escolha está escrita
+ * acima em vez de feita em silêncio.
  *
  * SOBRE O LIMIAR, e ele é um contorno, não uma verdade do domínio:
  *
@@ -502,7 +538,7 @@ export async function resolverNomesDeAutores(conexao: Conexao, conversaId: strin
 export const LIMIAR_SILENCIO_MINUTOS = 180;
 
 export type Recebimento = {
-  /** Quando chegou a última mensagem de fora. NULL = nenhuma ainda. */
+  /** A última movimentação que o serviço nos mostrou. NULL = nenhuma ainda. */
   ultimaEm: string | null;
   minutosSem: number | null;
   /** Só sugere MOSTRAR a frase. A frase é o fato, nunca "a sessão está quebrada". */
@@ -511,18 +547,20 @@ export type Recebimento = {
 
 export async function estadoRecebimento(organizationId: string): Promise<Recebimento> {
   const { rows } = await query<{ ultima: string | null; minutos: number | null }>(
-    `SELECT max(sent_at) AS ultima,
-            floor(extract(epoch FROM now() - max(sent_at)) / 60)::int AS minutos
-       FROM whatsapp_messages
-      WHERE organization_id = $1 AND NOT from_me`,
+    // Da tabela de CONVERSAS, e não da de mensagens. Ver o bloco acima: a de
+    // mensagens mede a nossa defasagem de sincronização, não o movimento.
+    `SELECT max(last_message_at) AS ultima,
+            floor(extract(epoch FROM now() - max(last_message_at)) / 60)::int AS minutos
+       FROM whatsapp_conversations
+      WHERE organization_id = $1`,
     [organizationId],
   );
   const linha = rows[0];
   return {
     ultimaEm: linha?.ultima ?? null,
     minutosSem: linha?.minutos ?? null,
-    // Sem nenhuma mensagem recebida não há silêncio a relatar: é caixa nova, e
-    // quem responde por ela é o estado de sincronização, não este campo.
+    // Sem nenhuma movimentação não há silêncio a relatar: é caixa nova, e quem
+    // responde por ela é o estado de sincronização, não este campo.
     avisar: linha?.minutos !== null && linha?.minutos !== undefined && linha.minutos >= LIMIAR_SILENCIO_MINUTOS,
   };
 }
