@@ -272,6 +272,68 @@ mudou payload, resposta ou cookie.
 - `npm run auth:owner -- --email … --name … --password …` cria o proprietário
   de uma organização que ficou sem usuário.
 
+## WhatsApp
+
+Módulo em `lib/whatsapp/` e `app/api/whatsapp/`, sobre o **OpenWA**. Migration
+**013**.
+
+| Método e rota | O que faz |
+| --- | --- |
+| `GET /api/whatsapp` | estado da conexão da organização |
+| `DELETE /api/whatsapp` | desconecta |
+| `POST /api/whatsapp/connect` | inicia a sessão |
+| `GET /api/whatsapp/connect` | lê o QR do pareamento |
+| `GET /api/whatsapp/broadcasts` | lista os envios |
+| `POST /api/whatsapp/broadcasts` | cria um envio |
+| `GET /api/whatsapp/broadcasts/[id]` | acompanha um envio — **e o faz andar**, ver abaixo |
+| `POST /api/whatsapp/broadcasts/[id]` | age sobre um envio |
+
+**Três permissões, não duas.** `whatsapp.read` e `whatsapp.write` vão para
+`owner`, `admin` e `secretaria` — quem consulta cadastro consulta conversa, e a
+secretaria é quem atende. **`whatsapp.broadcast` é separada e só para `owner` e
+`admin`**: responder **uma** conversa e disparar para **quinhentas** não têm o
+mesmo peso, e **mensagem enviada não volta** — não há lixeira para isso, como há
+no financeiro desde a 011. Abrir para a secretaria depois é uma linha; recolher
+um envio errado é impossível.
+
+O envio tem categoria própria no histórico (`whatsapp`), e não `system`: é a
+ação mais visível que a igreja toma, e é a que alguém vai procurar depois.
+
+Estados: a conexão é `ready` quando conectada (`conectado()` em
+`lib/whatsapp/connection.ts`); o envio vai por `pending`, `running`, `done`,
+`canceled`, `failed`, e cada destinatário tem o seu — `pending`, `sent`,
+`failed`, `skipped`.
+
+### O envio anda na leitura, e pausa com a tela fechada
+
+Não há tarefa agendada no projeto — mesma razão do plano efetivo e do nível de
+acesso serem derivados. **Quem avança o envio é quem olha para ele:** a consulta
+de acompanhamento fecha o lote terminado e começa o próximo.
+
+> **Com a tela fechada, o envio pausa na virada do lote** e retoma quando alguém
+> abrir de novo. **Não perde e não manda duas vezes**, porque cada destinatário
+> tem status próprio e só sai de `pending` uma vez. 500 pessoas são 5 lotes de
+> `LOTE_MAX = 100`.
+
+### O intervalo entre mensagens é o freio — não mexa
+
+`INTERVALO_MS = 3000` com jitter (`JITTER_MEDIO_MS = 1000`) é o que faz 500
+pessoas levarem **~35 minutos**. **Não se mexe para acelerar, nem "só nesse
+caso".** É ele que protege o número de ser banido. Uma saída que despachasse 5
+lotes de uma vez foi vista e **descartada por isso**: multiplicaria a taxa por 5.
+
+> **Não ligue o pacing do OpenWA e não replique a escala dele.** O
+> `SEND_PACING_WARMUP_SCHEDULE` — 20/40/80/160/320/640/1000 mensagens por dia —
+> vem **desligado por padrão** e conta **idade da sessão, não idade do número**.
+> Ligado, um número com anos de uso seria tratado como recém-pareado e travaria
+> em **20 no primeiro dia**: o limitador estaria *errado* sobre esse número, não
+> cauteloso. **Decisão do Lucas em 06/09/2026: fica desligado**, e o número
+> conectado é separado mas **tem histórico**.
+
+O risco que sobra não é volume, é **denúncia e bloqueio de quem recebe** — e
+isso se resolve com a mensagem ser reconhecível pela igreja, que é assunto de
+tela, não de infraestrutura.
+
 ## Documentos: CPF e CNPJ
 
 `lib/documents.ts` é o único lugar que valida documento.
@@ -517,6 +579,11 @@ para concluir coisa alguma sobre o projeto.
   um alerta a lembrar.
 #### Outros
 
+- **Data "de hoje" calculada em UTC sai um dia adiantada à noite.**
+  `new Date().toISOString().slice(0, 10)` devolve a data **em UTC**: às 21h em
+  Brasília já é o dia seguinte lá. Quem lança às 21h30 vê 06/09 na tela e grava
+  07/09 — sem erro, sem aviso. **Data do usuário se calcula no fuso do usuário**,
+  nunca por `toISOString()`. Ver Pendências no [`CLAUDE.md`](CLAUDE.md).
 - **Data-texto convertida em instante sai um dia atrasada.** `new Date("2026-09-06")`
   é meia-noite **em UTC**, e no fuso de São Paulo imprime **05/09**. Um relatório
   inteiro sai um dia errado e ninguém percebe até a tesouraria fechar o mês.
