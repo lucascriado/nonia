@@ -24,13 +24,12 @@ export default function SettingsPage() {
   return (
     <DashboardShell title="Configurações">
       <main className="settings-main">
-        <section className="resource-heading settings-heading">
-          <div>
-            <h2>Configurações</h2>
-            <p>O que é seu e o que é da igreja, separados.</p>
-          </div>
-        </section>
-
+        {/* O título desta tela vive na BARRA DO TOPO, e só lá. Aqui havia um
+            segundo <h2> dizendo a mesma coisa com palavras um pouco
+            diferentes -- que é pior que repetir igual, porque a diferença faz
+            procurar um sentido que não existe. Decisão do Lucas: fica o de
+            cima. Ver components/header.tsx, que monta título e legenda a
+            partir de `searchItems`. */}
         <section aria-labelledby="grupo-conta" className="settings-group">
           <header>
             <span aria-hidden><UserCog /></span>

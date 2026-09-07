@@ -43,6 +43,34 @@ test.describe("o que a interface anuncia, ela faz", () => {
   });
 
   /**
+   * Seta dupla é a insígnia universal de "abre um menu". No chip do usuário,
+   * no rodapé da barra lateral, ela estava sobre um <Link> para uma página --
+   * e o Lucas leu o que ela diz: achou que dava para ter mais de um usuário.
+   *
+   * O teste é sobre a INSÍGNIA, não sobre ícone em geral: o seletor de igreja
+   * tem a mesma seta e continua com ela, porque lá existe menu de verdade. Se
+   * um dia o chip virar menu, a seta pode voltar -- e aí este teste é o lugar
+   * de dizer isso.
+   */
+  test("a seta de menu só existe onde há menu", async ({ page }) => {
+    await page.goto("/painel");
+    await page.waitForLoadState("networkidle");
+
+    const chip = page.locator(".sidebar-user");
+    await expect(chip).toHaveAttribute("href", /configuracoes/);
+    expect(
+      await chip.locator("svg.lucide-chevrons-up-down").count(),
+      "o chip do usuário leva a uma página, mas está usando a seta de quem abre menu",
+    ).toBe(0);
+
+    // O seletor de igreja É um menu, e continua se anunciando como tal.
+    const seletor = page.locator(".workspace-card");
+    if (await seletor.count()) {
+      expect(await seletor.locator("svg.lucide-chevrons-up-down").count()).toBeGreaterThan(0);
+    }
+  });
+
+  /**
    * Ctrl+K dentro de um campo de texto é "apagar até o fim da linha" no Unix.
    * Quem está digitando um nome no filtro não está procurando uma página, e
    * roubar a tecla dali trocaria uma promessa vazia por um atalho intrometido.
