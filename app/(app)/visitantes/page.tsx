@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FirstLoad } from "@/components/first-load";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
 import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
@@ -109,6 +110,11 @@ export default function VisitorsPage() {
 
   /** Sem NENHUM visitante e sem filtro nem aba: vira primeira vez. */
   const firstRun = !loading && failed === null && total === 0 && activeFilters === 0 && tab === "Todos";
+  /* O terceiro estado: ainda NÃO SABEMOS se há registro.
+     Sem ele, `firstRun` é falso enquanto carrega e o ramo de baixo desenha a
+     tela cheia -- indicadores rotulados, filtros e abas -- que some quando a
+     resposta chega vazia. Ver components/first-load.tsx. */
+  const aguardando = loading && failed === null && total === 0 && activeFilters === 0 && tab === "Todos";
 
   /**
    * Filtro, aba e paginação são do SERVIDOR. A lista em memória é uma PÁGINA:
@@ -258,6 +264,8 @@ export default function VisitorsPage() {
 
         {failed !== null ? (
           <LoadFailure onRetry={() => void loadVisitors(listQuery)} status={failed} />
+        ) : aguardando ? (
+          <FirstLoad label="Carregando os visitantes" />
         ) : firstRun ? (
           <FirstRun
             action={

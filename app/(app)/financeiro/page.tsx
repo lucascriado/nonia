@@ -18,6 +18,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FirstLoad } from "@/components/first-load";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
 import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
@@ -187,6 +188,11 @@ export default function FinancePage() {
 
   /** Sem NENHUM lançamento e sem filtro: a tela vira primeira vez. */
   const firstRun = !loading && failed === null && total === 0 && activeFilters === 0;
+  /* O terceiro estado: ainda NÃO SABEMOS se há registro.
+     Sem ele, `firstRun` é falso enquanto carrega e o ramo de baixo desenha a
+     tela cheia -- indicadores rotulados, filtros e abas -- que some quando a
+     resposta chega vazia. Ver components/first-load.tsx. */
+  const aguardando = loading && failed === null && !visibleTransactions.length && activeFilters === 0;
 
   function clearFilters() {
     setSearch(""); setType("all"); setStatus("all"); setCategory("all"); setAttachment("all"); setPage(1);
@@ -255,6 +261,8 @@ export default function FinancePage() {
 
         {failed !== null ? (
           <LoadFailure onRetry={() => void loadTransactions(listQuery)} status={failed} />
+        ) : aguardando ? (
+          <FirstLoad label="Carregando os lançamentos" />
         ) : firstRun ? (
           <FirstRun
             action={
