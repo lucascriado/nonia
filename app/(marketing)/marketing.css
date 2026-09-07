@@ -762,9 +762,24 @@ main.mk-main > *:not(.mk-container) { max-width: none; margin-inline: 0; }
    Telas de sessao: /entrar, /cadastro, /convite
    -------------------------------------------------------------------------- */
 
-.mk-auth { display: flex; align-items: center; padding: 56px 0 88px; }
+/* `main.mk-auth`, e não `.mk-auth`: o `main.mk-main { padding: 0 }` de cima tem
+   especificidade 0,1,1 e zerava o padding 56/88 daqui (0,1,0). Ele nunca pegava
+   -- por isso o bloco encostava no cabeçalho e no rodapé sem respiro, e o que o
+   Lucas via como "colado" não tinha nem os 88px que o CSS prometia. Igualada a
+   especificidade e vindo depois, o padding volta a valer. */
+main.mk-auth { display: flex; align-items: center; padding: 56px 0 88px; }
 .mk-auth-inner { width: 100%; }
-.mk-auth-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); gap: 64px; align-items: center; }
+/* DOIS centramentos verticais empilhavam-se e afundavam o cadastro. Medido em
+   1850x1500: o `.mk-auth` (align-items: center) descia o bloco inteiro 125px --
+   é o "muito para baixo, colado no rodapé"; e o `.mk-auth-split` centrava o
+   texto curto da esquerda contra o cartão alto, jogando o título 289px para
+   baixo do topo do cartão. Os dois sobem para o topo:
+   - o bloco todo só na tela de cadastro, que é a alta de duas colunas; /entrar e
+     /convite têm cartão baixo e seguem centrados, que ali fica bem;
+   - o título da esquerda passa a encostar no topo do cartão, como manda um
+     split de cadastro. */
+.mk-auth:has(.mk-auth-split) { align-items: flex-start; }
+.mk-auth-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); gap: 64px; align-items: start; }
 
 .mk-auth-pitch h2 { margin: 0; color: var(--heading); font-size: clamp(1.625rem, 3.2vw, 2.25rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
 .mk-auth-pitch > p { margin: 16px 0 26px; max-width: 46ch; color: var(--muted); font-size: 1rem; line-height: 1.65; }
