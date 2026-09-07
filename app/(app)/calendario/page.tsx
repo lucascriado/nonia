@@ -176,7 +176,7 @@ export default function CalendarPage() {
                   <button className={calendarView === "week" ? "active" : undefined} onClick={() => setCalendarView("week")}>Semana</button>
                   <button className={calendarView === "day" ? "active" : undefined} onClick={() => setCalendarView("day")}>Dia</button>
                 </div>
-                {canWrite && <button className="primary-action calendar-new-event" onClick={() => setCreating(true)}><Plus />Novo Evento</button>}
+                {canWrite && <button className="primary-action calendar-new-event" disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} onClick={() => setCreating(true)}><Plus />Novo Evento</button>}
               </div>
             </header>
 
