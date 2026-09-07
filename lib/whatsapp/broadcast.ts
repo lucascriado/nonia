@@ -43,7 +43,29 @@ export function chatIdDoTelefone(telefone: string | null | undefined): string | 
 
 export type Publico = "members" | "visitors";
 
-export type Candidato = { id: string; name: string; phone: string | null; chatId: string | null };
+/**
+ * POR QUE ALGUÉM NÃO RECEBE. Nunca "some da lista": o nome fica visível com o
+ * motivo ao lado.
+ *
+ *   sem_telefone      não há telefone no cadastro
+ *   telefone_invalido há telefone, mas ele não vira um número de WhatsApp
+ *   numero_repetido   outra pessoa da MESMA lista tem este número, e ela recebe
+ *
+ * Nome que desaparece sem explicação é a família de defeito que este projeto
+ * vem recusando o dia inteiro -- é o vazio que mente, com outra roupa. Quem
+ * olha a lista precisa poder conferir "faltou a Maria?" e achar a Maria ali,
+ * dizendo por que não recebe.
+ */
+export type MotivoDeNaoReceber = "sem_telefone" | "telefone_invalido" | "numero_repetido";
+
+export type Candidato = {
+  id: string;
+  name: string;
+  phone: string | null;
+  chatId: string | null;
+  recebe: boolean;
+  motivo: MotivoDeNaoReceber | null;
+};
 
 /**
  * Quem seria alcançado pelo filtro que a pessoa está vendo.
@@ -51,20 +73,80 @@ export type Candidato = { id: string; name: string; phone: string | null; chatId
  * Sai do MESMO `lib/listings.ts` da listagem e da exportação. Não é economia de
  * código: é o que faz "mandar para quem estou vendo" ser estrutural em vez de
  * depender de alguém manter dois WHERE espelhados.
+ *
+ * É TAMBÉM A ÚNICA RESOLUÇÃO DE PÚBLICO DO PROJETO: a prévia com nomes, a
+ * conferência de números e a criação do envio chamam esta função e mais
+ * nenhuma. Prévia e envio calculados por caminhos diferentes seria uma prévia
+ * que vira mentira no dia em que um dos dois mudar -- e ninguém descobriria,
+ * porque os dois continuariam "funcionando".
  */
 export async function candidatos(publico: Publico, params: URLSearchParams, organizationId: string): Promise<Candidato[]> {
   const filtro = publico === "members"
     ? filtrosDeMembros(params, organizationId)
     : filtrosDeVisitantes(params, organizationId);
-  const view = publico === "members" ? "member_directory" : "visitor_directory";
   const { rows } = await query<{ id: string; name: string; phone: string | null }>(
-    `SELECT id, full_name AS name, phone FROM ${view}
+    `SELECT id, full_name AS name, phone FROM ${viewDe(publico)}
       WHERE ${filtro.where.join(" AND ")}
       ORDER BY full_name
       LIMIT ${TETO_POR_ENVIO + 1}`,
     filtro.valores,
   );
-  return rows.map((r) => ({ ...r, chatId: chatIdDoTelefone(r.phone) }));
+  return marcar(rows);
+}
+
+const viewDe = (publico: Publico) => (publico === "members" ? "member_directory" : "visitor_directory");
+
+/**
+ * DUAS PESSOAS COM O MESMO NÚMERO RECEBEM UMA MENSAGEM SÓ.
+ *
+ * Casal que divide telefone é comum em igreja, e sem esta deduplicação o mesmo
+ * aparelho recebia a mesma mensagem duas vezes, com 3 s entre elas. Para quem
+ * recebe é desleixo; para o WhatsApp é padrão de robô -- exatamente o que o
+ * intervalo entre mensagens existe para evitar. O disparo produzia sozinho a
+ * assinatura que o resto do código passa o tempo todo protegendo.
+ *
+ * Quem recebe é o PRIMEIRO em ordem alfabética, que é a ordem que a tela mostra
+ * -- assim a escolha é visível e estável, e não "o que o banco devolveu
+ * primeiro". O segundo continua na lista, com `numero_repetido`.
+ *
+ * Aqui dentro, e não na rota, porque prévia e envio têm que enxergar o mesmo
+ * público. Deduplicar só na exibição faria a tela mostrar 40 e o envio mandar
+ * 41 -- que é o defeito que esta entrega inteira existe para fechar.
+ */
+function marcar(rows: { id: string; name: string; phone: string | null }[]): Candidato[] {
+  const jaVisto = new Set<string>();
+  return rows.map((r) => {
+    const chatId = chatIdDoTelefone(r.phone);
+    let motivo: MotivoDeNaoReceber | null = null;
+    if (!chatId) motivo = (r.phone ?? "").trim() ? "telefone_invalido" : "sem_telefone";
+    else if (jaVisto.has(chatId)) motivo = "numero_repetido";
+    else jaVisto.add(chatId);
+    return { ...r, chatId, recebe: motivo === null, motivo };
+  });
+}
+
+/**
+ * O MESMO público, resolvido a partir de uma lista explícita de pessoas.
+ *
+ * Mesma view, mesmo `chatIdDoTelefone`, mesma deduplicação, mesma ordem
+ * alfabética -- de propósito: se esta função e `candidatos()` divergissem em
+ * qualquer detalhe, a lista que a pessoa conferiu e a lista que sai teriam
+ * regras diferentes, que é o problema com um nome novo.
+ *
+ * O id que não for desta igreja simplesmente não volta da consulta -- o `WHERE
+ * organization_id` faz a checagem de tenant ser estrutural, e não uma validação
+ * que alguém pode esquecer de chamar.
+ */
+export async function porIds(publico: Publico, ids: string[], organizationId: string): Promise<Candidato[]> {
+  if (!ids.length) return [];
+  const { rows } = await query<{ id: string; name: string; phone: string | null }>(
+    `SELECT id, full_name AS name, phone FROM ${viewDe(publico)}
+      WHERE organization_id = $1 AND id = ANY($2::uuid[])
+      ORDER BY full_name
+      LIMIT ${TETO_POR_ENVIO + 1}`,
+    [organizationId, ids],
+  );
+  return marcar(rows);
 }
 
 export type Conferencia = {
@@ -76,17 +158,24 @@ export type Conferencia = {
   estimativaSegundos: number;
 };
 
-/** A conferência de ANTES. Ausência informada antes vale mais que falha depois. */
+/**
+ * A conferência de ANTES. Ausência informada antes vale mais que falha depois.
+ *
+ * `comTelefone` passa a ser QUEM RECEBE, e não quem tem número: com a
+ * deduplicação, um casal que divide telefone são duas pessoas e uma mensagem.
+ * Contar dois aqui faria a estimativa de duração mentir e faria a tela prometer
+ * uma entrega que não acontece.
+ */
 export function conferir(lista: Candidato[]): Conferencia {
   const dentro = lista.slice(0, TETO_POR_ENVIO);
-  const comTelefone = dentro.filter((c) => c.chatId).length;
+  const recebem = dentro.filter((c) => c.recebe).length;
   return {
     total: dentro.length,
-    comTelefone,
-    semTelefone: dentro.length - comTelefone,
+    comTelefone: recebem,
+    semTelefone: dentro.length - recebem,
     acimaDoTeto: lista.length > TETO_POR_ENVIO,
     teto: TETO_POR_ENVIO,
-    estimativaSegundos: estimativaSegundos(comTelefone),
+    estimativaSegundos: estimativaSegundos(recebem),
   };
 }
 
