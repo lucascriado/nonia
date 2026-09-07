@@ -15,7 +15,15 @@ import { useSession } from "@/components/current-user";
 import { initialsFrom } from "@/components/avatar";
 
 /**
- * Troca a igreja ativa, no lugar do cartão de espaço de trabalho.
+ * A igreja ativa: trocar de igreja e criar outra.
+ *
+ * ELE APARECE SEMPRE, inclusive com uma igreja só. Antes só a partir de duas,
+ * e a consequência era um absurdo: "criar nova igreja" mora aqui dentro, então
+ * a porta de criar a SEGUNDA ficava trancada atrás de já ter duas. Com uma
+ * igreja -- o caso de todo mundo -- não havia caminho nenhum.
+ *
+ * O produto chama isto de IGREJA em todo lugar. O cartão dizia "espaço de
+ * trabalho", que era um terceiro nome para a mesma coisa.
  *
  * TROCAR OU CRIAR RECARREGA A PÁGINA. Não é preguiça de atualizar em memória:
  * trocar de organização troca a SESSÃO inteira, e com ela o papel, as
@@ -33,6 +41,8 @@ import { initialsFrom } from "@/components/avatar";
  */
 export function OrganizationSwitcher() {
   const { organization, organizations } = useSession();
+  /** Com uma igreja só o cartão não promete troca: ele abre para criar outra. */
+  const varias = organizations.length > 1;
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -89,11 +99,11 @@ export function OrganizationSwitcher() {
         aria-haspopup="listbox"
         className="workspace-card"
         onClick={() => setOpen((value) => !value)}
-        title="Trocar de igreja"
+        title={varias ? "Trocar de igreja" : "Sua igreja"}
         type="button"
       >
         <span className="workspace-avatar" aria-hidden>{initialsFrom(organization?.name ?? "Nonia")}</span>
-        <span><strong>{organization?.name ?? "Sua igreja"}</strong><small>Trocar de igreja</small></span>
+        <span><strong>{organization?.name ?? "Sua igreja"}</strong><small>{varias ? "Trocar de igreja" : "Sua igreja"}</small></span>
         {busy ? <LoaderCircle className="button-spinner" aria-hidden /> : <ChevronsUpDown aria-hidden />}
       </button>
 

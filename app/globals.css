@@ -344,21 +344,25 @@ kbd {
 .nav-section-label { padding: 0 12px 4px; color: var(--muted); font-size: 0.625rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; white-space: nowrap; transition: opacity .2s ease; }
 
 .nav-list { display: flex; flex-direction: column; gap: 3px; }
-.nav-list a { position: relative; display: flex; min-height: 38px; align-items: center; gap: 11px; overflow: hidden; padding: 8px 12px; border-radius: var(--radius-sm); color: var(--muted); font-size: 0.84375rem; font-weight: 500; text-decoration: none; transition: color .18s ease, background .18s ease; }
-.nav-list a::before { position: absolute; inset: 9px auto 9px 0; width: 3px; border-radius: 999px; background: var(--primary); content: ""; opacity: 0; transform: scaleY(.3); transition: opacity .2s ease, transform .3s var(--ease-out); }
-.nav-list a:hover { background: var(--sidebar-active); color: var(--text); }
+.nav-list :is(a, button) { position: relative; display: flex; min-height: 38px; align-items: center; gap: 11px; overflow: hidden; padding: 8px 12px; border-radius: var(--radius-sm); color: var(--muted); font-size: 0.84375rem; font-weight: 500; text-decoration: none; transition: color .18s ease, background .18s ease; }
+.nav-list :is(a, button)::before { position: absolute; inset: 9px auto 9px 0; width: 3px; border-radius: 999px; background: var(--primary); content: ""; opacity: 0; transform: scaleY(.3); transition: opacity .2s ease, transform .3s var(--ease-out); }
+.nav-list :is(a, button):hover { background: var(--sidebar-active); color: var(--text); }
 .nav-list a.active { background: var(--sidebar-active); color: var(--heading); font-weight: 600; }
 .nav-list a.active::before { opacity: 1; transform: scaleY(1); }
 .nav-list a.active svg { color: var(--primary); }
 .nav-list svg { flex: 0 0 var(--icon-md); width: var(--icon-md); height: var(--icon-md); transition: transform .25s var(--ease-out); }
-.nav-list a:hover svg { transform: scale(1.1); }
-.nav-list a > span { max-width: 170px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: max-width .38s var(--ease-out), opacity .2s ease; }
+.nav-list :is(a, button):hover svg { transform: scale(1.1); }
+.nav-list :is(a, button) > span { max-width: 170px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: max-width .38s var(--ease-out), opacity .2s ease; }
 .nav-badge { display: inline-flex; flex: 0 0 auto; align-items: center; padding: 2px 7px; border-radius: 999px; background: var(--neutral-soft); color: var(--muted); font-size: 0.625rem; font-weight: 700; white-space: nowrap; transition: opacity .2s ease; }
 .nav-badge.is-live { background: var(--primary-soft); color: var(--heading); }
 
 .sidebar-footer { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-top: 1px solid var(--border); }
 .nav-footer { gap: 2px; }
-.nav-footer a { min-height: 34px; font-size: 0.8125rem; }
+.nav-footer :is(a, button) { min-height: 34px; font-size: 0.8125rem; }
+/* O "Sair" virou <button> quando deixou de ser um href="#" morto. Ele usa a
+   mesma caixa dos links da lista; estas linhas só desfazem o que o navegador
+   dá de graça a um botão e não a um link. */
+.nav-list button { width: 100%; border: 0; background: transparent; color: inherit; font-family: inherit; text-align: left; }
 
 .sidebar-promo { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: inherit; text-decoration: none; transition: border-color .2s ease, box-shadow .25s ease, transform .25s var(--ease-out); }
 .sidebar-promo:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
@@ -1163,7 +1167,13 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
    então ela se ajusta à QUANTIDADE de cartões: com dois eles dividem a largura,
    com um ele ocupa tudo, e nenhuma trilha vazia sobra pedindo conteúdo. */
 .settings-group { margin-bottom: var(--space-6); }
-.settings-group > header { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+/* O RECUO É O MESMO DOS CARTÕES QUE ESTE CABEÇALHO NOMEIA. Sem ele, o ícone da
+   seção ficava em 292 e o ícone do cartão logo abaixo em 313: dois ícones do
+   mesmo tamanho, empilhados a 50px um do outro, desencontrados por 21px. O
+   cabeçalho rotula a linha de cartões, então ele acompanha a coluna deles.
+   O +1px é a BORDA do cartão: o cartão começa em 292 e desenha 1px de borda
+   antes do próprio recheio, então o conteúdo dele cai em 313 e não em 312. */
+.settings-group > header { display: flex; align-items: center; gap: var(--space-3); padding-inline: calc(var(--space-5) + 1px); margin-bottom: var(--space-4); }
 .settings-group > header > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
 .settings-group > header > span svg { width: var(--icon-md); }
 .settings-group h3 { margin: 0; color: var(--heading); font-size: 1rem; font-weight: 600; }
@@ -1883,8 +1893,8 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .sidebar-collapse:checked ~ .sidebar .sidebar-collapse-button svg { transform: rotate(180deg); }
 .sidebar-collapse:checked ~ .sidebar .sidebar-scroll { padding-inline: 8px; }
 .sidebar-collapse:checked ~ .sidebar .nav-section-label { height: 0; overflow: hidden; padding: 0; opacity: 0; }
-.sidebar-collapse:checked ~ .sidebar .nav-list a { justify-content: center; gap: 0; padding-inline: 0; }
-.sidebar-collapse:checked ~ .sidebar .nav-list a > span { max-width: 0; opacity: 0; }
+.sidebar-collapse:checked ~ .sidebar .nav-list :is(a, button) { justify-content: center; gap: 0; padding-inline: 0; }
+.sidebar-collapse:checked ~ .sidebar .nav-list :is(a, button) > span { max-width: 0; opacity: 0; }
 .sidebar-collapse:checked ~ .sidebar .nav-badge { display: none; }
 .sidebar-collapse:checked ~ .sidebar .workspace-card, .sidebar-collapse:checked ~ .sidebar .sidebar-user { justify-content: center; padding-inline: 6px; }
 .sidebar-collapse:checked ~ .sidebar .workspace-card > span:not(.workspace-avatar), .sidebar-collapse:checked ~ .sidebar .workspace-card > svg,
@@ -2621,7 +2631,10 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .resource-card footer button, .cell-card footer button, .ministry-card footer button { min-height: 44px; }
   .member-actions button, .member-actions a { flex: 0 0 44px; min-width: 44px; width: 44px; height: 44px; }
   .text-button { display: inline-flex; min-height: 44px; align-items: center; }
-  .nav-list a { min-height: 44px; }
+  /* `:is(a, button)` desde que o "Sair" deixou de ser um href="#" morto e
+     virou botão: a regra valia só para o link e o alvo novo nasceu com 34px.
+     O detector pegou na mesma rodada. */
+  .nav-list :is(a, button) { min-height: 44px; }
   .calendar-nav-buttons button { width: 44px; height: 44px; }
 }
 
