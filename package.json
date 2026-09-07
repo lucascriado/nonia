@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run check:rotas && next build",
     "db:migrate": "node database/migrate.mjs",
     "db:status": "node database/status.mjs",
     "db:seed:dev": "node database/migrate.mjs --seed-dev",
