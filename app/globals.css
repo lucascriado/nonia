@@ -1377,6 +1377,10 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 /* Sem isto o conteudo entraria por baixo da faixa: o <main> ja reserva a
    altura da topbar no proprio padding, entao a faixa devolve essa reserva. */
 .billing-notice + main { padding-top: var(--gutter); }
+/* Com DUAS faixas (cobrança e WhatsApp caído), só a primeira reserva a altura
+   da topbar. Sem esta linha a segunda abriria outro buraco de 76px no meio da
+   tela — a reserva é da topbar, não de cada faixa. */
+.billing-notice + .billing-notice { margin-top: 0; }
 .billing-notice p { margin: 0; flex: 1; font-size: 0.8125rem; line-height: 1.5; }
 .billing-notice > svg { width: var(--icon-md); flex: 0 0 var(--icon-md); }
 .billing-notice-action {
@@ -2630,6 +2634,95 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   }
   .calendar-main { padding-bottom: 88px; }
 }
+
+/* --------------------------------------------------------------------------
+   WhatsApp
+   Os painéis seguem o mesmo cartão de /usuarios e /configuracoes: cabeçalho
+   com ícone, título e descrição, e corpo com recuo próprio. O ritmo vertical é
+   do contêiner, como nas listagens -- foi o que faltou em /visitantes.
+   -------------------------------------------------------------------------- */
+.whatsapp-content { display: grid; gap: 20px; }
+.wa-panel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
+.wa-panel > header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
+.wa-panel h3 { margin: 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.wa-panel > header p { margin: 3px 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
+.wa-panel > header > div { min-width: 0; flex: 1; }
+.wa-panel-body { display: grid; gap: var(--space-4); padding: var(--space-5); }
+.wa-panel.is-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-6); color: var(--muted); font-size: 0.875rem; }
+.wa-panel.is-loading p { margin: 0; }
+.wa-close { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); }
+.wa-close:hover { background: var(--panel-soft); color: var(--text); }
+.wa-close svg { width: var(--icon-md); }
+
+.wa-state-icon { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--neutral-soft); color: var(--muted); }
+.wa-state-icon svg { width: var(--icon-md); }
+.wa-state-icon.is-ok { background: var(--primary-soft); color: var(--heading); }
+.wa-state-icon.is-andamento { background: var(--info-soft); color: var(--info); }
+.wa-state-icon.is-alerta { background: var(--danger-soft); color: var(--danger); }
+
+.wa-badge { padding: 4px 10px; border-radius: 999px; background: var(--neutral-soft); color: var(--muted); font-size: 0.6875rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.wa-badge.is-ok { background: var(--primary-soft); color: var(--heading); }
+.wa-badge.is-andamento { background: var(--info-soft); color: var(--info); }
+.wa-badge.is-alerta { background: var(--danger-soft); color: var(--danger); }
+
+.wa-note { display: flex; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); margin: 0; background: var(--panel-soft); color: var(--muted); font-size: 0.8125rem; line-height: 1.55; }
+.wa-note svg { width: var(--icon-md); flex: 0 0 var(--icon-md); color: var(--warning); }
+.wa-note.is-info svg { color: var(--primary); }
+.wa-note strong { color: var(--text); }
+
+.wa-facts { display: flex; flex-wrap: wrap; gap: var(--space-5); margin: 0; }
+.wa-facts dt { color: var(--muted); font-size: 0.6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.wa-facts dd { margin: 4px 0 0; color: var(--text); font-size: 0.875rem; font-weight: 600; }
+
+.wa-qr { display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-5); border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--panel-soft); }
+/* Fundo branco fixo: o QR precisa de contraste real para a câmera ler, e no
+   tema escuro um PNG com transparência ficaria ilegível. */
+.wa-qr img { width: min(240px, 100%); border-radius: var(--radius-sm); background: #fff; padding: 10px; }
+.wa-qr ol { max-width: 46ch; margin: 0; padding-left: 1.2em; color: var(--muted); font-size: 0.8125rem; line-height: 1.7; }
+.wa-qr strong { color: var(--text); }
+.wa-qr small { color: var(--muted); font-size: 0.75rem; }
+
+.wa-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.wa-actions button:not(.primary-action) { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; padding: 0 var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.wa-actions button:not(.primary-action):hover:not(:disabled) { border-color: var(--primary-border); color: var(--text); }
+.wa-actions button:disabled { cursor: wait; opacity: .6; }
+.wa-actions svg { width: var(--icon-sm); }
+.wa-actions small { color: var(--muted); font-size: 0.75rem; }
+
+.wa-audience { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-soft); }
+.wa-audience button { min-height: 44px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.wa-audience button.active { background: var(--panel); color: var(--heading); box-shadow: var(--shadow-xs); }
+.wa-filters { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+.wa-preview { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--heading); font-size: 0.875rem; line-height: 1.55; }
+.wa-preview svg { width: var(--icon-md); flex: 0 0 var(--icon-md); }
+
+.wa-message { display: grid; gap: 6px; font-size: 0.8125rem; font-weight: 600; }
+.wa-message textarea { min-height: 120px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-family: inherit; font-size: 0.875rem; line-height: 1.6; resize: vertical; }
+.wa-message textarea:focus-visible { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-soft); }
+.wa-message small { color: var(--muted); font-weight: 400; }
+
+.wa-confirm { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--primary-border); border-radius: var(--radius); background: var(--panel-soft); }
+.wa-confirm p { margin: 0; color: var(--text); font-size: 0.9375rem; }
+.wa-confirm-note { color: var(--muted) !important; font-size: 0.8125rem !important; line-height: 1.55; }
+
+.wa-progress { height: 8px; overflow: hidden; border-radius: 999px; background: var(--neutral-soft); }
+.wa-progress i { display: block; height: 100%; border-radius: 999px; background: var(--primary); transition: width .4s var(--ease-out); }
+.wa-counters { margin: 0; color: var(--muted); font-size: 0.8125rem; }
+.wa-counters strong { color: var(--text); }
+
+.wa-recipients h4 { margin: 0 0 var(--space-3); color: var(--muted); font-size: 0.6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.wa-recipients ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.wa-recipients li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 0.8125rem; }
+.wa-recipients strong { color: var(--text); font-weight: 600; }
+.wa-recipients small { color: var(--muted); }
+
+.wa-history { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.wa-history button { display: flex; width: 100%; min-height: 44px; align-items: center; gap: var(--space-3); padding: var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; }
+.wa-history button:hover { background: var(--panel-soft); }
+.wa-history-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.wa-history strong { overflow: hidden; color: var(--text); font-size: 0.84375rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.wa-history small { color: var(--muted); font-size: 0.75rem; }
 
 /* --------------------------------------------------------------------------
    Alvos de toque
