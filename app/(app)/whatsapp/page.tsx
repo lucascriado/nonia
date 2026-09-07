@@ -13,6 +13,9 @@ import { listBroadcasts, type Broadcast, type WhatsappState } from "@/components
 import { AuthError } from "@/components/auth/session";
 import { ActivitySkeleton } from "@/components/skeleton";
 
+/** O padrão do servidor. Quando o histórico encher, vira paginação. */
+const PAGINA = 25;
+
 export default function WhatsappPage() {
   const canRead = usePermission("whatsapp.read");
   const canBroadcast = usePermission("whatsapp.broadcast");
@@ -26,7 +29,7 @@ export default function WhatsappPage() {
   const carregar = useCallback(async () => {
     setLoading(true);
     try {
-      const { records } = await listBroadcasts();
+      const { records } = await listBroadcasts(1, PAGINA);
       setBroadcasts(records);
       setFailed(null);
     } catch (error) {
@@ -88,6 +91,12 @@ export default function WhatsappPage() {
                   text="Quando a igreja disparar a primeira mensagem, ela aparece aqui com quantas saíram, quantas falharam e quem ficou de fora."
                   title="Nenhum envio ainda"
                 />
+              )}
+              {/* Diz que são os mais recentes, e não todos: lista que parece
+                  completa e não é tem o mesmo defeito do vazio que mente. A
+                  paginação entra quando o histórico encher. */}
+              {!loading && failed === null && broadcasts.length >= PAGINA && (
+                <p className="wa-history-note">Mostrando os {PAGINA} envios mais recentes.</p>
               )}
               {!loading && failed === null && broadcasts.length > 0 && (
                 <ul className="wa-history">

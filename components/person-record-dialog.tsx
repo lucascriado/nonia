@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Camera, Check, Church, LoaderCircle, MapPin, Save, Trash2, TriangleAlert, UserRound, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check, Church, LoaderCircle, MapPin, Save, Trash2, TriangleAlert, UserRound, X } from "lucide-react";
 import { initialsFrom } from "@/components/avatar";
 import { digitsOnly, maskCpf, maskPhone, maskZipCode } from "@/components/masks";
 
@@ -43,7 +43,10 @@ const emptyValues: PersonRecordValues = {
   address: "",
   neighborhood: "",
   city: "",
-  state: "São Paulo",
+  // Vazio, e não "São Paulo": um seletor sem opção neutra grava em toda ficha
+  // um estado que ninguém escolheu. Medido no banco: 1 das 31 pessoas tinha
+  // estado preenchido, e era esse carimbo.
+  state: "",
   role: "Membro Comum",
   ministry: "Nenhum",
   baptismDate: "",
@@ -97,6 +100,21 @@ export function PersonRecordDialog({
 }) {
   const [values, setValues] = useState<PersonRecordValues>(() => normalizeValues(initialValues));
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * DUAS ETAPAS SÓ AO CRIAR.
+   *
+   * O formulário pede 15 campos para visitante e 17 para membro, e a medição
+   * no banco explica por que isso pesa: das 31 pessoas cadastradas, telefone,
+   * sexo, estado civil, CPF, CEP, logradouro, bairro, cidade e observações
+   * estavam preenchidos em ZERO delas. Quem cadastra está no corredor da
+   * igreja, com a pessoa na frente, e não tem CEP nem data de batismo na mão.
+   * Então o passo 1 pede o que se tem em pé, e cria; o resto é o passo 2, que
+   * dá para pular e preencher depois na ficha.
+   *
+   * EDITAR NÃO TEM PASSO. Quem edita já está sentado e foi atrás de um campo
+   * específico: esconder metade da ficha atrás de um "continuar" atrapalharia.
+   */
+  const [step, setStep] = useState<1 | 2>(1);
   const [photoError, setPhotoError] = useState("");
   const [zipCodeStatus, setZipCodeStatus] = useState<"idle" | "loading" | "found" | "not-found">("idle");
   const [ministryOptions, setMinistryOptions] = useState<string[]>(["Nenhum", "Louvor", "Missões", "Acolhimento", "Infantil"]);
@@ -107,6 +125,7 @@ export function PersonRecordDialog({
       setSubmitting(false);
       setPhotoError("");
       setZipCodeStatus("idle");
+      setStep(1);
     }
   }, [initialValues, open]);
 
@@ -179,6 +198,8 @@ export function PersonRecordDialog({
 
   if (!open) return null;
 
+  const twoSteps = mode === "create";
+  const noPasso1 = twoSteps && step === 1;
   const isMember = kind === "member";
   const label = isMember ? "membro" : "visitante";
   const readOnly = mode === "view";
@@ -237,6 +258,36 @@ export function PersonRecordDialog({
       </div>
 
       <form className="record-form" onSubmit={submit}>
+        {twoSteps && (
+          <ol className="record-steps" aria-label="Etapas do cadastro">
+            <li aria-current={step === 1 ? "step" : undefined} className={step === 1 ? "is-current" : "is-done"}><b>1</b>O essencial</li>
+            <li aria-current={step === 2 ? "step" : undefined} className={step === 2 ? "is-current" : undefined}><b>2</b>Completar a ficha <em>opcional</em></li>
+          </ol>
+        )}
+
+        {noPasso1 ? (
+        <fieldset className="record-form-fields is-step-one" disabled={submitting}>
+          <FormSection title="O essencial" icon={<UserRound />} className="record-personal">
+            <Field label="Nome Completo" wide required>
+              <input autoFocus required value={values.name} onChange={(event) => update("name", event.target.value)} placeholder="Ex: João da Silva Santos" />
+            </Field>
+            <Field label="Telefone/WhatsApp">
+              <input inputMode="tel" maxLength={16} value={values.phone} onChange={(event) => update("phone", maskPhone(event.target.value))} placeholder="(00) 0 0000-0000" />
+            </Field>
+            {/* O e-mail continua aqui porque o SERVIDOR ainda o exige em
+                `validateRecordPayload`. No corredor da igreja quase ninguém
+                tem e-mail para dar, então ele é o próximo a sair do passo 1 no
+                dia em que a rota deixar de pedi-lo. */}
+            <Field label="E-mail" required>
+              <input required type="email" value={values.email} onChange={(event) => update("email", event.target.value)} placeholder="contato@exemplo.com.br" />
+            </Field>
+          </FormSection>
+          <p className="record-step-note">
+            Só isso já cria {isMember ? "o membro" : "o visitante"}. O resto da ficha — endereço, documentos, dados da
+            igreja — dá para preencher agora ou depois, quando der.
+          </p>
+        </fieldset>
+        ) : (
         <fieldset className="record-form-fields" disabled={submitting || readOnly}>
         <aside className="record-photo-card">
           <span className={`record-photo-placeholder ${values.photoDataUrl ? "has-photo" : values.name.trim() ? "has-initials" : ""}`}>
@@ -274,7 +325,7 @@ export function PersonRecordDialog({
           <Field label="Logradouro" wide><input value={values.address} onChange={(event) => update("address", event.target.value)} placeholder="Rua, Avenida, etc." /></Field>
           <Field label="Bairro"><input value={values.neighborhood} onChange={(event) => update("neighborhood", event.target.value)} /></Field>
           <Field label="Cidade"><input value={values.city} onChange={(event) => update("city", event.target.value)} /></Field>
-          <Field label="Estado"><select value={values.state} onChange={(event) => update("state", event.target.value)}>{brazilianStates.map((state) => <option key={state}>{state}</option>)}</select></Field>
+          <Field label="Estado"><select value={values.state} onChange={(event) => update("state", event.target.value)}><option value="">Selecione</option>{brazilianStates.map((state) => <option key={state}>{state}</option>)}</select></Field>
         </FormSection>
 
         <FormSection title={isMember ? "Informações Eclesiásticas" : "Informações da Visita"} icon={<Church />} className="record-church">
@@ -311,13 +362,33 @@ export function PersonRecordDialog({
         </FormSection>
 
         </fieldset>
+        )}
         {!readOnly && (
           <footer className="record-form-actions">
-            <button type="button" className="record-cancel" disabled={submitting} onClick={onClose}>Cancelar</button>
-            <button type="submit" className="record-save" disabled={submitting} aria-busy={submitting}>
-              {submitting ? <LoaderCircle className="button-spinner" /> : <Save />}
-              {submitting ? (mode === "create" ? "Salvando..." : "Alterando...") : mode === "create" ? "Salvar Registro" : "Alterar"}
-            </button>
+            {noPasso1 ? (
+              <>
+                <button type="button" className="record-cancel" disabled={submitting} onClick={onClose}>Cancelar</button>
+                {/* O PULO, e ele é o caminho normal: quem clica aqui sai com o
+                    cadastro FEITO. Se pular custasse o cadastro, ninguém
+                    pularia -- e aí a etapa opcional não seria opcional. */}
+                <button type="submit" className="record-skip" disabled={submitting} aria-busy={submitting}>
+                  {submitting ? <LoaderCircle className="button-spinner" /> : <Save />}
+                  {submitting ? "Salvando..." : "Salvar agora"}
+                </button>
+                <button type="button" className="record-save" onClick={() => setStep(2)}>
+                  Completar a ficha<ArrowRight />
+                </button>
+              </>
+            ) : (
+              <>
+                {twoSteps && <button type="button" className="record-cancel" onClick={() => setStep(1)}><ArrowLeft />Voltar</button>}
+                {!twoSteps && <button type="button" className="record-cancel" disabled={submitting} onClick={onClose}>Cancelar</button>}
+                <button type="submit" className="record-save" disabled={submitting} aria-busy={submitting}>
+                  {submitting ? <LoaderCircle className="button-spinner" /> : <Save />}
+                  {submitting ? (mode === "create" ? "Salvando..." : "Alterando...") : mode === "create" ? "Salvar cadastro" : "Alterar"}
+                </button>
+              </>
+            )}
           </footer>
         )}
       </form>

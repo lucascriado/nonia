@@ -15,7 +15,10 @@ export function maskCpf(value: string) {
 export function maskPhone(value: string) {
   const digits = digitsOnly(value, 11);
   if (digits.length <= 10) return digits.replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d)/, "$1-$2");
-  return digits.replace(/^(\d{2})(\d)(\d)/, "($1) $2 $3").replace(/(\d{4})(\d)/, "$1-$2");
+  // "(17) 90000-1001", sem espaço depois do 9. É a forma que a semente e o
+  // resto do banco já usam; com o espaço, a mesma coluna mostrava dois
+  // formatos para o mesmo tipo de número.
+  return digits.replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2");
 }
 
 export function maskZipCode(value: string) {
