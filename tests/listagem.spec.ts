@@ -68,6 +68,48 @@ test.describe("listagem paginada", () => {
     expect(await indicador(page, "Total ativos"), "com o filtro em Inativo, nenhum ativo pode sobrar no indicador").toBe(0);
   });
 
+  /**
+   * DEFEITO DE TEMPO, e por isso o teste e de navegador e nao de unidade.
+   *
+   * O caminho exato: a busca nao acha nada, a tela mostra o texto de vazio, a
+   * pessoa LIMPA a busca -- e o texto de vazio continuava ali enquanto a nova
+   * requisicao estava em voo, porque `loading` so virava verdadeiro dentro do
+   * fetch, um quadro depois (300ms depois, no caso da busca). A tela afirmava
+   * ausencia sem ter a resposta na mao, que e a mesma familia do vazio depois
+   * de um 403.
+   *
+   * O teste ATRASA a resposta de propriedade, para que a janela de "em voo"
+   * seja larga o bastante para ser observada. Sem o atraso ele passaria por
+   * sorte: a janela real dura um quadro.
+   */
+  test("o estado vazio some assim que o filtro muda, antes da resposta", async ({ page }) => {
+    const resposta = await page.request.get("/api/members?pageSize=1");
+    const { total } = await resposta.json();
+    test.skip(total < 1, "precisa de ao menos um membro para a busca ter o que esconder");
+
+    await page.goto("/membros");
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1200);
+
+    const vazio = page.locator(".members-empty, .first-run h3");
+
+    // Busca que nao acha nada: aqui o texto de vazio e CORRETO e fica na tela.
+    await page.locator(".member-filter-search input").fill("zzzznaoexistezzzz");
+    await expect(vazio).toBeVisible({ timeout: 5000 });
+
+    // Agora muda OUTRO filtro com a busca ainda preenchida. A busca esta
+    // preenchida, entao a requisicao espera os 300ms da digitacao -- e sao
+    // esses 300ms a janela do defeito: a consulta ja mudou, a resposta nao
+    // chegou, e a tela nao pode continuar afirmando que nao ha nada.
+    await page.selectOption('select[aria-label="Filtrar por status"]', "Ativo");
+    await page.waitForTimeout(150);
+    // `await vazio.count()` e nao `expect(vazio).toHaveCount(0)`: a asserção
+    // web-first do Playwright RETENTA ate 5s, entao ela esperaria a resposta
+    // chegar e passaria mesmo com o defeito presente. Aqui o que importa e o
+    // instante, e o instante se le uma vez so.
+    expect(await vazio.count(), "vazio visivel com a leitura pendente").toBe(0);
+  });
+
   test("o resumo do financeiro vem do servidor, não da página", async ({ page }) => {
     const resposta = await page.request.get("/api/financeiro?pageSize=1");
     const { summary } = await resposta.json();

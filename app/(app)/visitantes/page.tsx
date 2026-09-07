@@ -149,6 +149,12 @@ export default function VisitorsPage() {
   }, []);
 
   useEffect(() => {
+    // CARREGANDO COMEÇA AQUI, não dentro do fetch. Entre a troca de aba e o
+    // disparo da requisição havia pelo menos um quadro com `loading` falso e a
+    // lista ainda sem os dados novos -- e nesse quadro o estado vazio
+    // aparecia. É o mesmo defeito do 403: a tela afirmando ausência sem ter a
+    // resposta. Com a busca, o intervalo era de 300ms inteiros.
+    setLoading(true);
     const delay = search.trim() ? 300 : 0;
     const timer = window.setTimeout(() => void loadVisitors(listQuery), delay);
     return () => window.clearTimeout(timer);
@@ -170,6 +176,13 @@ export default function VisitorsPage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = visitors;
+  /**
+   * Releitura COM conteúdo anterior na tela: trocar de aba ou de página não
+   * pode apagar a lista e pôr esqueleto no lugar. O esqueleto é para quando
+   * não há o que manter; havendo, a lista antiga fica visível e apagada até a
+   * nova chegar, e a pessoa não perde o contexto nem vê a tela piscar.
+   */
+  const refreshing = loading && visible.length > 0;
   const start = total ? (currentPage - 1) * pageSize + 1 : 0;
   const end = Math.min(currentPage * pageSize, total);
 
@@ -266,15 +279,15 @@ export default function VisitorsPage() {
             sem explicação parece defeito; com a frase, é informação. */}
         {(activeFilters > 0 || tab !== "Todos") && <p className="stats-caption">Números do que está filtrado, não da igreja inteira.</p>}
         <section className="visitor-stats" aria-label="Indicadores de visitantes">
-          <VisitorStat loading={loading} label="Total de visitantes" value={total} color="default" />
-          <VisitorStat loading={loading} label="Primeira visita" value={summary.firstVisit} detail="Novo" color="new" />
-          <VisitorStat loading={loading} label="Em integração" value={summary.integrating} color="default" />
+          <VisitorStat loading={loading && !refreshing} label="Total de visitantes" value={total} color="default" />
+          <VisitorStat loading={loading && !refreshing} label="Primeira visita" value={summary.firstVisit} detail="Novo" color="new" />
+          <VisitorStat loading={loading && !refreshing} label="Em integração" value={summary.integrating} color="default" />
           {/* NÃO é "quantos viraram membros": converter visitante em membro
               APAGA a linha daqui, então quem virou não está mais nesta lista.
               O que este número conta é quem foi MARCADO como membro e ninguém
               converteu — uma fila de pendências, e o rótulo antigo dizia o
               oposto disso. */}
-          <VisitorStat loading={loading} label="Marcados como membro" value={summary.markedAsMember} color="default" />
+          <VisitorStat loading={loading && !refreshing} label="Marcados como membro" value={summary.markedAsMember} color="default" />
         </section>
 
         <FilterDisclosure activeCount={activeFilters}>
@@ -288,7 +301,7 @@ export default function VisitorsPage() {
           </div>
         </FilterDisclosure>
 
-        <section className="visitors-table-card">
+        <section aria-busy={refreshing} className={`visitors-table-card${refreshing ? " is-refreshing" : ""}`}>
           <div className="visitor-table-toolbar">
             <div className="visitor-tabs">
               {tabs.map((item) => <button className={tab === item ? "active" : undefined} key={item} onClick={() => changeTab(item)}>{item}</button>)}
@@ -316,9 +329,9 @@ export default function VisitorsPage() {
                 ))}
               </tbody>
             </table>
-            {!loading && !visible.length && <div className="members-empty">{visitors.length ? "Nenhum visitante encontrado com esses filtros." : "Nenhum visitante cadastrado ainda. Registre quem visitou a igreja pelo botão Novo Visitante."}</div>}
+            {!loading && !visible.length && <div className="members-empty">{activeFilters > 0 || tab !== "Todos" ? "Nenhum visitante encontrado com esses filtros." : "Nenhum visitante cadastrado ainda. Registre quem visitou a igreja pelo botão Novo Visitante."}</div>}
           </div>
-          {loading && <TableSkeleton rows={4} columns={5} />}
+          {loading && !refreshing && <TableSkeleton rows={4} columns={5} />}
           <div className="visitor-pagination">
             <span>Mostrando {start}-{end} de {total} visitantes</span>
             <div><button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft /></button>{visiblePageNumbers(currentPage, pageCount).map((number) => <button className={number === currentPage ? "current" : undefined} key={number} onClick={() => setPage(number)}>{number}</button>)}<button disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}><ChevronRight /></button></div>

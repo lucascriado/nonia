@@ -475,7 +475,21 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
 .primary-action:hover:not(:disabled) { background: var(--primary-strong); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 .primary-action:active:not(:disabled) { transform: scale(.98); }
 .primary-action svg { width: var(--icon-md); }
-.primary-action:disabled { cursor: not-allowed; opacity: .55; }
+/* DESABILITADO PRECISA PARECER DESABILITADO. Com opacidade .55 o verde do
+   botao continua verde sobre fundo escuro, e em somente leitura a pessoa via
+   "Novo Ministerio" com cara de ativo, clicava e nao acontecia nada -- o
+   motivo estava so no title, que nao existe no toque. Aqui ele perde o
+   preenchimento e vira contorno apagado. O `inset` no lugar de `border` para
+   a caixa nao mudar de tamanho: a classe tem `border: 0` e 44px de piso de
+   toque. A explicacao continua vindo da faixa de cobranca, que esta em todas
+   as telas, e do title para quem usa mouse. */
+.primary-action:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+  background: var(--panel-soft);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--muted);
+}
 
 /* Exportar e acao secundaria ao lado da primaria — e a unica que continua
    valendo quando a conta cai para somente leitura, entao ela nao acompanha as
@@ -853,6 +867,11 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .members-pagination button, .visitor-pagination button, .activity-pagination button { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text); font-size: 0.75rem; font-weight: 600; transition: background .2s ease, color .2s ease, border-color .2s ease; }
 .members-pagination button:hover:not(:disabled), .visitor-pagination button:hover:not(:disabled), .activity-pagination button:hover:not(:disabled) { border-color: var(--border); background: var(--panel-soft); }
 .members-pagination button.current, .visitor-pagination button.current, .activity-pagination button.current { border-color: var(--primary); background: var(--primary-fill); color: var(--on-primary-fill); }
+/* Releitura em curso: a lista anterior continua na tela, apagada e inerte, em
+   vez de sumir e voltar. O `aria-busy` no cartao conta a mesma coisa a quem
+   nao ve a opacidade. */
+.is-refreshing { opacity: .55; pointer-events: none; transition: opacity .18s ease; }
+
 .members-pagination button:disabled, .visitor-pagination button:disabled, .activity-pagination button:disabled { opacity: .3; }
 .members-pagination svg, .visitor-pagination svg, .activity-pagination svg { width: var(--icon-md); }
 
@@ -1871,6 +1890,12 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .sidebar-collapse:checked ~ .sidebar .sidebar-promo > span { display: none; }
 .sidebar-collapse:checked ~ .topbar { left: var(--sidebar-collapsed); }
 .sidebar-collapse:checked ~ main { margin-left: var(--sidebar-collapsed); }
+/* A FAIXA TAMBEM RECUA. Ela e irma da topbar e do main e reserva a largura da
+   barra na margem, mas ficava fora desta regra: com a barra recolhida, topbar
+   e conteudo iam para 76px e a faixa continuava em 268, deixando 192px de vao
+   a esquerda dela. O titulo da pagina comecava mais a esquerda do que o aviso
+   que fala sobre a pagina. */
+.sidebar-collapse:checked ~ .billing-notice { margin-left: var(--sidebar-collapsed); }
 .sidebar-collapse:checked ~ .record-dialog-layer,
 .sidebar-collapse:checked ~ .delete-dialog-layer { left: var(--sidebar-collapsed); }
 
@@ -1939,6 +1964,7 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .search, .divider, .user { display: none; }
   .topbar .icon-button:not(.menu-button) { margin-left: auto; }
   main, .sidebar-collapse:checked ~ main { margin-left: 0; }
+  .billing-notice, .sidebar-collapse:checked ~ .billing-notice { margin-left: 0; }
   .event-list, .event-skeleton-list { grid-template-columns: 1fr; }
   .members-heading, .visitors-heading { align-items: flex-start; }
   .record-dialog-layer, .delete-dialog-layer,
