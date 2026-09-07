@@ -20,7 +20,7 @@ import {
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
-import { usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { ExportButton } from "@/components/export-button";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -131,6 +131,12 @@ export default function FinancePage() {
   }, []);
 
   useEffect(() => {
+    // CARREGANDO COMEÇA AQUI, não dentro do fetch. Entre a troca de aba e o
+    // disparo da requisição havia pelo menos um quadro com `loading` falso e a
+    // lista ainda sem os dados novos -- e nesse quadro o estado vazio
+    // aparecia. É o mesmo defeito do 403: a tela afirmando ausência sem ter a
+    // resposta. Com a busca, o intervalo era de 300ms inteiros.
+    setLoading(true);
     const delay = search.trim() ? 300 : 0;
     const timer = window.setTimeout(() => void loadTransactions(listQuery), delay);
     return () => window.clearTimeout(timer);
@@ -154,6 +160,13 @@ export default function FinancePage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visibleTransactions = transactions;
+  /**
+   * Releitura COM conteúdo anterior na tela: trocar de aba ou de página não
+   * pode apagar a lista e pôr esqueleto no lugar. O esqueleto é para quando
+   * não há o que manter; havendo, a lista antiga fica visível e apagada até a
+   * nova chegar, e a pessoa não perde o contexto nem vê a tela piscar.
+   */
+  const refreshing = loading && visibleTransactions.length > 0;
   const start = total ? (currentPage - 1) * pageSize + 1 : 0;
   const end = Math.min(currentPage * pageSize, total);
 
@@ -216,7 +229,7 @@ export default function FinancePage() {
         <section className="resource-heading">
           <div><h2>Gestão Financeira</h2><p>Acompanhe entradas, saídas, pendências e comprovantes das movimentações.</p></div>
           <ExportButton resource="financeiro" permission="finance.read" filters={{ search, type, status, category, attachment }} />
-          {canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>}
+          {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>}
         </section>
 
         {!firstRun && (
@@ -231,10 +244,10 @@ export default function FinancePage() {
           </p>
         )}
         <section className="resource-stats finance-summary" aria-label="Resumo financeiro">
-          <article><span className="neutral"><Wallet /></span><small>Saldo disponível</small><strong>{loading ? <NumberSkeleton /> : <AnimatedNumber value={Math.abs(availableBalance)} prefix={availableBalance < 0 ? "-R$ " : "R$ "} decimals={2} />}</strong></article>
-          <article><span className="green"><ArrowUpCircle /></span><small>Entradas</small><strong>{loading ? <NumberSkeleton /> : <AnimatedNumber value={totalIncome} prefix="R$ " decimals={2} />}</strong></article>
-          <article><span className="red"><ArrowDownCircle /></span><small>Saídas</small><strong>{loading ? <NumberSkeleton /> : <AnimatedNumber value={totalExpense} prefix="R$ " decimals={2} />}</strong></article>
-          <article><span className="amber"><Clock /></span><small>Pendências</small><strong>{loading ? <NumberSkeleton /> : <AnimatedNumber value={pendingCount} />}</strong></article>
+          <article><span className="neutral"><Wallet /></span><small>Saldo disponível</small><strong>{loading && !refreshing ? <NumberSkeleton /> : <AnimatedNumber value={Math.abs(availableBalance)} prefix={availableBalance < 0 ? "-R$ " : "R$ "} decimals={2} />}</strong></article>
+          <article><span className="green"><ArrowUpCircle /></span><small>Entradas</small><strong>{loading && !refreshing ? <NumberSkeleton /> : <AnimatedNumber value={totalIncome} prefix="R$ " decimals={2} />}</strong></article>
+          <article><span className="red"><ArrowDownCircle /></span><small>Saídas</small><strong>{loading && !refreshing ? <NumberSkeleton /> : <AnimatedNumber value={totalExpense} prefix="R$ " decimals={2} />}</strong></article>
+          <article><span className="amber"><Clock /></span><small>Pendências</small><strong>{loading && !refreshing ? <NumberSkeleton /> : <AnimatedNumber value={pendingCount} />}</strong></article>
         </section>
 
         </>
@@ -283,7 +296,7 @@ export default function FinancePage() {
             </div>
           </FilterDisclosure>
 
-          <div className="members-table-card">
+          <div aria-busy={refreshing} className={`members-table-card${refreshing ? " is-refreshing" : ""}`}>
             <div className="members-table-scroll">
               <table className="members-table finance-table">
                 <colgroup>
@@ -314,14 +327,19 @@ export default function FinancePage() {
                           ? <span className="finance-attachment-link" title={item.attachmentName ? `Comprovante: ${item.attachmentName}` : "Tem comprovante"} aria-label={`${item.description} tem comprovante anexado`}><Paperclip /></span>
                           : <span className="finance-attachment-none" aria-label="Sem comprovante"><FileX /></span>}
                       </td>
-                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${item.description}`} onClick={() => openRecord(item, "view")}><Eye /></button><button aria-label={`Editar ${item.description}`} onClick={() => openRecord(item, "edit")}><Pencil /></button><button aria-label={`Excluir ${item.description}`} onClick={() => setDeleteTarget(item)}><Trash2 /></button></div></td>
+                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${item.description}`} onClick={() => openRecord(item, "view")}><Eye /></button>{canWrite && <><button aria-label={`Editar ${item.description}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => openRecord(item, "edit")}><Pencil /></button><button aria-label={`Excluir ${item.description}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setDeleteTarget(item)}><Trash2 /></button></>}</div></td>
                     </tr>
                   ))}
-                  {!loading && !visibleTransactions.length && <tr><td className="members-empty" colSpan={8}>{transactions.length ? "Nenhum lançamento encontrado com esses filtros." : "Nenhum lançamento registrado ainda. Comece pelo botão Novo Lançamento."}</td></tr>}
+                  {/* A escolha da frase vem dos FILTROS, não do tamanho do array: desde que a
+                      paginação foi para o servidor, `transactions` e a lista visível são
+                      o MESMO array, então filtrar e não achar nada dizia "esta igreja
+                      não tem cadastro nenhum" -- afirmação sobre a igreja a partir de
+                      um filtro. O estado de primeira vez, esse, é o bloco lá em cima. */}
+                  {!loading && !visibleTransactions.length && <tr><td className="members-empty" colSpan={8}>{activeFilters > 0 ? "Nenhum lançamento encontrado com esses filtros." : "Nenhum lançamento registrado ainda. Comece pelo botão Novo Lançamento."}</td></tr>}
                 </tbody>
               </table>
             </div>
-            {loading && <TableSkeleton rows={8} columns={6} />}
+            {loading && !refreshing && <TableSkeleton rows={8} columns={6} />}
             <div className="members-pagination">
               <span>Mostrando {start}-{end} de {total} lançamentos</span>
               <div>

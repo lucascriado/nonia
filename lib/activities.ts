@@ -1,7 +1,7 @@
 import type { Transaction } from "sequelize";
 import { db } from "@/lib/db";
 
-export type ActivityCategory = "members" | "visitors" | "calendar" | "system" | "financial";
+export type ActivityCategory = "members" | "visitors" | "calendar" | "system" | "financial" | "whatsapp";
 
 /** Só o que o log precisa da sessão -- `AuthContext` atende estruturalmente. */
 export type ActivityActor = {

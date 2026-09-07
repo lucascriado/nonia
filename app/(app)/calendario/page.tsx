@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, Plus, Trash2, X } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
 import { toast } from "sonner";
 import { DeleteRecordDialog } from "@/components/person-record-dialog";
 
@@ -176,7 +176,7 @@ export default function CalendarPage() {
                   <button className={calendarView === "week" ? "active" : undefined} onClick={() => setCalendarView("week")}>Semana</button>
                   <button className={calendarView === "day" ? "active" : undefined} onClick={() => setCalendarView("day")}>Dia</button>
                 </div>
-                {canWrite && <button className="primary-action calendar-new-event" onClick={() => setCreating(true)}><Plus />Novo Evento</button>}
+                {canWrite && <button className="primary-action calendar-new-event" disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setCreating(true)}><Plus />Novo Evento</button>}
               </div>
             </header>
 
@@ -263,7 +263,7 @@ export default function CalendarPage() {
           </aside>
         </section>
       </main>
-      {selectedEvent && <EventDetailsModal event={selectedEvent} onClose={closeEvent} onDelete={() => setDeleteTarget(selectedEvent)} />}
+      {selectedEvent && <EventDetailsModal canDelete={canWrite && !readOnly} event={selectedEvent} onClose={closeEvent} onDelete={() => setDeleteTarget(selectedEvent)} />}
       {creating && <EventFormModal onClose={() => setCreating(false)} onSubmit={createEvent} />}
       <DeleteRecordDialog open={deleteTarget !== null} name={deleteTarget?.title ?? ""} kind="event" onClose={() => setDeleteTarget(null)} onConfirm={confirmDeleteEvent} />
     </DashboardShell>
@@ -280,7 +280,7 @@ function EventPreview({ event, onClick }: { event: CalendarEvent; onClick: () =>
   );
 }
 
-function EventDetailsModal({ event, onClose, onDelete }: { event: CalendarEvent; onClose: () => void; onDelete: () => void }) {
+function EventDetailsModal({ canDelete, event, onClose, onDelete }: { canDelete: boolean; event: CalendarEvent; onClose: () => void; onDelete: () => void }) {
   return (
     <div className="event-modal-layer" role="dialog" aria-modal="true" aria-label={`Evento ${event.title}`}>
       <section className="event-modal">
@@ -294,7 +294,7 @@ function EventDetailsModal({ event, onClose, onDelete }: { event: CalendarEvent;
           <p><Clock />{timeLabel(event.startsAt)}{event.endsAt ? ` - ${timeLabel(event.endsAt)}` : ""}</p>
           {event.description && <article>{event.description}</article>}
         </div>
-        <footer className="event-form-actions"><button className="event-delete-button" onClick={onDelete}><Trash2 />Excluir Evento</button></footer>
+        {canDelete && <footer className="event-form-actions"><button className="event-delete-button" onClick={onDelete}><Trash2 />Excluir Evento</button></footer>}
       </section>
     </div>
   );

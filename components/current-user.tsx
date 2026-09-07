@@ -119,6 +119,15 @@ export function useCurrentUser() {
  * A tela usa isto para NÃO oferecer o que o servidor vai recusar — sem isso a
  * pessoa preenche um cadastro inteiro para descobrir no salvar.
  */
+/**
+ * O motivo, escrito uma vez só. Ele aparece em toda ação de escrita bloqueada
+ * por mensalidade -- criar, editar, excluir, converter -- em seis telas. Solto
+ * em cada arquivo, ele já teria divergido: metade diria "cadastrar" e a outra
+ * metade "editar", e a pessoa leria mensagens diferentes para o mesmo estado.
+ */
+export const READ_ONLY_REASON =
+  "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar e editar.";
+
 export function useReadOnly() {
   return useSession().plan?.access.level === "read_only";
 }

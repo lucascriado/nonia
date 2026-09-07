@@ -369,7 +369,10 @@ function UserRow({
 
   return (
     <li className={suspended ? "is-suspended" : undefined}>
-      <Avatar name={user.name} photoUrl={user.avatarUrl} size={38} />
+      {/* 36 e não 38: é a mesma largura do ícone do cabeçalho do painel, então
+          o nome da pessoa cai exatamente sob o título "Quem tem acesso". Com 38
+          a coluna de texto ficava 2px à direita da de cima. */}
+      <Avatar name={user.name} photoUrl={user.avatarUrl} size={36} />
       <span className="users-identity">
         <strong>
           {user.name}

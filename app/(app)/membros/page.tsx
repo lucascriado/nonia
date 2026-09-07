@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Droplets, Eye, HeartHandshake, Landmark, Pen
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
-import { usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -140,6 +140,12 @@ export default function MembersPage() {
 
   // A busca espera a digitação parar; os outros filtros valem na hora.
   useEffect(() => {
+    // CARREGANDO COMEÇA AQUI, não dentro do fetch. Entre a troca de aba e o
+    // disparo da requisição havia pelo menos um quadro com `loading` falso e a
+    // lista ainda sem os dados novos -- e nesse quadro o estado vazio
+    // aparecia. É o mesmo defeito do 403: a tela afirmando ausência sem ter a
+    // resposta. Com a busca, o intervalo era de 300ms inteiros.
+    setLoading(true);
     const delay = search.trim() ? 300 : 0;
     const timer = window.setTimeout(() => void loadMembers(listQuery), delay);
     return () => window.clearTimeout(timer);
@@ -162,6 +168,13 @@ export default function MembersPage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visibleMembers = members;
+  /**
+   * Releitura COM conteúdo anterior na tela: trocar de aba ou de página não
+   * pode apagar a lista e pôr esqueleto no lugar. O esqueleto é para quando
+   * não há o que manter; havendo, a lista antiga fica visível e apagada até a
+   * nova chegar, e a pessoa não perde o contexto nem vê a tela piscar.
+   */
+  const refreshing = loading && visibleMembers.length > 0;
   const start = total ? (currentPage - 1) * pageSize + 1 : 0;
   const end = Math.min(currentPage * pageSize, total);
 
@@ -219,7 +232,7 @@ export default function MembersPage() {
         <section className="members-heading">
           <div><h2>Gestão de Membros</h2><p>Visualize, filtre e gerencie todos os membros da congregação.</p></div>
           <ExportButton resource="members" permission="members.read" filters={{ search, ministry, status, baptism }} />
-          {canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>}
+          {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>}
         </section>
 
         {failed !== null ? (
@@ -246,10 +259,10 @@ export default function MembersPage() {
               um resumo do recorte de uma afirmação sobre a igreja inteira. */}
           {activeFilters > 0 && <p className="stats-caption">Números do que está filtrado, não da igreja inteira.</p>}
           <section className="member-stats" aria-label="Resumo de membros">
-            <MemberStat loading={loading} label="Novos este mês" value={summary.newThisMonth} icon={UserPlus} color="green" />
-            <MemberStat loading={loading} label="Total ativos" value={summary.active} icon={UserCheck} color="green" />
-            <MemberStat loading={loading} label="Batizados" value={summary.baptized} icon={Droplets} color="neutral" />
-            <MemberStat loading={loading} label="Aguardando batismo" value={summary.awaitingBaptism} icon={HeartHandshake} color="blue" />
+            <MemberStat loading={loading && !refreshing} label="Novos este mês" value={summary.newThisMonth} icon={UserPlus} color="green" />
+            <MemberStat loading={loading && !refreshing} label="Total ativos" value={summary.active} icon={UserCheck} color="green" />
+            <MemberStat loading={loading && !refreshing} label="Batizados" value={summary.baptized} icon={Droplets} color="neutral" />
+            <MemberStat loading={loading && !refreshing} label="Aguardando batismo" value={summary.awaitingBaptism} icon={HeartHandshake} color="blue" />
           </section>
 
           <FilterDisclosure activeCount={activeFilters}>
@@ -269,7 +282,7 @@ export default function MembersPage() {
             </div>
           </FilterDisclosure>
 
-          <div className="members-table-card">
+          <div aria-busy={refreshing} className={`members-table-card${refreshing ? " is-refreshing" : ""}`}>
             <div className="members-table-scroll">
               <table className="members-table">
                 <colgroup>
@@ -289,14 +302,19 @@ export default function MembersPage() {
                       <td data-label="Status"><span className={`status-tag ${member.status === "Ativo" ? "is-active" : "is-inactive"}`}><i />{member.status}</span></td>
                       <td data-label="Batismo"><span className={`baptism-tag ${member.baptism === "Batizado" ? "is-baptized" : "is-waiting"}`}>{member.baptism}</span></td>
                       <td data-label="Admissão" className="admission-date">{member.date}</td>
-                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${member.name}`} onClick={() => openRecord(member, "view")}><Eye /></button><button aria-label={`Editar ${member.name}`} onClick={() => openRecord(member, "edit")}><Pencil /></button><button aria-label={`Excluir ${member.name}`} onClick={() => setDeleteTarget(member)}><Trash2 /></button></div></td>
+                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${member.name}`} onClick={() => openRecord(member, "view")}><Eye /></button>{canWrite && <><button aria-label={`Editar ${member.name}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => openRecord(member, "edit")}><Pencil /></button><button aria-label={`Excluir ${member.name}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setDeleteTarget(member)}><Trash2 /></button></>}</div></td>
                     </tr>
                   ))}
-                  {!loading && !visibleMembers.length && <tr><td className="members-empty" colSpan={6}>{members.length ? "Nenhum membro encontrado com esses filtros." : "Nenhum membro cadastrado ainda. Comece pelo botão Novo Membro, no topo da tela."}</td></tr>}
+                  {/* A escolha da frase vem dos FILTROS, não do tamanho do array: desde que a
+                      paginação foi para o servidor, `members` e a lista visível são
+                      o MESMO array, então filtrar e não achar nada dizia "esta igreja
+                      não tem cadastro nenhum" -- afirmação sobre a igreja a partir de
+                      um filtro. O estado de primeira vez, esse, é o bloco lá em cima. */}
+                  {!loading && !visibleMembers.length && <tr><td className="members-empty" colSpan={6}>{activeFilters > 0 ? "Nenhum membro encontrado com esses filtros." : "Nenhum membro cadastrado ainda. Comece pelo botão Novo Membro, no topo da tela."}</td></tr>}
                 </tbody>
               </table>
             </div>
-            {loading && <TableSkeleton rows={6} columns={5} />}
+            {loading && !refreshing && <TableSkeleton rows={6} columns={5} />}
             <div className="members-pagination">
               <span>Mostrando {start}-{end} de {total} membros</span>
               <div>

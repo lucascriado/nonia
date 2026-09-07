@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Eye,
   Pencil,
   PartyPopper,
@@ -17,7 +16,7 @@ import {
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
-import { usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -149,6 +148,12 @@ export default function VisitorsPage() {
   }, []);
 
   useEffect(() => {
+    // CARREGANDO COMEÇA AQUI, não dentro do fetch. Entre a troca de aba e o
+    // disparo da requisição havia pelo menos um quadro com `loading` falso e a
+    // lista ainda sem os dados novos -- e nesse quadro o estado vazio
+    // aparecia. É o mesmo defeito do 403: a tela afirmando ausência sem ter a
+    // resposta. Com a busca, o intervalo era de 300ms inteiros.
+    setLoading(true);
     const delay = search.trim() ? 300 : 0;
     const timer = window.setTimeout(() => void loadVisitors(listQuery), delay);
     return () => window.clearTimeout(timer);
@@ -170,6 +175,13 @@ export default function VisitorsPage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = visitors;
+  /**
+   * Releitura COM conteúdo anterior na tela: trocar de aba ou de página não
+   * pode apagar a lista e pôr esqueleto no lugar. O esqueleto é para quando
+   * não há o que manter; havendo, a lista antiga fica visível e apagada até a
+   * nova chegar, e a pessoa não perde o contexto nem vê a tela piscar.
+   */
+  const refreshing = loading && visible.length > 0;
   const start = total ? (currentPage - 1) * pageSize + 1 : 0;
   const end = Math.min(currentPage * pageSize, total);
 
@@ -241,7 +253,7 @@ export default function VisitorsPage() {
         <section className="visitors-heading">
           <div><h2>Gestão de Visitantes</h2><p>Acompanhe e integre novas pessoas à nossa comunidade.</p></div>
           <ExportButton resource="visitors" permission="visitors.read" filters={{ search, tab, invitedBy }} />
-          {canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>}
+          {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>}
         </section>
 
         {failed !== null ? (
@@ -260,21 +272,21 @@ export default function VisitorsPage() {
             title="Nenhum visitante registrado ainda"
           />
         ) : (
-        <>
+        <div className="visitors-content">
         {/* A aba conta como filtro: em "Pendentes" os outros dois indicadores
             zeram por construção, porque a aba já os tirou da lista. Zero certo
             sem explicação parece defeito; com a frase, é informação. */}
         {(activeFilters > 0 || tab !== "Todos") && <p className="stats-caption">Números do que está filtrado, não da igreja inteira.</p>}
         <section className="visitor-stats" aria-label="Indicadores de visitantes">
-          <VisitorStat loading={loading} label="Total de visitantes" value={total} color="default" />
-          <VisitorStat loading={loading} label="Primeira visita" value={summary.firstVisit} detail="Novo" color="new" />
-          <VisitorStat loading={loading} label="Em integração" value={summary.integrating} color="default" />
+          <VisitorStat loading={loading && !refreshing} label="Total de visitantes" value={total} color="default" />
+          <VisitorStat loading={loading && !refreshing} label="Primeira visita" value={summary.firstVisit} detail="Novo" color="new" />
+          <VisitorStat loading={loading && !refreshing} label="Em integração" value={summary.integrating} color="default" />
           {/* NÃO é "quantos viraram membros": converter visitante em membro
               APAGA a linha daqui, então quem virou não está mais nesta lista.
               O que este número conta é quem foi MARCADO como membro e ninguém
               converteu — uma fila de pendências, e o rótulo antigo dizia o
               oposto disso. */}
-          <VisitorStat loading={loading} label="Marcados como membro" value={summary.markedAsMember} color="default" />
+          <VisitorStat loading={loading && !refreshing} label="Marcados como membro" value={summary.markedAsMember} color="default" />
         </section>
 
         <FilterDisclosure activeCount={activeFilters}>
@@ -288,7 +300,7 @@ export default function VisitorsPage() {
           </div>
         </FilterDisclosure>
 
-        <section className="visitors-table-card">
+        <section aria-busy={refreshing} className={`visitors-table-card${refreshing ? " is-refreshing" : ""}`}>
           <div className="visitor-table-toolbar">
             <div className="visitor-tabs">
               {tabs.map((item) => <button className={tab === item ? "active" : undefined} key={item} onClick={() => changeTab(item)}>{item}</button>)}
@@ -308,27 +320,33 @@ export default function VisitorsPage() {
                     <td data-label="Ações">
                       <div className="member-actions">
                         <button aria-label={`Visualizar ${visitor.name}`} onClick={() => openRecord(visitor, "view")}><Eye /></button>
-                        <button aria-label={`Converter ${visitor.name} em membro`} disabled={convertingId === visitor.id} onClick={() => setConvertTarget(visitor)}><UserCheck /></button><button aria-label={`Editar ${visitor.name}`} onClick={() => openRecord(visitor, "edit")}><Pencil /></button>
-                        <button aria-label={`Excluir ${visitor.name}`} onClick={() => setDeleteTarget(visitor)}><Trash2 /></button>
+                        {canWrite && <><button aria-label={`Converter ${visitor.name} em membro`} disabled={convertingId === visitor.id || readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setConvertTarget(visitor)}><UserCheck /></button><button aria-label={`Editar ${visitor.name}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => openRecord(visitor, "edit")}><Pencil /></button></>}
+                        {canWrite && <button aria-label={`Excluir ${visitor.name}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setDeleteTarget(visitor)}><Trash2 /></button>}
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!loading && !visible.length && <div className="members-empty">{visitors.length ? "Nenhum visitante encontrado com esses filtros." : "Nenhum visitante cadastrado ainda. Registre quem visitou a igreja pelo botão Novo Visitante."}</div>}
+            {!loading && !visible.length && <div className="members-empty">{activeFilters > 0 || tab !== "Todos" ? "Nenhum visitante encontrado com esses filtros." : "Nenhum visitante cadastrado ainda. Registre quem visitou a igreja pelo botão Novo Visitante."}</div>}
           </div>
-          {loading && <TableSkeleton rows={4} columns={5} />}
+          {loading && !refreshing && <TableSkeleton rows={4} columns={5} />}
           <div className="visitor-pagination">
             <span>Mostrando {start}-{end} de {total} visitantes</span>
             <div><button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft /></button>{visiblePageNumbers(currentPage, pageCount).map((number) => <button className={number === currentPage ? "current" : undefined} key={number} onClick={() => setPage(number)}>{number}</button>)}<button disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}><ChevronRight /></button></div>
           </div>
         </section>
 
+        {/* O botão "Ver Manual de Integração" saiu: ele não tinha ação nenhuma,
+            como o "Sair" da barra lateral. Manual não existe, e prometer um é
+            pior do que não citar. */}
         <section className="visitor-followup">
-          <article className="integration-guide"><h3>Próximos Passos na Integração</h3><p>Lembre-se que o primeiro contato deve ser feito em até 48h após a visita para garantir uma maior taxa de retenção.</p><button><ClipboardList />Ver Manual de Integração</button></article>
+          <article className="integration-guide">
+            <h3>Próximos Passos na Integração</h3>
+            <p>Lembre-se que o primeiro contato deve ser feito em até 48h após a visita para garantir uma maior taxa de retenção.</p>
+          </article>
         </section>
-        </>
+        </div>
         )}
       </main>
       <PersonRecordDialog open={dialogMode !== null} mode={dialogMode ?? "create"} kind="visitor" initialValues={selectedVisitor ? visitorValues(selectedVisitor) : { membershipStage: "Visitou a igreja" }} onClose={() => { setDialogMode(null); setSelectedVisitor(null); }} onSubmit={saveVisitor} />

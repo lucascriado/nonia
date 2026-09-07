@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
-import { usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -144,7 +144,7 @@ export default function MinistriesPage() {
             <h2>Gestão de Ministérios</h2>
             <p>Organize equipes, voluntários e chamadas das escolas bíblicas.</p>
           </div>
-          {!mode && canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => openForm("create")}><Plus />Novo Ministério</button>}
+          {!mode && canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => openForm("create")}><Plus />Novo Ministério</button>}
         </section>
 
         {mode ? (
@@ -198,8 +198,10 @@ export default function MinistriesPage() {
                   <small>Líder: {ministry.leaderName || "não definido"}</small>
                   <footer>
                     <button onClick={() => openForm("view", ministry)}><Eye />Visualizar</button>
-                    <button onClick={() => openForm("edit", ministry)}><Edit3 />Editar</button>
-                    <button className="danger" onClick={() => setDeleteTarget(ministry)}><Trash2 />Excluir</button>
+                    {canWrite && <>
+                    <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => openForm("edit", ministry)}><Edit3 />Editar</button>
+                    <button className="danger" disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setDeleteTarget(ministry)}><Trash2 />Excluir</button>
+                    </>}
                   </footer>
                 </article>
               ))}

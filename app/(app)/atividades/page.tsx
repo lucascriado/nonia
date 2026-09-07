@@ -38,6 +38,8 @@ export default function ActivitiesPage() {
       .finally(() => setLoading(false));
   }, [category, date, page, reloadToken, search]);
 
+  /** Ver o comentário de `refreshing` nas outras listagens. */
+  const refreshing = loading && records.length > 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const activeFilters = [search.trim() !== "", date !== "all", category !== "all"].filter(Boolean).length;
 
@@ -65,10 +67,10 @@ export default function ActivitiesPage() {
             <div><span>Categorias</span><nav>{categories.map((item) => <button className={category === item.value ? "active" : undefined} key={item.value} onClick={() => { setCategory(item.value); setPage(1); }}>{item.label}</button>)}</nav></div>
           </section>
         </FilterDisclosure>
-        <section className="activity-timeline-card">
+        <section aria-busy={refreshing} className={`activity-timeline-card${refreshing ? " is-refreshing" : ""}`}>
           <div className="activity-timeline">
-            {loading && <ActivitySkeleton count={pageSize} />}
-            {!loading && records.map((activity, index) => <ActivityItem activity={activity} key={activity.id} showLine={index < records.length - 1} />)}
+            {loading && !refreshing && <ActivitySkeleton count={pageSize} />}
+            {(!loading || refreshing) && records.map((activity, index) => <ActivityItem activity={activity} key={activity.id} showLine={index < records.length - 1} />)}
             {!loading && !records.length && !firstRun && <p className="data-empty">Nenhuma atividade encontrada com esses filtros.</p>}
           </div>
           {/* Com uma página só, seta e número não levam a lugar nenhum: fica a

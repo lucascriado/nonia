@@ -14,9 +14,7 @@ export default function UsersPage() {
           </div>
         </section>
 
-        <section className="users-grid">
-          <UsersPanel />
-        </section>
+        <UsersPanel />
       </main>
     </DashboardShell>
   );

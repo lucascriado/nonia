@@ -21,6 +21,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar, initialsFrom } from "@/components/avatar";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
+import { SignOutButton } from "@/components/sign-out-button";
 import { useSession } from "@/components/current-user";
 
 // Novas rotas de menu entram aqui. O campo `section` define em qual grupo o
@@ -73,18 +74,12 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
       </div>
 
       <div className="sidebar-scroll">
-        {/* Com mais de uma igreja o cartão vira seletor; com uma só ele
-            continua sendo o atalho para as configurações, porque um seletor de
-            um item é ruído. */}
-        {organizations.length > 1 ? (
-          <OrganizationSwitcher />
-        ) : (
-          <Link className="workspace-card" href="/configuracoes" title="Espaço de trabalho">
-            <span className="workspace-avatar" aria-hidden>{initialsFrom(organization?.name ?? "Nonia")}</span>
-            <span><strong>{organization?.name ?? "Sua igreja"}</strong><small>Espaço de trabalho</small></span>
-            <ChevronsUpDown aria-hidden />
-          </Link>
-        )}
+        {/* SEMPRE o seletor, inclusive com uma igreja só. Antes ele só
+            aparecia a partir de duas, e o resultado era um absurdo: "criar
+            nova igreja" mora dentro dele, então a porta de criar a SEGUNDA
+            ficava trancada atrás de já ter duas. Ninguém com uma igreja
+            chegava lá -- e uma igreja é o caso de todo mundo. */}
+        <OrganizationSwitcher />
 
         {navSections.map(({ section, links }) => (
           <div className="nav-section" key={section}>
@@ -107,10 +102,10 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
 
       <div className="sidebar-footer">
         <nav className="nav-list nav-footer" aria-label="Navegação secundária">
-          <a href="#" title="Sair"><LogOut aria-hidden /><span>Sair</span></a>
+          <SignOutButton />
         </nav>
 
-        <Link className="sidebar-user" href="/configuracoes" title="Perfil da conta">
+        <Link className="sidebar-user" href="/configuracoes" title="Sua conta">
           <Avatar name={user.name} photoUrl={user.avatarUrl} size={30} />
           <span><strong>{user.name}</strong><small>{user.role}</small></span>
           <ChevronsUpDown aria-hidden />

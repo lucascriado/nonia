@@ -1,16 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Camera, LoaderCircle, Mail, Pencil, Phone, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { LoaderCircle, Mail, Pencil, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/avatar";
+import { AvatarPicker } from "@/components/avatar-picker";
 import { AuthAlert } from "@/components/auth/auth-alert";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthError, updateProfile } from "@/components/auth/session";
 import { useSession } from "@/components/current-user";
 import { maskPhone } from "@/components/masks";
 
-const PHOTO_MAX_BYTES = 120 * 1024;
 
 /** O cartão da pessoa: nome, foto e contato. Sem a senha, que virou cartão
  *  próprio — segurança e identidade têm donos diferentes na tela. */
@@ -18,40 +18,13 @@ export function ProfileCard() {
   const { user, refresh } = useSession();
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState({ fullName: "", phone: "" });
-  const [photo, setPhoto] = useState<string | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
 
   function startEditing() {
     setValues({ fullName: user.name, phone: user.phone ?? "" });
-    setPhoto(undefined);
     setError(null);
     setEditing(true);
-  }
-
-  function pickPhoto(file: File | undefined) {
-    if (!file) return;
-    if (!["image/png", "image/jpeg"].includes(file.type)) {
-      setError("Use uma imagem PNG ou JPG.");
-      return;
-    }
-    if (file.size > PHOTO_MAX_BYTES) {
-      setError("Use uma imagem de até 120 KB.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result);
-      if (result.length > PHOTO_MAX_BYTES * 1.4) {
-        setError("Use uma imagem de até 120 KB após conversão.");
-        return;
-      }
-      setError(null);
-      setPhoto(result);
-    };
-    reader.readAsDataURL(file);
   }
 
   async function save(event: React.FormEvent) {
@@ -66,12 +39,12 @@ export function ProfileCard() {
     setSaving(true);
     setError(null);
     try {
-      // `null` remove; `undefined` deixa como está. Por isso a foto começa
-      // como `undefined` e só vira `null` quando a pessoa remove de fato.
+      // Só nome e telefone: a foto tem caminho próprio e aplica na hora.
+      // Mandar `avatarUrl` daqui faria este formulário reescrever uma escolha
+      // que ele não fez -- chave ausente preserva, e é disso que se trata.
       await updateProfile({
         fullName: values.fullName.trim(),
         phone: values.phone.trim() ? values.phone.trim() : null,
-        ...(photo === undefined ? {} : { avatarUrl: photo }),
       });
       toast.success("Perfil atualizado.");
       setEditing(false);
@@ -83,26 +56,22 @@ export function ProfileCard() {
     }
   }
 
-  const shownPhoto = photo === undefined ? user.avatarUrl : photo;
 
   return (
     <article className="profile-card">
       <div className="profile-cover" />
-      <Avatar className="profile-avatar" name={editing ? values.fullName || user.name : user.name} photoUrl={shownPhoto} size={96} />
+      <Avatar className="profile-avatar" name={editing ? values.fullName || user.name : user.name} photoUrl={user.avatarUrl} size={96} />
 
       {editing ? (
         <form className="profile-edit" noValidate onSubmit={save}>
-          <div className="profile-photo-actions">
-            <button onClick={() => fileInput.current?.click()} type="button"><Camera aria-hidden />Trocar foto</button>
-            {shownPhoto && <button onClick={() => setPhoto(null)} type="button"><Trash2 aria-hidden />Remover</button>}
-            <input
-              accept="image/png,image/jpeg"
-              onChange={(event) => { pickPhoto(event.target.files?.[0]); event.target.value = ""; }}
-              ref={fileInput}
-              type="file"
-            />
-            <small>PNG ou JPG até 120 KB</small>
-          </div>
+          {/* A FOTO SAIU DAQUI. Ela virou escolha direta no cartão, junto dos
+              avatares prontos, e aplica na hora. Trocar foto não é o mesmo
+              gênero que corrigir o nome: escolher uma imagem já É a
+              confirmação, e um "Salvar" depois disso é um passo que não
+              informa nada. De quebra, quem vai mexer na foto deixa de passar
+              por este formulário -- onde a nota de que o e-mail não pode ser
+              alterado ficava à vista e era lida como recusa do que a pessoa
+              estava tentando fazer. */}
 
           <AuthAlert message={error} />
 
@@ -149,6 +118,7 @@ export function ProfileCard() {
             <span><Phone />Telefone</span>
             <strong className={user.phone ? undefined : "profile-info-empty"}>{user.phone ?? "Não informado"}</strong>
           </div>
+          <AvatarPicker />
           <button className="profile-secondary-action" onClick={startEditing} type="button">
             <Pencil aria-hidden />Editar perfil
           </button>

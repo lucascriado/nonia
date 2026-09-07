@@ -281,7 +281,19 @@ export function hasRole(auth: AuthContext, ...slugs: string[]): boolean {
  * Ficar aqui, e não em cada rota, é o que garante que uma rota nova não nasça
  * furando o modo somente leitura por esquecimento.
  */
-const isWrite = (permission: string) => permission.endsWith(".write");
+/**
+ * "Esta permissão MUDA alguma coisa?" -- e a pergunta é feita pela negativa de
+ * propósito.
+ *
+ * Enquanto isto foi `endsWith(".write")`, o predicado era um proxy: funcionava
+ * porque só existiam duas ações. `whatsapp.broadcast` quebrou o proxy em
+ * silêncio -- disparar para 500 pessoas não termina em `.write`, então a guarda
+ * de somente leitura não pegava, e uma igreja em atraso continuaria disparando.
+ *
+ * Pela negativa, ação nova entra como escrita até que alguém a declare leitura.
+ * Falha fechado, que é o mesmo critério de "não existe ilimitado por acidente".
+ */
+const isWrite = (permission: string) => !permission.endsWith(".read");
 
 export async function requirePermission(...permissions: string[]): Promise<AuthContext> {
   const auth = await requireSession();
