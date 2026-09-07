@@ -7,7 +7,7 @@ import { AuthError } from "@/components/auth/session";
 import { READ_ONLY_REASON } from "@/components/current-user";
 import { HttpError, LoadFailure } from "@/components/load-failure";
 import { ActivitySkeleton } from "@/components/skeleton";
-import { formatarTelefone, nomeDe } from "@/components/whatsapp/conversation-list";
+import { foraDoCadastro, formatarTelefone, nomeDe } from "@/components/whatsapp/conversation-list";
 import {
   LIMITE_MENSAGEM,
   getConversation,
@@ -202,8 +202,8 @@ export function ConversationView({
           <small>
             {grupo && <><Users aria-hidden />Grupo</>}
             {!grupo && telefone}
-            {!grupo && telefone && detail.naoIdentificado && " · "}
-            {!grupo && detail.naoIdentificado && "Não está no cadastro"}
+            {telefone && foraDoCadastro(detail) && " · "}
+            {foraDoCadastro(detail) && "Não está no cadastro"}
           </small>
         </div>
       </header>

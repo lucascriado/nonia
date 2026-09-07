@@ -2754,58 +2754,6 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    o piso sobe so onde o ponteiro e grosso — quem usa mouse nao ve diferenca.
    -------------------------------------------------------------------------- */
 
-@media (pointer: coarse), (max-width: 800px) {
-  /* A ação primária tem 40px de piso no desktop, e 40 não passa no dedo. Vale
-     para TODAS as ocorrências: o detector achou uma nova em /usuarios, mas o
-     defeito era da classe, e consertar só aquela deixaria a armadilha armada
-     para o próximo botão. */
-  .primary-action { min-height: 44px; }
-  .icon-button, .calendar-title button, .birthday button, .birthday a { width: 44px; height: 44px; }
-  /* Sem isto o flex-basis de 34px decide a largura e o `width` acima não vale
-     — a mesma armadilha do botão de ações da linha de membro. */
-  .birthday button, .birthday a { flex: 0 0 44px; }
-  /* "Novo Evento" tem altura fixa de 34px na barra do calendário. */
-  .calendar-new-event, .primary-action.calendar-new-event { min-height: 44px; height: auto; }
-  .plan-cancel > button { min-height: 44px; }
-  /* Caixa de seleção de categoria: 13px é o tamanho nativo do controle. */
-  .calendar-categories label { min-height: 44px; }
-  .calendar-categories input { width: 20px; height: 20px; }
-  .record-dialog-top button { width: 44px; height: 44px; }
-  .mk-field-reveal { width: 44px; height: 44px; }
-  .mk-menu-button { width: 44px; height: 44px; }
-  .brand-action { flex: 0 0 44px; width: 44px; height: 44px; }
-  .sidebar-collapse-button { width: 44px; height: 44px; }
-  .brand-link { min-height: 44px; }
-  /* Abas, chips e pilulas de filtro tambem sao alvo de toque. */
-  .visitor-tabs button, .activities-filters button, .calendar-view-toggle button,
-  .today, .calendar-today-button, .clear-filters { min-height: 44px; }
-  .visitor-tabs button { padding-inline: 4px; }
-  .finance-attachment-link, .finance-attachment-none { min-width: 44px; min-height: 44px; }
-  /* Campo de formulario tambem e alvo de toque: 36px de altura erra o dedo. */
-  .member-filters select, .member-filters input,
-  .resource-search input, .activities-filters select, .activities-filters input,
-  .finance-filters select, .finance-filters input { min-height: 44px; }
-  .member-filters .clear-filters { min-height: 44px; padding-inline: 8px; }
-  .members-pagination button, .visitor-pagination button, .activity-pagination button { width: 44px; height: 44px; }
-  .resource-card footer button, .cell-card footer button, .ministry-card footer button { min-height: 44px; }
-  .member-actions button, .member-actions a { flex: 0 0 44px; min-width: 44px; width: 44px; height: 44px; }
-  .text-button { display: inline-flex; min-height: 44px; align-items: center; }
-  /* `:is(a, button)` desde que o "Sair" deixou de ser um href="#" morto e
-     virou botão: a regra valia só para o link e o alvo novo nasceu com 34px.
-     O detector pegou na mesma rodada. */
-  .nav-list :is(a, button) { min-height: 44px; }
-  .calendar-nav-buttons button { width: 44px; height: 44px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    scroll-behavior: auto !important;
-    transition-duration: .01ms !important;
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-  }
-}
-
 /* ── WhatsApp: caixa de entrada ──────────────────────────────────────────
    Sem verde de WhatsApp, sem ícone colorido e sem emoji: os balões usam os
    mesmos tokens do resto do painel, e o que diferencia quem falou é a posição
@@ -2821,7 +2769,12 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    ler o histórico levaria a lista embora e responder exigiria voltar. */
 .wa-inbox { display: grid; overflow: hidden; height: clamp(420px, calc(100vh - 260px), 780px); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); grid-template-columns: minmax(240px, 320px) 1fr; }
 
-.wa-list { display: flex; min-width: 0; flex-direction: column; border-right: 1px solid var(--border); }
+/* `min-height: 0` nos DOIS filhos da grade, e não é enfeite: item de grade
+   nasce com `min-height: auto`, que é "não encolho abaixo do meu conteúdo".
+   Sem isso a coluna cresce até a altura das mensagens -- medi 12294px numa
+   caixa de 632px --, o corpo nunca rola por dentro e o campo de resposta vai
+   parar fora do alcance. Conversa comprida ficava impossível de responder. */
+.wa-list { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-right: 1px solid var(--border); }
 .wa-list-controls { display: grid; gap: var(--space-3); padding: var(--space-4); border-bottom: 1px solid var(--border); }
 .wa-search { position: relative; display: flex; align-items: center; }
 .wa-search svg { position: absolute; left: 10px; width: var(--icon-sm); color: var(--muted); pointer-events: none; }
@@ -2855,7 +2808,7 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 .wa-load-more:hover:not(:disabled) { border-color: var(--primary-border); color: var(--text); }
 .wa-load-more:disabled { cursor: wait; opacity: .6; }
 
-.wa-pane { display: flex; min-width: 0; flex-direction: column; }
+.wa-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
 .wa-pane-idle { display: grid; height: 100%; align-content: center; justify-items: center; gap: var(--space-3); padding: var(--space-6); color: var(--muted); text-align: center; }
 .wa-pane-idle svg { width: 28px; color: var(--border-strong); }
 .wa-pane-idle p { max-width: 34ch; margin: 0; font-size: 0.84375rem; line-height: 1.6; }
@@ -2905,4 +2858,59 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .wa-bubble { max-width: 88%; }
   .wa-tabs { width: 100%; }
   .wa-tabs button { flex: 1; }
+}
+
+@media (pointer: coarse), (max-width: 800px) {
+  /* A ação primária tem 40px de piso no desktop, e 40 não passa no dedo. Vale
+     para TODAS as ocorrências: o detector achou uma nova em /usuarios, mas o
+     defeito era da classe, e consertar só aquela deixaria a armadilha armada
+     para o próximo botão. */
+  .primary-action { min-height: 44px; }
+  .icon-button, .calendar-title button, .birthday button, .birthday a { width: 44px; height: 44px; }
+  /* Sem isto o flex-basis de 34px decide a largura e o `width` acima não vale
+     — a mesma armadilha do botão de ações da linha de membro. */
+  .birthday button, .birthday a { flex: 0 0 44px; }
+  /* "Novo Evento" tem altura fixa de 34px na barra do calendário. */
+  .calendar-new-event, .primary-action.calendar-new-event { min-height: 44px; height: auto; }
+  .plan-cancel > button { min-height: 44px; }
+  /* Caixa de seleção de categoria: 13px é o tamanho nativo do controle. */
+  .calendar-categories label { min-height: 44px; }
+  .calendar-categories input { width: 20px; height: 20px; }
+  .record-dialog-top button { width: 44px; height: 44px; }
+  .mk-field-reveal { width: 44px; height: 44px; }
+  .mk-menu-button { width: 44px; height: 44px; }
+  .brand-action { flex: 0 0 44px; width: 44px; height: 44px; }
+  .sidebar-collapse-button { width: 44px; height: 44px; }
+  .brand-link { min-height: 44px; }
+  /* Abas, chips e pilulas de filtro tambem sao alvo de toque. */
+  .visitor-tabs button, .activities-filters button, .calendar-view-toggle button,
+  .today, .calendar-today-button, .clear-filters,
+  .wa-tabs button, .wa-chip, .wa-load-more { min-height: 44px; }
+  .wa-back { width: 44px; height: 44px; flex: 0 0 44px; }
+  .visitor-tabs button { padding-inline: 4px; }
+  .finance-attachment-link, .finance-attachment-none { min-width: 44px; min-height: 44px; }
+  /* Campo de formulario tambem e alvo de toque: 36px de altura erra o dedo. */
+  .wa-search input,
+  .member-filters select, .member-filters input,
+  .resource-search input, .activities-filters select, .activities-filters input,
+  .finance-filters select, .finance-filters input { min-height: 44px; }
+  .member-filters .clear-filters { min-height: 44px; padding-inline: 8px; }
+  .members-pagination button, .visitor-pagination button, .activity-pagination button { width: 44px; height: 44px; }
+  .resource-card footer button, .cell-card footer button, .ministry-card footer button { min-height: 44px; }
+  .member-actions button, .member-actions a { flex: 0 0 44px; min-width: 44px; width: 44px; height: 44px; }
+  .text-button { display: inline-flex; min-height: 44px; align-items: center; }
+  /* `:is(a, button)` desde que o "Sair" deixou de ser um href="#" morto e
+     virou botão: a regra valia só para o link e o alvo novo nasceu com 34px.
+     O detector pegou na mesma rodada. */
+  .nav-list :is(a, button) { min-height: 44px; }
+  .calendar-nav-buttons button { width: 44px; height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

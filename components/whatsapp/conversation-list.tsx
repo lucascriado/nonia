@@ -94,22 +94,29 @@ export function ConversationList({
                   </span>
                   <span className="wa-conversation-bottom">
                     <span className="wa-conversation-preview">
-                      {conversa.preview?.trim() || "Sem mensagens ainda"}
+                      {/* Prévia vazia NÃO é o mesmo que conversa sem mensagem, e a
+                          lista não sabe distinguir: `last_message_preview` vem do
+                          campo cru do chat e não passa pelo cálculo de prévia do
+                          servidor, então mídia como última mensagem chega em
+                          branco aqui e como "[foto]" lá dentro. Afirmar "sem
+                          mensagens" seria mentir para esse caso; o marcador entre
+                          colchetes não afirma nada e segue a convenção da casa. */}
+                      {conversa.preview?.trim() || "[sem prévia]"}
                     </span>
                     {conversa.unreadCount > 0 && (
-                      <span aria-label={`${conversa.unreadCount} não lidas`} className="wa-unread">
+                      <span aria-label={`${conversa.unreadCount} não ${conversa.unreadCount === 1 ? "lida" : "lidas"}`} className="wa-unread">
                         {conversa.unreadCount > 99 ? "99+" : conversa.unreadCount}
                       </span>
                     )}
                   </span>
-                  {(conversa.kind === "group" || conversa.naoIdentificado) && (
+                  {(conversa.kind === "group" || foraDoCadastro(conversa)) && (
                     <span className="wa-conversation-tags">
                       {conversa.kind === "group" && (
                         <span className="wa-tag"><Users aria-hidden />Grupo</span>
                       )}
                       {/* A vantagem que o WhatsApp puro não tem: dizer quem do
                           cadastro é. O contrário também informa. */}
-                      {conversa.naoIdentificado && <span className="wa-tag">Fora do cadastro</span>}
+                      {foraDoCadastro(conversa) && <span className="wa-tag">Fora do cadastro</span>}
                     </span>
                   )}
                 </button>
@@ -164,6 +171,17 @@ function ListaVazia({
   return <p className="wa-empty">Nenhuma conversa neste número ainda.</p>;
 }
 
+/**
+ * Grupo NUNCA é uma pessoa do cadastro, então dizer que ele está fora dele não
+ * informa nada -- só repete a etiqueta "Grupo" com outras palavras. O servidor
+ * manda `naoIdentificado` true para todo grupo porque a coluna é um LEFT JOIN
+ * que não casou, e está certo do lado dele; quem decide se aquilo merece
+ * etiqueta é a tela.
+ */
+export function foraDoCadastro(conversa: Conversation) {
+  return conversa.naoIdentificado && conversa.kind !== "group";
+}
+
 export function nomeDe(conversa: Conversation) {
   // Sem nome do cadastro e sem nome do WhatsApp sobra o número; sem número
   // (grupo, ou contato @lid) sobra dizer isso, e não um espaço em branco.
@@ -184,6 +202,11 @@ function quando(iso: string | null) {
   if (!iso) return "";
   const data = new Date(iso);
   if (Number.isNaN(data.getTime())) return "";
+  // Conversa sem nenhuma mensagem chega com a data da época (`to_timestamp(0)`)
+  // e virava "31/12/69" na lista -- uma data que a conversa não tem. O WhatsApp
+  // não existia antes de 2000, então tempo anterior a isso é valor AUSENTE, e
+  // ausente não se carimba com um dia.
+  if (data.getUTCFullYear() < 2000) return "";
   const hoje = new Date();
   const meiaNoite = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
   const inicio = new Date(data.getFullYear(), data.getMonth(), data.getDate()).getTime();

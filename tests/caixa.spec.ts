@@ -1,5 +1,24 @@
 import { test, expect } from "@playwright/test";
-import { horizontalOverflow, login, smallTouchTargets, textOverText, waitForSettled } from "./helpers";
+import { DEMO, horizontalOverflow, smallTouchTargets, textOverText, waitForSettled } from "./helpers";
+
+/**
+ * A conta usada aqui pode ser trocada por ambiente.
+ *
+ * O resto da suíte entra com a `demo@nonia.app` do `nonia_dev`, e continua
+ * assim por padrão. Mas a caixa de entrada só tem o que medir onde existe
+ * conversa, e conversa não se semeia no banco compartilhado -- então quem roda
+ * contra um banco próprio aponta a conta dele por aqui, sem tocar no helper que
+ * é de todo mundo.
+ */
+const CONTA = {
+  email: process.env.NONIA_LOGIN ?? DEMO.email,
+  password: process.env.NONIA_SENHA ?? DEMO.password,
+};
+
+async function entrar(page: import("@playwright/test").Page) {
+  const resposta = await page.request.post("/api/auth/login", { data: CONTA });
+  if (!resposta.ok()) throw new Error(`login falhou (${CONTA.email}): ${resposta.status()}`);
+}
 
 /**
  * A caixa de entrada do WhatsApp.
@@ -15,7 +34,7 @@ import { horizontalOverflow, login, smallTouchTargets, textOverText, waitForSett
  */
 test.describe("caixa de entrada do WhatsApp", () => {
   test.beforeEach(async ({ page }) => {
-    await login(page);
+    await entrar(page);
   });
 
   const AUSENCIA = "Nenhuma conversa neste número ainda.";
@@ -115,16 +134,65 @@ test.describe("caixa de entrada do WhatsApp", () => {
     expect(await horizontalOverflow(page)).toBeNull();
   });
 
-  /** As regras de geometria da casa valem aqui como em qualquer outra tela. */
-  test("a aba respeita geometria, sobreposição e alvo de toque", async ({ page }) => {
+  /**
+   * Geometria com uma CONVERSA ABERTA, que é o estado que a suíte de geometria
+   * não alcança: ela carrega a tela e mede, e a tela carrega na lista.
+   *
+   * Alvo de toque só é cobrado no viewport de toque, como em `geometria`: no
+   * desktop o piso é 40px por decisão, e cobrar 44 ali acusaria a barra lateral
+   * inteira como defeito.
+   */
+  test("com a conversa aberta, a aba respeita geometria e sobreposição", async ({ page }) => {
     for (const largura of [390, 1280]) {
       await page.setViewportSize({ width: largura, height: 900 });
       await page.goto("/whatsapp");
       await waitForSettled(page);
 
+      const primeira = page.locator(".wa-conversation").first();
+      if (await primeira.count()) {
+        await primeira.click();
+        await waitForSettled(page);
+      }
+
       expect(await horizontalOverflow(page), `rolagem lateral em ${largura}px`).toBeNull();
       expect(await textOverText(page), `texto sobre texto em ${largura}px`).toEqual([]);
-      expect(await smallTouchTargets(page), `alvo pequeno em ${largura}px`).toEqual([]);
+      if (largura <= 800) {
+        expect(await smallTouchTargets(page), `alvo pequeno em ${largura}px`).toEqual([]);
+      }
+    }
+  });
+
+  /**
+   * O corpo da conversa tem de rolar POR DENTRO. Se a coluna crescer com o
+   * conteúdo, o campo de resposta sai do alcance -- medi 12294px de coluna
+   * numa caixa de 632px, e responder virava impossível em conversa comprida.
+   * Item de grade nasce com `min-height: auto`, então isto quebra sozinho de
+   * novo se alguém mexer no arranjo.
+   */
+  test("a conversa rola por dentro e o campo de resposta fica alcançável", async ({ page }) => {
+    await page.goto("/whatsapp");
+    await waitForSettled(page);
+    const primeira = page.locator(".wa-conversation").first();
+    test.skip(!(await primeira.count()), "não há conversa neste banco para abrir");
+    await primeira.click();
+    await waitForSettled(page);
+
+    const medidas = await page.evaluate(() => {
+      const caixa = document.querySelector(".wa-inbox") as HTMLElement;
+      const pane = document.querySelector(".wa-pane") as HTMLElement;
+      const campo = document.querySelector(".wa-composer textarea");
+      return {
+        alturaCaixa: Math.round(caixa.getBoundingClientRect().height),
+        alturaPane: Math.round(pane.getBoundingClientRect().height),
+        campoNaTela: campo ? campo.getBoundingClientRect().bottom <= window.innerHeight + 1 : null,
+      };
+    });
+
+    expect(medidas.alturaPane, "a coluna da conversa cresceu além da caixa").toBeLessThanOrEqual(
+      medidas.alturaCaixa + 1,
+    );
+    if (medidas.campoNaTela !== null) {
+      expect(medidas.campoNaTela, "o campo de resposta ficou fora da tela").toBe(true);
     }
   });
 });
