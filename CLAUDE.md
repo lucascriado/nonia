@@ -339,12 +339,15 @@ por conta própria: banco compartilhado não é território de quem está numa b
 `git ls-files` na `main` e nas duas branches em 06/09/2026. Contagens maiores
 que circularam (627 no backend, 51 no frontend) **não se confirmam no código**.
 
-> **A convenção do projeto é a porta 3111**, não 3000: é o `baseURL` padrão do
-> `playwright.config.ts` e é onde o Lucas abre o sistema. **`npm run dev` sozinho
-> sobe na 3000**, que é o padrão do Next — ninguém fixa a porta no
-> `package.json`. Quem rodar o servidor na 3000 e a suíte de tela em seguida vê
-> os testes falharem por não achar aplicação nenhuma. Suba com **`PORT=3111 npm
-> run dev`**, ou aponte a suíte com `NONIA_URL`.
+> **A porta de desenvolvimento é a 3111**, não a 3000 — decidido em 07/09/2026.
+> Ela já era a convenção de fato: é o `baseURL` padrão do `playwright.config.ts`,
+> é onde o Lucas abre o sistema e é o que a equipe usa o dia inteiro. **O defeito
+> era o `playwright.config.ts` ser o único lugar que sabia disso:** o script `dev`
+> rodava `next dev` puro, então quem seguisse o README subia na 3000 e via a
+> suíte de tela falhar por não achar aplicação nenhuma — sem nada apontando para
+> a porta como causa. O script passou a fixar a porta (`next dev -p 3111`), o que
+> alinha os dois lados de uma vez. **Quem precisar de outra porta passa `-p`
+> depois** — é o que a frente de frontend faz na 3112.
 
 **O lado do backend está fechado.** O que resta depende de decisão do Lucas: DNS
 para a recuperação de senha, exclusão lógica em membros e visitantes, os

@@ -30,7 +30,7 @@ cp .env.example .env        # aponte a DATABASE_URL para o seu Postgres
 npm install
 npm run db:migrate          # cria o schema do zero
 npm run db:seed:dev         # dados de demonstração
-npm run dev                 # http://localhost:3000
+npm run dev                 # http://localhost:3111
 ```
 
 Acesso depois do seed: `demo@nonia.app` / `demo1234`. Para criar o proprietário
