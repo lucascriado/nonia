@@ -753,3 +753,115 @@ export function exigirTexto(texto: unknown): string {
   if (t.length > 4096) throw badRequest("A mensagem passa de 4096 caracteres, que é o limite do WhatsApp.", "message_too_long");
   return t;
 }
+
+/**
+ * A VALIDADE DA FOTO DE PERFIL, em dias.
+ *
+ * Sete, e o número sai de um trade-off e não de gosto. Cada re-checagem é uma
+ * requisição de rede por contato; foto de perfil, por outro lado, é das coisas
+ * que menos mudam num cadastro. Um dia transformaria a caixa num pooler contra
+ * o WhatsApp; trinta faria a igreja olhar por um mês para a foto antiga de
+ * alguém que acabou de trocar. Sete deixa a defasagem no tamanho de "uma
+ * semana", que é o que uma foto de perfil merece.
+ */
+export const FOTO_VALIDADE_DIAS = 7;
+
+/**
+ * FOTO DE PERFIL DE UM PUNHADO DE IDS, com cache.
+ *
+ * ISTO NÃO É CHAMADO NA LISTAGEM DE CONVERSAS, e a separação é o ponto. As
+ * outras resoluções sob demanda deste arquivo (telefone, nome de autor) rodam
+ * dentro do GET da caixa, e ali cada uma custa uma requisição por conversa
+ * ANTES de a tela ter o que desenhar. Foto não pode entrar nessa fila: ela é
+ * enfeite de linha, e enfeite não segura a lista. Por isso mora numa rota
+ * própria (`/api/whatsapp/fotos`), que a tela chama DEPOIS de já ter
+ * desenhado a lista com as iniciais.
+ *
+ * O QUE A TELA MOSTRA ENQUANTO NÃO TEM FOTO: as iniciais, no mesmo círculo do
+ * mesmo tamanho. Nunca um esqueleto e nunca um espaço vazio -- a foto chega
+ * numa segunda requisição, e se ela empurrasse o layout a lista inteira daria
+ * um pulo depois de a pessoa já estar lendo. As iniciais também são o destino
+ * final de quem não tem foto, então na maioria das linhas não há troca nenhuma.
+ *
+ * TRÊS ESTADOS NO BANCO, e eles são diferentes (ver a migration 018):
+ *   avatar_checked_at NULL  -> nunca perguntamos
+ *   preenchido, url NULL    -> perguntamos e não há (ou é privada)
+ *   preenchido, url ok      -> temos, e vale por FOTO_VALIDADE_DIAS
+ *
+ * O OPENWA FORA DO AR NÃO PODE APAGAR AS FOTOS DA TELA. Se a chamada falhar,
+ * devolvemos o que já estava em cache -- inclusive vencido. Foto vencida é
+ * melhor que avatar sumindo, e a rota nunca propaga erro: quem chama é uma tela
+ * que já está desenhada.
+ */
+export async function fotosDePerfil(
+  conexao: Conexao,
+  ids: string[],
+): Promise<Record<string, string | null>> {
+  const pedidos = [...new Set(ids.map(id => id.trim()).filter(Boolean))];
+  if (pedidos.length === 0) return {};
+
+  const { rows } = await query<{ waId: string; avatarUrl: string | null; vencida: boolean }>(
+    `SELECT wa_id AS "waId", avatar_url AS "avatarUrl",
+            (avatar_checked_at IS NULL
+             OR avatar_checked_at < now() - ($3 || ' days')::interval) AS vencida
+       FROM whatsapp_contacts
+      WHERE organization_id = $1 AND wa_id = ANY($2::varchar[])`,
+    [conexao.organizationId, pedidos, String(FOTO_VALIDADE_DIAS)],
+  );
+
+  const resposta: Record<string, string | null> = {};
+  const conhecidos = new Map(rows.map(r => [r.waId, r]));
+  for (const id of pedidos) resposta[id] = conhecidos.get(id)?.avatarUrl ?? null;
+
+  // Vencidos E nunca perguntados. Um id sem linha nenhuma é o caso mais comum
+  // na primeira abertura da caixa.
+  const aPerguntar = pedidos.filter(id => {
+    const linha = conhecidos.get(id);
+    return !linha || linha.vencida;
+  });
+  if (aPerguntar.length === 0) return resposta;
+
+  // O corte é do outro lado (`PROFILE_PICTURES_MAX_IDS`), e lá o excedente é
+  // ignorado EM SILÊNCIO. Cortar aqui é o que faz o excedente voltar na próxima
+  // chamada em vez de virar um id que nunca é perguntado.
+  const lote = aPerguntar.slice(0, openwa.FOTOS_MAX_IDS);
+
+  let fotos: Record<string, string | null>;
+  try {
+    const resultado = await openwa.lerFotosDePerfil(conexao.sessionId, conexao.apiKey, lote);
+    fotos = resultado.pictures ?? {};
+  } catch {
+    // Devolve o cache como está. Ver o bloco sobre o OpenWA fora do ar.
+    return resposta;
+  }
+
+  for (const id of lote) {
+    // O id pode não voltar no mapa (o outro lado só devolve o que perguntou).
+    // Ausente e null são a mesma resposta para nós: não há foto agora.
+    const url = fotos[id] ?? null;
+    await query(
+      `INSERT INTO whatsapp_contacts (organization_id, wa_id, avatar_url, avatar_checked_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (organization_id, wa_id) DO UPDATE SET
+         avatar_url = COALESCE(EXCLUDED.avatar_url, whatsapp_contacts.avatar_url),
+         avatar_checked_at = now(),
+         updated_at = now()`,
+      [conexao.organizationId, id, url],
+    );
+    // COALESCE, e não sobrescrita: o lote do OpenWA devolve null tanto para
+    // "não tem foto" quanto para o id cuja consulta individual falhou ou
+    // estourou os 8 s dele. Sobrescrever faria uma lentidão momentânea APAGAR
+    // a foto de alguém, e a igreja veria o avatar piscar sem motivo.
+    //
+    // O preço, dito por inteiro: quem REMOVE a foto continua aparecendo com a
+    // antiga. Não fica assim para sempre -- a URL do pps.whatsapp.net expira, e
+    // quando expirar o onError da tela cai para as iniciais. É a segunda razão
+    // de o onError ser obrigatório e não zelo: ele fecha este caso, e não só o
+    // da URL vencida.
+    //
+    // Na PRIMEIRA pergunta não há o que preservar, então "perguntei e não há"
+    // é gravado corretamente como url NULL com avatar_checked_at preenchido.
+    if (url !== null) resposta[id] = url;
+  }
+  return resposta;
+}
