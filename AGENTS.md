@@ -734,6 +734,21 @@ E o terceiro, sobre **como** essas cinco apareceram:
   Os dois primeiros só apareceram porque existia **uma conta com duas igrejas e
   papéis diferentes**. Conta de teste que reproduz a variedade real paga o
   próprio custo.
+- **Lista de opções fixa no código, esperando ser substituída.** O campo
+  "Ministério Principal" nasce com `["Nenhum", "Louvor", "Missões",
+  "Acolhimento", "Infantil"]` como estado inicial e só troca pela lista real da
+  igreja **se a resposta vier `ok`** — o `catch` engole o resto. Numa igreja sem
+  ministério nenhum, uma leitura que falha faz a tela oferecer quatro que não
+  existem; e a escolha é descartada em silêncio no servidor, que resolve pelo
+  nome dentro da organização, não acha e grava nulo. **Valor de exemplo dentro
+  do `useState` vira afirmação sobre a igreja no dia em que a leitura falha.** A
+  saída é a mesma da primeira armadilha desta lista: lista vazia até a leitura
+  dar certo, e erro visível quando não der.
+- **Enfeite que promete dado.** O sino do cabeçalho carrega a classe `has-dot`
+  fixa — o pontinho vermelho de "tem coisa nova" aparece em igreja criada há
+  cinco minutos e sem um único registro — e o botão não tem `onClick`.
+  **Controle que não faz nada não pode ter aparência de quem tem novidade.** Dá
+  para deixar sem implementar; não dá para deixar prometendo.
 
 #### Marca gravada na criação, lida como se fosse atual
 
