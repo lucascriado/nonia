@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Baby, BookOpenCheck, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, Music, Plus, Puzzle, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Baby, BookOpenCheck, Check, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, Music, Plus, Puzzle, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstLoad } from "@/components/first-load";
@@ -12,8 +12,19 @@ import { FilterDisclosure } from "@/components/filter-disclosure";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
 import { AnimatedNumber } from "@/components/animated-number";
 import { DeleteRecordDialog } from "@/components/person-record-dialog";
+import { MinistryPeoplePicker } from "@/components/ministry-people-picker";
 
-type MemberOption = { id: string; name: string; email: string; ministry?: string };
+// `lidera` e `ministerio` vêm de /api/members?compromissos=1 e alimentam o cinza
+// do seletor. `lidera` é array (uma pessoa lidera vários), `ministerio` é objeto
+// ou null (pertence a no máximo um). Ver components/ministry-people-picker.tsx.
+type MemberOption = {
+  id: string;
+  name: string;
+  email: string;
+  ministry?: string;
+  lidera?: { id: string; name: string }[];
+  ministerio?: { id: string; name: string } | null;
+};
 type Ministry = {
   id: string;
   name: string;
@@ -53,7 +64,9 @@ export default function MinistriesPage() {
     try {
       const [ministriesResponse, membersResponse] = await Promise.all([
         fetch("/api/ministries", { cache: "no-store" }),
-        fetch("/api/members?pageSize=100", { cache: "no-store" }),
+        // compromissos=1 é opt-in: acrescenta `lidera` e `ministerio` por pessoa
+        // para o seletor pintar de cinza quem já tem compromisso. Só esta tela pede.
+        fetch("/api/members?pageSize=100&compromissos=1", { cache: "no-store" }),
       ]);
       // O status vem do de ministérios: é a leitura desta tela. A de membros
       // só alimenta o seletor do formulário.
@@ -65,7 +78,14 @@ export default function MinistriesPage() {
       // /api/members passou a devolver { records, total }. O seletor de
       // membros precisa de TODOS, não de uma página — daí o pageSize no teto.
       const memberPayload = await membersResponse.json() as { records: MemberOption[] };
-      setMembers(memberPayload.records.map((member) => ({ id: member.id, name: member.name, email: member.email, ministry: member.ministry })));
+      setMembers(memberPayload.records.map((member) => ({
+        id: member.id,
+        name: member.name,
+        email: member.email,
+        ministry: member.ministry,
+        lidera: member.lidera ?? [],
+        ministerio: member.ministerio ?? null,
+      })));
       setFailed(null);
     } catch (error) {
       setFailed(error instanceof HttpError ? error.status : 0);
@@ -152,7 +172,9 @@ export default function MinistriesPage() {
           {!mode && canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => openForm("create")}><Plus />Novo Ministério</button>}
         </section>
 
-        {mode ? (
+        {mode === "create" ? (
+          <MinistryWizard members={members} onClose={closeForm} onSubmit={saveMinistry} />
+        ) : mode ? (
           <MinistryForm mode={mode} ministry={selectedMinistry} members={members} onClose={closeForm} onSubmit={saveMinistry} />
         ) : (
           <>
@@ -226,7 +248,6 @@ export default function MinistriesPage() {
 
 function MinistryForm({ mode, ministry, members, onClose, onSubmit }: { mode: "create" | "edit" | "view"; ministry: Ministry | null; members: MemberOption[]; onClose: () => void; onSubmit: (values: MinistryFormValues) => Promise<boolean> }) {
   const [values, setValues] = useState<MinistryFormValues>(emptyMinistry);
-  const [memberSearch, setMemberSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const readOnly = mode === "view";
   /**
@@ -244,31 +265,8 @@ function MinistryForm({ mode, ministry, members, onClose, onSubmit }: { mode: "c
     [members, values.memberIds],
   );
 
-  /**
-   * A BUSCA é o caminho para achar alguém, e não a lista inteira.
-   *
-   * Antes eram trinta e poucas caixas de seleção numa grade rolante, dentro de
-   * um formulário que já não cabia na janela -- medi 911px numa tela de 900. E
-   * a alternativa de paginar não resolve: com 100 pessoas em blocos de três
-   * são 34 páginas para achar UMA. Paginação serve para folhear, e ninguém
-   * folheia para montar equipe -- quem monta já sabe o nome.
-   *
-   * Por isso nada aparece com a busca vazia: sugestão sem pergunta é a parede
-   * de caixas com outra roupa.
-   */
-  const sugestoes = useMemo(() => {
-    const term = memberSearch.trim().toLocaleLowerCase("pt-BR");
-    if (term.length < 2) return [];
-    return members
-      .filter((member) => !values.memberIds.includes(member.id))
-      .filter((member) => `${member.name} ${member.email}`.toLocaleLowerCase("pt-BR").includes(term))
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
-      .slice(0, 6);
-  }, [memberSearch, members, values.memberIds]);
-
   useEffect(() => {
     setSaving(false);
-    setMemberSearch("");
     setValues(ministry ? {
       name: ministry.name,
       description: ministry.description ?? "",
@@ -292,15 +290,19 @@ function MinistryForm({ mode, ministry, members, onClose, onSubmit }: { mode: "c
     return salvos.length !== agora.length || salvos.some((id, i) => id !== agora[i]);
   }, [ministry, values.memberIds]);
 
-  function incluirMembro(memberId: string) {
+  function alternarMembro(memberId: string) {
     setValues((current) => current.memberIds.includes(memberId)
-      ? current
+      ? { ...current, memberIds: current.memberIds.filter((id) => id !== memberId) }
       : { ...current, memberIds: [...current.memberIds, memberId] });
-    setMemberSearch("");
   }
 
   function tirarMembro(memberId: string) {
     setValues((current) => ({ ...current, memberIds: current.memberIds.filter((id) => id !== memberId) }));
+  }
+
+  // No modo líder o clique é rádio: clicar em quem já é o líder tira o líder.
+  function alternarLider(memberId: string) {
+    setValues((current) => ({ ...current, leaderId: current.leaderId === memberId ? "" : memberId }));
   }
 
   async function submit(event: FormEvent) {
@@ -319,86 +321,250 @@ function MinistryForm({ mode, ministry, members, onClose, onSubmit }: { mode: "c
       <header><div><strong>{mode === "create" ? "Novo Ministério" : mode === "view" ? "Visualizar Ministério" : "Editar Ministério"}</strong><span>Vincule membros existentes ao ministério.</span></div><button type="button" onClick={onClose} aria-label="Fechar"><X /></button></header>
       <fieldset disabled={saving}>
         <label><span>Nome *</span><input required readOnly={readOnly} value={values.name} onChange={(event) => setValues((current) => ({ ...current, name: event.target.value }))} /></label>
-        <label><span>Líder</span><select disabled={readOnly} value={values.leaderId} onChange={(event) => setValues((current) => ({ ...current, leaderId: event.target.value }))}><option value="">Sem líder definido</option>{members.map((member) => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
         <label><span>Cor</span><select disabled={readOnly} value={values.color} onChange={(event) => setValues((current) => ({ ...current, color: event.target.value as MinistryFormValues["color"] }))}><option value="purple">Roxo</option><option value="blue">Azul</option><option value="green">Verde</option><option value="gray">Cinza</option></select></label>
         <label className="wide form-section-field"><span>Descrição</span><textarea readOnly={readOnly} value={values.description} onChange={(event) => setValues((current) => ({ ...current, description: event.target.value }))} /></label>
-        {/* CRIAR MINISTÉRIO NÃO EXIGE ESCOLHER GENTE. No cadastro o bloco de
-            equipe nem aparece: o ministério nasce com nome, líder, cor e
-            descrição, e as pessoas entram depois, aqui mesmo, quando ele já
-            existe. Isso é metade do que derrubou os 911px que não cabiam. */}
-        {mode !== "create" && (
-          <div className="equipe wide">
-            <span className="equipe-titulo">Membros do ministério</span>
+        {/* LÍDER pelo mesmo seletor de cartões dos membros -- não mais um
+            <select> onde escolher o líder é adivinhar o nome. Cinza marca quem
+            já lidera OUTRO ministério ou pertence a um; continua clicável. */}
+        <div className="equipe wide">
+          <span className="equipe-titulo">Líder</span>
+          {readOnly ? (
+            <p className="equipe-vazia">{ministry?.leaderName || "Sem líder definido."}</p>
+          ) : (
+            <MinistryPeoplePicker
+              people={members}
+              mode="leader"
+              selectedIds={values.leaderId ? [values.leaderId] : []}
+              onToggle={alternarLider}
+              ministryId={ministry?.id}
+            />
+          )}
+        </div>
 
-            {equipe.length > 0 ? (
-              <ul className="equipe-lista">
-                {equipe.map((membro) => (
-                  <li key={membro.id}>
-                    <strong>{membro.name}</strong>
-                    <small>{membro.email}</small>
-                    {!readOnly && (
-                      <button aria-label={`Tirar ${membro.name} do ministério`} onClick={() => tirarMembro(membro.id)} type="button">
-                        <X aria-hidden />
-                      </button>
-                    )}
-                  </li>
+        <div className="equipe wide">
+          <span className="equipe-titulo">Membros do ministério</span>
+
+          {equipe.length > 0 ? (
+            <ul className="equipe-lista">
+              {equipe.map((membro) => (
+                <li key={membro.id}>
+                  <strong>{membro.name}</strong>
+                  <small>{membro.email}</small>
+                  {!readOnly && (
+                    <button aria-label={`Tirar ${membro.name} do ministério`} onClick={() => tirarMembro(membro.id)} type="button">
+                      <X aria-hidden />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="equipe-vazia">Ninguém neste ministério ainda.</p>
+          )}
+
+          {/* Dito ANTES de fechar, e não depois: a associação vai no mesmo
+              Salvar do ministério, e quem inclui e sai sem salvar acha que
+              incluiu. */}
+          {equipeMudou && !readOnly && (
+            <p className="equipe-pendente" role="status">
+              A equipe mudou e ainda não foi salva. Clique em <strong>Salvar Ministério</strong> para valer.
+            </p>
+          )}
+
+          {!readOnly && (
+            <>
+              <MinistryPeoplePicker
+                people={members}
+                mode="members"
+                selectedIds={values.memberIds}
+                onToggle={alternarMembro}
+                ministryId={ministry?.id}
+              />
+              {/* O lugar de chamar quem AINDA NÃO existe no cadastro fica de fora
+                  de propósito: o convite do produto cria USUÁRIO e ocupa assento
+                  do plano, e voluntário de ministério não precisa de login. */}
+              <small className="equipe-nota">Só aparece quem já está no cadastro de membros.</small>
+            </>
+          )}
+        </div>
+      </fieldset>
+      {!readOnly && <footer><button type="button" onClick={onClose} disabled={saving}>Cancelar</button><button className="primary-action" disabled={saving}>{saving ? <LoaderCircle className="button-spinner" /> : <Plus />}{saving ? "Salvando..." : "Salvar Ministério"}</button></footer>}
+    </form>
+  );
+}
+
+/**
+ * Criar ministério como conversa em passos, não parede de campos.
+ *
+ * O Lucas quer que criar pareça um formulário guiado: pergunta o nome, depois
+ * quem lidera, depois quem já entra na equipe. Cada passo é UMA pergunta, e o
+ * seletor de pessoas (o mesmo do item 2) aparece nos passos de líder e de
+ * equipe. O básico -- cor e descrição -- fica junto do nome no primeiro passo,
+ * secundário, para não roubar a cena da pergunta.
+ *
+ * Nada aqui é obrigatório além do nome: líder e equipe entram agora OU depois,
+ * pela tela de edição. A rota de criação já aceita `leaderId` e `memberIds`
+ * junto do nome, então os três vão num POST só.
+ */
+const PASSOS = [
+  { chave: "nome", rotulo: "Nome" },
+  { chave: "lider", rotulo: "Líder" },
+  { chave: "equipe", rotulo: "Equipe" },
+] as const;
+
+const CORES: { valor: MinistryFormValues["color"]; nome: string }[] = [
+  { valor: "purple", nome: "Roxo" },
+  { valor: "blue", nome: "Azul" },
+  { valor: "green", nome: "Verde" },
+  { valor: "gray", nome: "Cinza" },
+];
+
+function MinistryWizard({ members, onClose, onSubmit }: { members: MemberOption[]; onClose: () => void; onSubmit: (values: MinistryFormValues) => Promise<boolean> }) {
+  const [passo, setPasso] = useState(0);
+  const [values, setValues] = useState<MinistryFormValues>(emptyMinistry);
+  const [saving, setSaving] = useState(false);
+
+  const nomeOk = values.name.trim().length > 0;
+  const ultimo = passo === PASSOS.length - 1;
+  const lider = values.leaderId ? members.find((m) => m.id === values.leaderId) : null;
+
+  function avancar() {
+    // O nome trava o avanço: sem ele o ministério não pode nascer, e adiar a
+    // cobrança para o fim faria a pessoa percorrer os passos para levar erro.
+    if (passo === 0 && !nomeOk) return;
+    setPasso((atual) => Math.min(PASSOS.length - 1, atual + 1));
+  }
+  function voltar() {
+    setPasso((atual) => Math.max(0, atual - 1));
+  }
+  function alternarLider(id: string) {
+    setValues((atual) => ({ ...atual, leaderId: atual.leaderId === id ? "" : id }));
+  }
+  function alternarMembro(id: string) {
+    setValues((atual) => atual.memberIds.includes(id)
+      ? { ...atual, memberIds: atual.memberIds.filter((x) => x !== id) }
+      : { ...atual, memberIds: [...atual.memberIds, id] });
+  }
+
+  /**
+   * Um só submit para os dois papéis do botão primário: nos passos iniciais ele
+   * AVANÇA, no último ele CRIA. O botão fica sempre `type="submit"` -- trocar o
+   * `type` de "button" para "submit" no mesmo nó entre renders deixava um clique
+   * em "Continuar" escapar como envio do formulário e criar cedo demais. De
+   * quebra, Enter no campo de nome passa a avançar, coerente com a tela.
+   */
+  async function aoSubmeter(event: FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    if (!ultimo) {
+      avancar();
+      return;
+    }
+    if (!nomeOk) return;
+    setSaving(true);
+    try {
+      await onSubmit(values);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="resource-dialog resource-page-form ministry-resource-dialog ministry-wizard" onSubmit={aoSubmeter}>
+      <header>
+        <div><strong>Novo Ministério</strong><span>Um passo de cada vez — só o nome é obrigatório.</span></div>
+        <button type="button" onClick={onClose} aria-label="Fechar"><X /></button>
+      </header>
+
+      {/* Trilha dos passos: mostra onde a pessoa está e o que já ficou para trás. */}
+      <ol className="wizard-passos" aria-hidden>
+        {PASSOS.map((p, indice) => (
+          <li key={p.chave} className={indice === passo ? "is-atual" : indice < passo ? "is-feito" : undefined}>
+            <span className="wizard-passo-marca">{indice < passo ? <Check /> : indice + 1}</span>
+            {p.rotulo}
+          </li>
+        ))}
+      </ol>
+
+      <fieldset disabled={saving}>
+        {passo === 0 && (
+          <div className="wizard-corpo">
+            <div className="wizard-pergunta">
+              <h3>Como o ministério se chama?</h3>
+              <p>É o nome que aparece na lista e na chamada da escola bíblica.</p>
+            </div>
+            <label className="wizard-campo-nome">
+              <span>Nome do ministério *</span>
+              <input autoFocus required value={values.name} placeholder="Ex.: Louvor, Acolhimento, Infantil…" onChange={(event) => setValues((atual) => ({ ...atual, name: event.target.value }))} />
+            </label>
+            <label className="wizard-cor">
+              <span>Cor</span>
+              <div className="wizard-cores" role="radiogroup" aria-label="Cor do ministério">
+                {CORES.map((cor) => (
+                  <button
+                    key={cor.valor}
+                    type="button"
+                    role="radio"
+                    aria-checked={values.color === cor.valor}
+                    className={`wizard-swatch tone-${cor.valor}${values.color === cor.valor ? " is-escolhida" : ""}`}
+                    onClick={() => setValues((atual) => ({ ...atual, color: cor.valor }))}
+                  >
+                    <span aria-hidden />{cor.nome}
+                  </button>
                 ))}
-              </ul>
-            ) : (
-              <p className="equipe-vazia">Ninguém neste ministério ainda.</p>
-            )}
-
-            {/* Dito ANTES de fechar, e não depois: a associação vai no mesmo
-                Salvar do ministério, e quem inclui e sai sem salvar acha que
-                incluiu. */}
-            {equipeMudou && !readOnly && (
-              <p className="equipe-pendente" role="status">
-                A equipe mudou e ainda não foi salva. Clique em <strong>Salvar Ministério</strong> para valer.
-              </p>
-            )}
-
-            {!readOnly && (
-              <div className="equipe-busca">
-                <label className="member-filter-search">
-                  <Search aria-hidden />
-                  <input
-                    onChange={(event) => setMemberSearch(event.target.value)}
-                    placeholder="Buscar quem já está cadastrado…"
-                    value={memberSearch}
-                  />
-                </label>
-                {/* Nada aparece com a busca vazia: lista inteira sem pergunta é
-                    a parede de caixas de antes com outra roupa. */}
-                {memberSearch.trim().length >= 2 && (
-                  sugestoes.length ? (
-                    <ul className="equipe-sugestoes">
-                      {sugestoes.map((membro) => (
-                        <li key={membro.id}>
-                          <button onClick={() => incluirMembro(membro.id)} type="button">
-                            <strong>{membro.name}</strong>
-                            <small>{membro.ministry && membro.ministry !== "Nenhum" ? `Hoje em ${membro.ministry}` : "Sem ministério"}</small>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="equipe-vazia">Ninguém com esse nome fora deste ministério.</p>
-                  )
-                )}
-                {/* O lugar de chamar quem AINDA NÃO existe no cadastro fica
-                    marcado e vazio de propósito: o convite que o produto tem
-                    cria USUÁRIO e ocupa assento do plano, e voluntário de
-                    ministério não precisa de login. Enquanto não se decidir se
-                    é dar acesso ou só avisar a pessoa, qualquer comportamento
-                    aqui tem chance de ser o errado -- e o errado gasta assento
-                    pago por voluntário. */}
-                <small className="equipe-nota">Só aparece quem já está no cadastro de membros.</small>
               </div>
-            )}
+            </label>
+            <label className="wizard-descricao">
+              <span>Descrição <em>(opcional)</em></span>
+              <textarea value={values.description} placeholder="Uma linha sobre o que essa equipe faz." onChange={(event) => setValues((atual) => ({ ...atual, description: event.target.value }))} />
+            </label>
+          </div>
+        )}
+
+        {passo === 1 && (
+          <div className="wizard-corpo">
+            <div className="wizard-pergunta">
+              <h3>Quem vai liderar {values.name.trim() || "o ministério"}?</h3>
+              <p>Dá para deixar para depois — é só seguir sem escolher ninguém.</p>
+            </div>
+            <MinistryPeoplePicker people={members} mode="leader" selectedIds={values.leaderId ? [values.leaderId] : []} onToggle={alternarLider} />
+          </div>
+        )}
+
+        {passo === 2 && (
+          <div className="wizard-corpo">
+            <div className="wizard-pergunta">
+              <h3>Quem já entra na equipe?</h3>
+              <p>
+                {values.memberIds.length === 0
+                  ? "Marque quem já faz parte — ou crie agora e adicione depois."
+                  : `${values.memberIds.length} ${values.memberIds.length === 1 ? "pessoa selecionada" : "pessoas selecionadas"}.`}
+                {lider && ` ${lider.name} entra como líder.`}
+              </p>
+            </div>
+            <MinistryPeoplePicker people={members} mode="members" selectedIds={values.memberIds} onToggle={alternarMembro} />
           </div>
         )}
       </fieldset>
-      {!readOnly && <footer><button type="button" onClick={onClose} disabled={saving}>Cancelar</button><button className="primary-action" disabled={saving}>{saving ? <LoaderCircle className="button-spinner" /> : <Plus />}{saving ? "Salvando..." : "Salvar Ministério"}</button></footer>}
+
+      <footer className="wizard-acoes">
+        {passo === 0 ? (
+          <button type="button" onClick={onClose} disabled={saving}>Cancelar</button>
+        ) : (
+          <button type="button" onClick={voltar} disabled={saving}><ArrowLeft aria-hidden />Voltar</button>
+        )}
+        {/* Sempre `type="submit"`: quem decide entre avançar e criar é o
+            `aoSubmeter`, pelo passo. Ver o comentário lá. */}
+        <button type="submit" className="primary-action" disabled={saving || !nomeOk}>
+          {!ultimo ? (
+            <>Continuar<ArrowRight aria-hidden /></>
+          ) : saving ? (
+            <><LoaderCircle className="button-spinner" aria-hidden />Criando…</>
+          ) : (
+            <><Plus aria-hidden />Criar ministério</>
+          )}
+        </button>
+      </footer>
     </form>
   );
 }

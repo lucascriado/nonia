@@ -3148,3 +3148,84 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    ainda não valeu. */
 .equipe-pendente { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px var(--space-3); border-left: 3px solid var(--warning); border-radius: var(--radius-xs); background: var(--panel-soft); color: var(--muted); font-size: 0.78125rem; line-height: 1.5; }
 .equipe-pendente strong { color: var(--text); }
+
+/* --------------------------------------------------------------------------
+   Seletor de pessoas do ministério (líder e membros)
+   Cartões com busca, paginados em ~3 por página. Quem já tem compromisso em
+   OUTRO ministério -- lidera algum, ou pertence a um -- aparece em cinza, com o
+   compromisso escrito. Continua clicável: cinza sinaliza, não bloqueia. O mesmo
+   componente escolhe o líder (rádio) e adiciona membros (várias caixas).
+   -------------------------------------------------------------------------- */
+.mpk { display: grid; gap: var(--space-3); }
+.mpk-busca { position: relative; display: flex; align-items: center; }
+.mpk-busca svg { position: absolute; left: 12px; width: var(--icon-md); color: var(--muted); pointer-events: none; }
+.mpk-busca input { width: 100%; min-height: 40px; padding: 0 12px 0 34px; border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; background: var(--panel); color: var(--text); font-family: inherit; font-size: 0.8125rem; transition: border-color .2s ease, box-shadow .2s ease; }
+.mpk-busca input:focus { border-color: var(--primary-border); box-shadow: 0 0 0 3px var(--primary-soft); }
+.mpk-vazio { margin: 0; padding: 16px; border: 1px dashed var(--border); border-radius: var(--radius-sm); color: var(--muted); font-size: 0.8125rem; text-align: center; }
+
+.mpk-lista { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.mpk-card { display: grid; width: 100%; grid-template-columns: 38px minmax(0, 1fr) 24px; align-items: center; gap: var(--space-3); padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); text-align: left; transition: border-color .2s ease, background .2s ease, box-shadow .2s ease; }
+.mpk-card:hover { border-color: var(--primary-border); background: var(--panel-soft); }
+.mpk-card.is-escolhida { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 1px var(--primary) inset; }
+/* Cinza = compromisso em outro ministério. Só a foto e o nome esmaecem; o texto
+   do compromisso continua legível, porque é a informação que importa aqui. */
+.mpk-card.is-comprometida:not(.is-escolhida) .initials-avatar { opacity: .55; }
+.mpk-card.is-comprometida:not(.is-escolhida) .mpk-dados > strong,
+.mpk-card.is-comprometida:not(.is-escolhida) .mpk-email { color: var(--muted); }
+.mpk-dados { display: grid; min-width: 0; gap: 1px; }
+.mpk-dados > strong { overflow: hidden; color: var(--text); font-size: 0.875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.mpk-email { overflow: hidden; color: var(--muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.mpk-compromisso { display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; color: var(--warning); font-size: 0.6875rem; font-weight: 600; }
+.mpk-compromisso svg { width: 12px; flex: 0 0 12px; }
+.mpk-marca { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; color: var(--on-primary-fill); background: transparent; }
+.mpk-card.is-escolhida .mpk-marca { background: var(--primary-fill); }
+.mpk-marca svg { width: 15px; }
+
+.mpk-paginacao { display: flex; align-items: center; justify-content: center; gap: 14px; padding-top: 2px; color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.mpk-paginacao button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); transition: border-color .2s ease, color .2s ease; }
+.mpk-paginacao button:hover:not(:disabled) { border-color: var(--primary-border); color: var(--primary); }
+.mpk-paginacao button:disabled { color: var(--border-strong); }
+.mpk-paginacao button svg { width: var(--icon-md); }
+
+/* --------------------------------------------------------------------------
+   Criação de ministério em passos (formulário conversacional)
+   Uma pergunta por vez, com a trilha dos passos no topo. Reaproveita o cartão
+   de pessoas (.mpk) nos passos de líder e de equipe.
+   -------------------------------------------------------------------------- */
+.ministry-wizard { max-width: 720px; margin-inline: auto; }
+.wizard-passos { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0 20px 18px; list-style: none; }
+.wizard-passos li { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.wizard-passos li:not(:last-child)::after { width: 22px; height: 1px; margin-left: 10px; background: var(--border-strong); content: ""; }
+.wizard-passo-marca { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border-strong); border-radius: 50%; font-size: 0.75rem; color: var(--muted); }
+.wizard-passos li.is-atual { color: var(--heading); }
+.wizard-passos li.is-atual .wizard-passo-marca { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.wizard-passos li.is-feito .wizard-passo-marca { border-color: var(--primary-fill); background: var(--primary-fill); color: var(--on-primary-fill); }
+.wizard-passos li.is-feito .wizard-passo-marca svg { width: 13px; }
+
+.ministry-wizard fieldset { display: block; padding: 0 20px; border: 0; }
+.wizard-corpo { display: grid; gap: 18px; }
+.wizard-pergunta h3 { margin: 0; color: var(--heading); font-size: 1.25rem; font-weight: 600; letter-spacing: -.01em; line-height: 1.35; }
+.wizard-pergunta p { margin: 6px 0 0; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
+.wizard-corpo > label { display: grid; gap: 6px; }
+.wizard-corpo > label > span { color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.wizard-corpo > label > span em { color: var(--muted); font-style: normal; font-weight: 400; }
+.wizard-campo-nome input, .wizard-descricao textarea { width: 100%; min-height: 44px; padding: 11px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; background: var(--panel); color: var(--text); font-family: inherit; font-size: 0.9375rem; transition: border-color .2s ease, box-shadow .2s ease; }
+.wizard-descricao textarea { min-height: 84px; resize: vertical; }
+.wizard-campo-nome input:focus, .wizard-descricao textarea:focus { border-color: var(--primary-border); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+.wizard-cores { display: flex; flex-wrap: wrap; gap: 8px; }
+.wizard-swatch { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--text); font-size: 0.8125rem; font-weight: 600; transition: border-color .2s ease, background .2s ease; }
+.wizard-swatch > span { width: 16px; height: 16px; border-radius: 50%; background: var(--primary); }
+.wizard-swatch.tone-purple > span { background: #8b5cf6; }
+.wizard-swatch.tone-blue > span { background: var(--info); }
+.wizard-swatch.tone-green > span { background: var(--primary); }
+.wizard-swatch.tone-gray > span { background: var(--muted); }
+.wizard-swatch:hover { border-color: var(--border-strong); }
+.wizard-swatch.is-escolhida { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 1px var(--primary) inset; }
+
+.wizard-acoes { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px; }
+.wizard-acoes button { display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 20px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.84375rem; font-weight: 600; }
+.wizard-acoes button:not(.primary-action) { border-color: var(--border-strong); color: var(--text); }
+.wizard-acoes button:not(.primary-action):hover { border-color: var(--primary-border); }
+.wizard-acoes button svg { width: var(--icon-sm); }
+.wizard-acoes button:disabled { cursor: not-allowed; opacity: .55; }
