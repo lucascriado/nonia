@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e não vai passar a responder.** O DNS foi **dispensado**, não adiado — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `fc81ff0`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `7b1f085`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -301,6 +301,9 @@ por conta própria: banco compartilhado não é território de quem está numa b
   funcionado.
 
 ### Estado do MVP — sem bloqueadores (06/09/2026)
+
+**627 testes no backend, 51 no frontend.** A aplicação roda em
+`localhost:3000` com `npm run dev`.
 
 **O lado do backend está fechado.** O que resta depende de decisão do Lucas: DNS
 para a recuperação de senha, exclusão lógica em membros e visitantes, os
@@ -663,6 +666,35 @@ recusada pelo banco com **23503**. Criar segunda igreja não abriu caminho nenhu
 > adaptação do seletor, é desenho próprio. **Chame o backend antes:** é o tipo de
 > coisa em que a pressa custa a garantia mais forte do produto.
 
+## Marca que nunca expira
+
+Uma doença com nome, encontrada três vezes: **valor gravado na criação que
+alguém depois lê como se fosse atual.**
+
+| Marca | O que dizia | O que era lido como |
+| --- | --- | --- |
+| `is_new` | "cadastrado alguma vez" | "novos este mês" — 7 contra 1 no banco de dev, com o mais antigo de 2022 |
+| `is_recent` | nunca era limpo | a aba "Recentes" viraria uma segunda "Todos" com o uso |
+
+Os dois passaram a **derivar da data**. O `is_recent` estava escondido atrás da
+semente, que gravou 4 de 12 com data coerente — **o pior lugar para um defeito
+estar**, porque o dado de demonstração o mascara.
+
+**A janela de "Recentes" é 14 dias.** A própria semente já trazia essa fronteira
+embutida (recente até 13, não-recente a partir de 20), são **dois domingos**, e
+as alternativas caem por si: "mês corrente" faz a aba **zerar no dia 1º**, e
+"desde o último domingo" muda o tamanho da janela todo dia.
+
+**As colunas ficam, sem migration.** Depois de saírem da tela, do CSV e do JSON
+viraram órfãs **invisíveis** — mesmo critério da `timezone`: órfã que promete
+sai, órfã invisível fica.
+
+> **Campo em resposta de API é promessa igual a coluna em CSV; a diferença é só
+> quem lê.**
+
+A varredura atrás de uma quarta não achou nada — e foi além dos booleanos,
+porque a doença não é do tipo.
+
 ## O princípio por trás das decisões de acesso
 
 Cinco decisões separadas, tomadas em momentos diferentes, com o mesmo princípio
@@ -923,7 +955,7 @@ Datadas para que ninguém as leia como fato consumado.
 | **Secretaria pode excluir lançamento financeiro.** A 009 concede `finance.write`, e o modelo não distingue criar de editar e apagar — as três rotas pedem a mesma permissão. Se excluir for demais, o caminho é uma permissão separada. Está com o Lucas | 06/09/2026 |
 | **No plano Semente não há assento para convidar ninguém.** Consequência do teto de 1 usuário; está com o Lucas | 06/09/2026 |
 | **E-mail de convite não envia** enquanto o domínio não estiver verificado no Resend — faltam três registros DNS, e no Cloudflare com proxy desligado. O convite por link funciona | 06/09/2026 |
-| **RISCO — não existe exclusão lógica em lugar nenhum do schema.** Desde a 009 a secretaria pode **apagar lançamento financeiro** — dado contábil — sem confirmação no servidor, sem lixeira e sem backup. O histórico registra que alguém excluiu; o dado sumiu. **O enquadramento importa: talvez a resposta não seja tirar a permissão, e sim fazer exclusão que dê para desfazer** — de "quem pode apagar" para "o que acontece quando se apaga". Está com o Lucas | 06/09/2026 |
+| **Exclusão lógica existe só no financeiro** (migration **011**: `deleted_at` e lixeira). Membros e visitantes continuam com exclusão definitiva. O enquadramento que resolveu o caso do financeiro vale para eles: a pergunta não é "quem pode apagar", é **"o que acontece quando se apaga"**. Está com o Lucas | 06/09/2026 |
 | **Não há como revogar convite pendente**, e cada um ocupa um assento para sempre. Está sendo feito | 06/09/2026 |
 | **Listagens pesadas** — ver a seção acima. Próxima prioridade técnica | 06/09/2026 |
 | **`purgeStaleSessions()` existe em `lib/auth.ts` e ninguém chama** — a tabela `sessions` cresce para sempre. Levantado pelo próprio backend logo após remover as permissões órfãs, para não ficar com dois pesos | 06/09/2026 |
