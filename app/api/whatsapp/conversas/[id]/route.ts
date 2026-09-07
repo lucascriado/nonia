@@ -1,5 +1,4 @@
-import { db, query } from "@/lib/db";
-import { addActivity } from "@/lib/activities";
+import { query } from "@/lib/db";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { notFound, readJson, requireUuid } from "@/lib/http";
 import { apiError } from "@/lib/records";
@@ -53,9 +52,19 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     }
 
     const { rows } = await query(
-      `SELECT m.id, m.wa_message_id AS "waMessageId", m.from_me AS "fromMe", m.author,
-              m.type, m.body, m.has_media AS "hasMedia", m.sent_at AS "sentAt"
+      `SELECT m.id, m.wa_message_id AS "waMessageId", m.from_me AS "fromMe",
+              m.author, m.author_name AS "authorName",
+              m.type, m.body, m.sent_at AS "sentAt",
+              m.media_mimetype AS "mediaMimetype", m.media_filename AS "mediaFilename",
+              m.quoted_wa_message_id AS "quotedWaMessageId",
+              -- A prévia da CITADA sai da própria tabela, e não de uma cópia
+              -- guardada na linha de quem cita: cópia divergiria no dia em que a
+              -- original fosse editada ou apagada.
+              q.type AS "quotedType", q.body AS "quotedBody"
          FROM whatsapp_messages m
+         LEFT JOIN whatsapp_messages q
+                ON q.organization_id = m.organization_id
+               AND q.wa_message_id = m.quoted_wa_message_id
         WHERE m.conversation_id = $1 AND m.organization_id = $2
         ORDER BY m.sent_at, m.id`,
       [id, org],
@@ -85,8 +94,55 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       // A prévia vem calculada daqui, e não da tela: mídia vira marcador de
       // texto ("[foto]") em vez de linha vazia, e o cálculo mora num lugar só.
       messages: rows.map((m) => {
-        const linha = m as { type: string; body: string | null };
-        return { ...linha, preview: inbox.previa(linha.type, linha.body) };
+        const linha = m as {
+          id: string; fromMe: boolean; sentAt: string;
+          author: string | null; authorName: string | null;
+          waMessageId: string; type: string; body: string | null;
+          mediaMimetype: string | null; mediaFilename: string | null;
+          quotedWaMessageId: string | null; quotedType: string | null; quotedBody: string | null;
+        };
+        // DERIVADO do tipo, nunca lido de coluna: a `has_media` da 015 gravava
+        // false para toda mensagem (o histórico é pedido sem mídia de
+        // propósito), e quem lesse acreditaria. Ver a 016.
+        const kind = inbox.midiaDoTipo(linha.type);
+        // MONTADO CAMPO A CAMPO, e não com `...linha`, de propósito: o spread
+        // levava junto as colunas cruas do JOIN (`mediaMimetype`,
+        // `quotedWaMessageId`, `quotedType`, `quotedBody`), então a resposta
+        // carregava os MESMOS dados com dois nomes. Duas versões do mesmo campo
+        // é como um contrato deixa de ser contrato: quem lê não sabe qual das
+        // duas vale, e as duas passam a ter que ser mantidas.
+        return {
+          id: linha.id,
+          waMessageId: linha.waMessageId,
+          fromMe: linha.fromMe,
+          author: linha.author,
+          authorName: linha.authorName,
+          type: linha.type,
+          body: linha.body,
+          sentAt: linha.sentAt,
+          preview: inbox.previa(linha.type, linha.body),
+          hasMedia: kind !== null,
+          media: kind
+            ? {
+                // A URL é do NONIA, não do OpenWA: o navegador chega nela com o
+                // cookie de sessão normal e a chave do OpenWA nunca sai daqui.
+                url: `/api/whatsapp/conversas/${id}/midia/${encodeURIComponent(linha.waMessageId)}`,
+                mimetype: linha.mediaMimetype,
+                filename: linha.mediaFilename,
+                kind,
+              }
+            : null,
+          quoted: linha.quotedWaMessageId
+            ? {
+                waMessageId: linha.quotedWaMessageId,
+                // Citada que ainda não foi sincronizada não vira null nem some:
+                // o balão diz que há uma citação e que o texto dela não veio.
+                preview: linha.quotedType
+                  ? inbox.previa(linha.quotedType, linha.quotedBody)
+                  : "[mensagem fora do trecho carregado]",
+              }
+            : null,
+        };
       }),
       stale: !sincronizou,
     });
@@ -103,32 +159,26 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     requireUuid(id, "Conversa não encontrada.");
     const org = organizationId(auth);
     const conversa = await carregar(id, org);
-    const payload = await readJson<{ message?: string }>(request);
+    const payload = await readJson<{ message?: string; quotedWaMessageId?: string }>(request);
     const texto = inbox.exigirTexto(payload.message);
+    // A citada tem que ser DESTA conversa. Sem essa checagem, um id de outra
+    // conversa (ou de outra igreja) iria direto para o WhatsApp, e o vazamento
+    // seria por citação -- a mensagem citada aparece dentro do balão enviado.
+    const citada = await inbox.exigirCitadaDaConversa(id, org, payload.quotedWaMessageId);
 
     // Teto de sanidade: pega automação, não gente. Ver lib/whatsapp/inbox.ts.
     await inbox.assertPodeResponder(org);
 
     const conexao = await conn.exigirConexao(org);
-    const enviada = await openwa.enviarTexto(conexao.sessionId, conexao.apiKey, conversa.chat_id, texto);
+    const enviada = await openwa.enviarTexto(conexao.sessionId, conexao.apiKey, conversa.chat_id, texto, citada);
     const waId = enviada.messageId ?? enviada.id ?? `local-${Date.now()}`;
 
-    await db.transaction(async (transaction) => {
-      await db.query(
-        `INSERT INTO whatsapp_messages
-           (conversation_id, organization_id, wa_message_id, from_me, type, body, sent_at)
-         VALUES ($1, $2, $3, true, 'text', $4, now())
-         ON CONFLICT (organization_id, wa_message_id) DO NOTHING`,
-        { bind: [id, org, waId, texto], transaction },
-      );
-      await db.query(
-        `UPDATE whatsapp_conversations
-            SET last_message_at = now(), last_message_preview = $2, unread_count = 0, updated_at = now()
-          WHERE id = $1`,
-        { bind: [id, texto.slice(0, 300)], transaction },
-      );
-      await addActivity(transaction, auth, "whatsapp", "respondeu no WhatsApp", conversa.wa_name ?? conversa.phone);
-    });
+    await inbox.registrarEnviada(
+      auth,
+      { id, organizationId: org, nome: conversa.wa_name ?? conversa.phone },
+      { waMessageId: waId, type: "text", body: texto, quotedWaMessageId: citada },
+      citada ? "respondeu citando no WhatsApp" : "respondeu no WhatsApp",
+    );
 
     return Response.json({ ok: true, waMessageId: waId }, { status: 201 });
   } catch (error) {

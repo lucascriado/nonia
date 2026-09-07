@@ -322,6 +322,16 @@ respondem 200; `session` traz avaliação com 14 dias e acesso `full`; `users`,
 `organization` e `billing/plans` respondem; `canSubscribe` é `true`; o CSV sai
 com BOM e CRLF.
 
+**A igreja vazia foi percorrida em 07/09/2026** — organização criada pelo
+`/cadastro`, zero linha em toda tabela com `organization_id`. As dez telas
+carregam e **nenhuma mente**: cada listagem tem estado vazio próprio, o painel
+mostra zeros, a busca global devolve "Nenhum destino encontrado.", os três CSV
+saem com 200 e só o cabeçalho, e **nenhuma resposta 4xx ou 5xx** apareceu na
+varredura inteira. O **logout foi clicado**: revoga a linha em `sessions` e
+voltar ao painel cai em `/entrar`. O que quebra sem dado é outra coisa, e está
+em "Pendências" — os ministérios fantasma e o sino. O medido está na nota de
+canvas "Estado real do MVP".
+
 ## Isolamento entre organizações
 
 Fechado nas duas camadas desde a migration **006** (06/09/2026).
@@ -966,3 +976,5 @@ Datadas para que ninguém as leia como fato consumado.
 | **Data gravada em UTC nasce errada à noite.** `lib/models.ts:159` usa `new Date().toISOString().slice(0, 10)` como padrão de `transaction_date`. Medido em 06/09/2026: às 21h30 em Brasília, o local é 06/09 e o gravado é **07/09**. Todo lançamento criado **entre 21h e meia-noite** cai no dia seguinte — e no dia 30 ou 31, no **mês** seguinte, deslocando o fechamento da tesouraria. É dado contábil, e reunião de igreja termina de noite. **A correção carrega uma escolha de desenho:** usar o `timezone` da organização (a coluna existe e está sem uso) ou fixar `America/Sao_Paulo`. Decisão do Lucas | 06/09/2026 |
 | **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. É arquivo do backend pela regra de propriedade, e está com ele | 06/09/2026 |
+| **Formulário de membro oferece quatro ministérios que não existem.** `components/person-record-dialog.tsx:120` traz `["Nenhum", "Louvor", "Missões", "Acolhimento", "Infantil"]` fixos como estado inicial; a linha 189 só troca pela lista real da igreja **se a resposta for `ok`**, e o `catch` engole a falha. Medido em igreja com zero ministérios, com `/api/ministries` forçado a 403: o campo oferece os quatro. Quem escolher um é atendido em silêncio — `app/api/members/route.ts:90` resolve pelo nome dentro da organização, não acha e grava `ministry_id NULL`; o `POST` respondeu **201** e a listagem depois mostra "Nenhum". O campo ainda está marcado obrigatório. Frontend | 07/09/2026 |
+| **O sino de notificações não faz nada, e promete que faz.** `components/header.tsx:94` não tem `onClick`, e a classe `has-dot` — o pontinho vermelho de "tem coisa nova" — é fixa no código, não vem de dado. Numa igreja criada havia cinco minutos e sem um único registro, o pontinho está lá; clicar só move o foco, nenhuma chamada sai. Mesmo gênero do logout que era link morto, com o agravante de prometer. Frontend | 07/09/2026 |

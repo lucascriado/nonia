@@ -16,7 +16,9 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:
  * errada -- que produziria um 401 do OpenWA sem ninguém entender de onde veio.
  */
 
-const NOME_DA_VARIAVEL = "WHATSAPP_KEY_SECRET";
+/** Exportado para o 503 poder DIZER qual variável falta, em vez de só "não configurada". */
+export const NOME_DO_SEGREDO = "WHATSAPP_KEY_SECRET";
+const NOME_DA_VARIAVEL = NOME_DO_SEGREDO;
 const SAL = "nonia:whatsapp:v1";
 
 export class WhatsAppSecretMissing extends Error {

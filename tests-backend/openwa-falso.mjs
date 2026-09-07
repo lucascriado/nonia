@@ -13,6 +13,20 @@ export const controle = { falharChatIds: new Set(), statusForcado: null };
 // Conversas e mensagens que o WhatsApp "empurrou" ao parear.
 export const caixa = { chats: [], mensagens: new Map() };  // chatId -> [msg]
 export const enviadas = [];
+// Bytes que o gateway GUARDOU. Modela a assimetria do OpenWA de verdade, e ela
+// e o ponto do stub: ele so guarda a midia das mensagens que viu ao vivo, entao
+// foto de conversa anterior ao pareamento responde 404 PARA SEMPRE. Um stub que
+// devolvesse bytes para qualquer id concordaria com o chamador em vez de
+// contradize-lo -- foi assim que `qr`/`qrCode` passou.
+export const midias = new Map();  // `${chatId}|${messageId}` -> { bytes, mimetype }
+// Mapa @lid -> telefone. `null` e resposta legitima: o proprio OpenWA chama a
+// resolucao de best-effort.
+export const telefonesPorLid = new Map();
+// Contador de chamadas por rota. Serve a UM teste especifico: resolver contato
+// e chamada de rede POR CONVERSA, e sem memoria o nonia repetiria a consulta a
+// cada abertura da caixa para toda conversa que nunca resolve. Sem contar, esse
+// desperdicio passaria despercebido -- o resultado final seria igual.
+export const chamadas = { resolverTelefone: 0 };
 
 const ADMIN = "admin-de-teste";
 
@@ -99,7 +113,16 @@ export function iniciarOpenWaFalso(porta) {
       const chatId = decodeURIComponent(g[2]);
       const lim = Number(url.searchParams.get("limit") || 50);
       const todas = caixa.mensagens.get(chatId) || [];
-      return responder(200, todas.slice(-lim));
+      // O CAMPO `media` SO EXISTE COM includeMedia=true, e o stub tem que ser
+      // fiel nisso -- foi aqui que ele quase repetiu o erro do `qr`/`qrCode`.
+      // Devolvendo `media` sem ninguem ter pedido, um `hasMedia` deduzido da
+      // presenca dos bytes PASSARIA no teste e nasceria falso contra o OpenWA
+      // de verdade. Pior ainda no ar: o inline do OpenWA para de vir acima de
+      // 1 MB (WEBHOOK_MEDIA_INLINE_MAX_BYTES), e quase toda foto de celular
+      // passa disso. Aqui a mensagem chega SEM bytes, sempre -- quem quiser
+      // saber que ha midia tem que olhar o TIPO.
+      const semMidia = todas.map(({ media, ...resto }) => resto);
+      return responder(200, semMidia.slice(-lim));
     }
     if ((g = m(/^\/sessions\/([^/]+)\/messages$/)) && req.method === "GET") {
       const a = autorizar(req, g[1]); if (!a.ok) return responder(a.status, { message: a.message });
@@ -118,6 +141,62 @@ export function iniciarOpenWaFalso(porta) {
       const body = await ler(req);
       enviadas.push(body);
       return responder(201, { messageId: `out-${randomUUID().slice(0, 8)}` });
+    }
+    // ENCAMINHAR. Os tres nomes sao os do ForwardMessageDto de verdade:
+    // fromChatId, toChatId, messageId. Se o nonia mandar outros, isto recusa --
+    // que e exatamente o servico que o stub tem que prestar.
+    if ((g = m(/^\/sessions\/([^/]+)\/messages\/forward$/)) && req.method === "POST") {
+      const a = autorizar(req, g[1]); if (!a.ok) return responder(a.status, { message: a.message });
+      if (!pronta(g[1])) return responder(400, { message: `Session '${g[1]}' is not active. Start the session first.` });
+      const body = await ler(req);
+      for (const campo of ["fromChatId", "toChatId", "messageId"]) {
+        if (typeof body[campo] !== "string" || !body[campo]) {
+          return responder(400, { message: [`${campo} should not be empty`] });
+        }
+      }
+      const origem = caixa.mensagens.get(body.fromChatId) || [];
+      if (!origem.some((x) => x.id === body.messageId)) return responder(404, { message: "Message not found" });
+      enviadas.push({ ...body, forward: true });
+      return responder(201, { messageId: `fwd-${randomUUID().slice(0, 8)}`, timestamp: Math.floor(Date.now() / 1000) });
+    }
+    // As quatro rotas de midia. Nomes do SendMediaMessageDto: base64, mimetype,
+    // filename, caption, quotedMessageId -- e `ptt` so no send-audio.
+    if ((g = m(/^\/sessions\/([^/]+)\/messages\/send-(image|video|audio|document)$/)) && req.method === "POST") {
+      const a = autorizar(req, g[1]); if (!a.ok) return responder(a.status, { message: a.message });
+      if (!pronta(g[1])) return responder(400, { message: `Session '${g[1]}' is not active. Start the session first.` });
+      const body = await ler(req);
+      if (!body.chatId) return responder(400, { message: ["chatId should not be empty"] });
+      if (!body.base64 && !body.url) return responder(400, { message: ["url or base64 is required"] });
+      if (body.base64 && !body.mimetype) return responder(400, { message: ["mimetype is required when using base64"] });
+      if (body.ptt !== undefined && g[2] !== "audio") return responder(400, { message: ["ptt is only valid on send-audio"] });
+      const messageId = `out-${randomUUID().slice(0, 8)}`;
+      enviadas.push({ ...body, tipo: g[2], messageId });
+      // O que NOS enviamos o gateway guarda -- por isso baixar de volta funciona.
+      midias.set(`${body.chatId}|${messageId}`, {
+        bytes: Buffer.from(body.base64, "base64"), mimetype: body.mimetype,
+      });
+      return responder(201, { messageId, timestamp: Math.floor(Date.now() / 1000) });
+    }
+    // BAIXAR midia: octet-stream com Content-Disposition, e 404 quando o
+    // gateway nao tem os bytes -- que e o caso NORMAL do historico antigo.
+    if ((g = m(/^\/sessions\/([^/]+)\/messages\/([^/]+)\/([^/]+)\/media$/)) && req.method === "GET") {
+      const a = autorizar(req, g[1]); if (!a.ok) return responder(a.status, { message: a.message });
+      const guardada = midias.get(`${decodeURIComponent(g[2])}|${decodeURIComponent(g[3])}`);
+      if (!guardada) return responder(404, { message: "No media stored for this message" });
+      res.writeHead(200, {
+        "content-type": guardada.mimetype,
+        "content-disposition": 'attachment; filename="arquivo"',
+        "x-content-type-options": "nosniff",
+      });
+      return res.end(guardada.bytes);
+    }
+    // Resolver @lid -> telefone. `phone: null` e resposta valida, nao erro.
+    if ((g = m(/^\/sessions\/([^/]+)\/contacts\/([^/]+)\/phone$/)) && req.method === "GET") {
+      const a = autorizar(req, g[1]); if (!a.ok) return responder(a.status, { message: a.message });
+      if (!pronta(g[1])) return responder(409, { message: "The session is not connected" });
+      const contactId = decodeURIComponent(g[2]);
+      chamadas.resolverTelefone += 1;
+      return responder(200, { contactId, phone: telefonesPorLid.get(contactId) ?? null });
     }
     if ((g = m(/^\/sessions\/([^/]+)\/messages\/send-bulk$/)) && req.method === "POST") {
       const a = autorizar(req, g[1]); if (!a.ok) return responder(a.status, { message: a.message });

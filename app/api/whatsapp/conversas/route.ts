@@ -36,6 +36,11 @@ export async function GET(request: Request) {
     try {
       await inbox.sincronizarConversas(conexao);
       await inbox.avancarSincronizacao(conexao);
+      // Sem isto a caixa inteira aparece como "não identificado": esta conta
+      // devolve TODAS as conversas como @lid, e @lid não carrega telefone.
+      // Avança por leitura e com teto, como o resto -- é uma requisição ao
+      // WhatsApp por conversa.
+      await inbox.resolverTelefonesPendentes(conexao);
     } catch {
       respondendo = false;
     }
@@ -64,11 +69,20 @@ export async function GET(request: Request) {
               c.person_id AS "personId",
               p.full_name IS NULL AS "naoIdentificado",
               c.last_message_at AS "lastMessageAt",
-              c.last_message_preview AS "preview",
+              c.last_message_preview AS "previewCru",
+              -- A ÚLTIMA MENSAGEM DE VERDADE, para a prévia da lista sair da
+              -- mesma função que a de dentro da conversa. Ver abaixo.
+              u.type AS "ultimoTipo", u.body AS "ultimoCorpo",
               c.unread_count AS "unreadCount",
               c.sync_cursor IS NOT NULL AS "synced"
          FROM whatsapp_conversations c
          LEFT JOIN people p ON p.id = c.person_id
+         LEFT JOIN LATERAL (
+           SELECT m.type, m.body FROM whatsapp_messages m
+            WHERE m.conversation_id = c.id AND m.organization_id = c.organization_id
+            ORDER BY m.sent_at DESC, m.id DESC
+            LIMIT 1
+         ) u ON true
         WHERE ${filtro}
         ORDER BY c.last_message_at DESC NULLS LAST
         LIMIT $${valores.length + 1} OFFSET $${valores.length + 2}`,
@@ -76,7 +90,34 @@ export async function GET(request: Request) {
     );
 
     return Response.json({
-      records: rows,
+      /**
+       * A PRÉVIA DA LISTA SAI DA MESMA FUNÇÃO QUE A DE DENTRO DA CONVERSA.
+       *
+       * Antes ela vinha do `lastMessage` cru do chat, e o resultado era a MESMA
+       * mensagem com dois textos: em branco na lista e "[foto]" dentro da
+       * conversa. Foi o frontend que mediu, e ele fez o certo em não inventar
+       * uma tabela de tipos do lado dele -- a tradução é do servidor e já
+       * existia aqui.
+       *
+       * O campo cru não serve por mais um motivo, medido na conta real em
+       * 07/09/2026: um dos chats devolve `lastMessage` com **78.336 caracteres**
+       * e tipo `unknown`. Derivando, aquilo vira "[mensagem não suportada]" em
+       * vez de 300 caracteres de lixo truncado.
+       *
+       * `null` quando não há mensagem sincronizada E o texto cru é vazio, e é
+       * honesto: quer dizer "ainda não sabemos", não "a mensagem é vazia". Quem
+       * lê tem o `synced` ao lado para distinguir os dois.
+       */
+      records: rows.map((c) => {
+        const linha = c as Record<string, unknown> & {
+          ultimoTipo: string | null; ultimoCorpo: string | null; previewCru: string | null;
+        };
+        const { ultimoTipo, ultimoCorpo, previewCru, ...resto } = linha;
+        return {
+          ...resto,
+          preview: ultimoTipo ? inbox.previa(ultimoTipo, ultimoCorpo) : previewCru || null,
+        };
+      }),
       total: contagem.rows[0].total,
       page,
       pageSize,
