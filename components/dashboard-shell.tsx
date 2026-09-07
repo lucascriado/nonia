@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
 import { BillingNotice } from "@/components/billing-notice";
+import { WhatsappNotice } from "@/components/whatsapp/connection-notice";
 import { Toaster } from "sonner";
 
 const sidebarStorageKey = "nonia-sidebar-collapsed";
@@ -76,6 +77,7 @@ export function DashboardShell({
       {/* Fica acima do conteúdo de TODA tela: avisar sobre perder acesso não
           pode depender de a pessoa visitar Configurações. */}
       <BillingNotice />
+      <WhatsappNotice />
       {children}
       <Toaster position="top-right" richColors closeButton />
     </>
