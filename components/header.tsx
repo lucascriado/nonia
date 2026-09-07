@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   CalendarDays,
@@ -45,6 +45,45 @@ export function Header({ title }: { title: string }) {
   const user = useCurrentUser();
   const [search, setSearch] = useState("");
   const [focused, setFocused] = useState(false);
+  const campo = useRef<HTMLInputElement | null>(null);
+  const [noMac, setNoMac] = useState(false);
+
+  // O selinho dizia "Ctrl K" em toda máquina, e no Mac o atalho é Cmd K --
+  // seria a mesma promessa vazia com outra roupa. A leitura vai DEPOIS de
+  // montar para o servidor e o cliente pintarem a mesma coisa no primeiro
+  // quadro; trocar isto por leitura direta reintroduz erro de hidratação.
+  useEffect(() => {
+    setNoMac(/Mac|iPhone|iPad|iPod/.test(navigator.userAgent));
+  }, []);
+
+  /**
+   * O atalho que o `<kbd>` anunciava e ninguém tinha ligado.
+   *
+   * Focar não basta: a lista só abre com `focused`, então o estado é marcado
+   * junto. E `preventDefault` é obrigatório -- sem ele o Firefox leva o
+   * Ctrl+K para a barra de busca dele e o nosso campo pisca e perde o foco.
+   */
+  useEffect(() => {
+    function aoTeclar(evento: KeyboardEvent) {
+      if (evento.key.toLowerCase() !== "k" || evento.altKey || evento.shiftKey) return;
+      if (!evento.ctrlKey && !evento.metaKey) return;
+
+      const alvo = evento.target as HTMLElement | null;
+      const digitando =
+        Boolean(alvo?.isContentEditable) || ["INPUT", "TEXTAREA", "SELECT"].includes(alvo?.tagName ?? "");
+      // Ctrl+K DENTRO de um campo de texto é "apagar até o fim da linha" no
+      // Unix, e quem está digitando um nome não está procurando uma página.
+      // Cmd+K não tem esse dono, então no Mac vale em qualquer lugar.
+      if (digitando && evento.ctrlKey && !evento.metaKey && alvo !== campo.current) return;
+
+      evento.preventDefault();
+      setFocused(true);
+      campo.current?.focus();
+      campo.current?.select();
+    }
+    document.addEventListener("keydown", aoTeclar);
+    return () => document.removeEventListener("keydown", aoTeclar);
+  }, []);
 
   const subtitle = subtitleFor(title);
   const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
@@ -72,12 +111,20 @@ export function Header({ title }: { title: string }) {
           type="search"
           placeholder="Buscar páginas, eventos ou cadastros..."
           aria-label="Busca global do sistema"
+          ref={campo}
           value={search}
           onBlur={() => window.setTimeout(() => setFocused(false), 120)}
           onChange={(event) => setSearch(event.target.value)}
           onFocus={() => setFocused(true)}
+          onKeyDown={(event) => {
+            // Esc fecha, como em todo diálogo da casa.
+            if (event.key === "Escape") {
+              setFocused(false);
+              event.currentTarget.blur();
+            }
+          }}
         />
-        <kbd aria-hidden>Ctrl K</kbd>
+        <kbd aria-hidden>{noMac ? "⌘ K" : "Ctrl K"}</kbd>
         {focused && (search || results.length > 0) && (
           <div className="global-search-results">
             {results.map(({ title: itemTitle, description, href, icon: Icon }) => (
