@@ -95,6 +95,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       // texto ("[foto]") em vez de linha vazia, e o cálculo mora num lugar só.
       messages: rows.map((m) => {
         const linha = m as {
+          id: string; fromMe: boolean; sentAt: string;
+          author: string | null; authorName: string | null;
           waMessageId: string; type: string; body: string | null;
           mediaMimetype: string | null; mediaFilename: string | null;
           quotedWaMessageId: string | null; quotedType: string | null; quotedBody: string | null;
@@ -103,8 +105,21 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         // false para toda mensagem (o histórico é pedido sem mídia de
         // propósito), e quem lesse acreditaria. Ver a 016.
         const kind = inbox.midiaDoTipo(linha.type);
+        // MONTADO CAMPO A CAMPO, e não com `...linha`, de propósito: o spread
+        // levava junto as colunas cruas do JOIN (`mediaMimetype`,
+        // `quotedWaMessageId`, `quotedType`, `quotedBody`), então a resposta
+        // carregava os MESMOS dados com dois nomes. Duas versões do mesmo campo
+        // é como um contrato deixa de ser contrato: quem lê não sabe qual das
+        // duas vale, e as duas passam a ter que ser mantidas.
         return {
-          ...linha,
+          id: linha.id,
+          waMessageId: linha.waMessageId,
+          fromMe: linha.fromMe,
+          author: linha.author,
+          authorName: linha.authorName,
+          type: linha.type,
+          body: linha.body,
+          sentAt: linha.sentAt,
           preview: inbox.previa(linha.type, linha.body),
           hasMedia: kind !== null,
           media: kind

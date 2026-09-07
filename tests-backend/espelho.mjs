@@ -103,6 +103,7 @@ ok(r.d.messages[0].authorName === "Irmão João", "e com NOME, senão o grupo vi
 console.log("\n== hasMedia sai do TIPO, nunca da presença dos bytes ==");
 r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
 const idMaria = r.d.records.find((c) => c.chatId === "111@lid").id;
+const idOutra = r.d.records.find((c) => c.chatId === "222@lid").id;
 r = await call("GET", `/api/whatsapp/conversas/${idMaria}`, { cookie: A });
 const foto = r.d.messages.find((m) => m.waMessageId === "a2");
 // O stub NÃO devolve `media` no histórico, como o OpenWA de verdade sem
@@ -114,6 +115,40 @@ ok(foto.media?.url === `/api/whatsapp/conversas/${idMaria}/midia/a2`,
    "a URL da mídia é do NONIA -- a chave do OpenWA nunca chega ao navegador", foto.media?.url);
 ok(r.d.messages.find((m) => m.waMessageId === "a1").media === null, "e texto não ganha URL de mídia", "");
 
+console.log("\n== a MESMA mensagem não pode ter dois textos ==");
+// A última da conversa da Maria é a foto `a2`, sem legenda. Na lista isso vinha
+// do `lastMessage` cru do chat e chegava EM BRANCO; dentro da conversa vinha do
+// previa() e chegava "[foto]". Mesma mensagem, dois textos.
+caixa.mensagens.get("111@lid").push(
+  { id: "a4", chatId: "111@lid", from: "111@lid", body: "", type: "image", timestamp: agora - 270, fromMe: false });
+caixa.chats[0].lastMessage = "";   // é o que o WhatsApp devolve para mídia
+r = await call("GET", `/api/whatsapp/conversas/${idMaria}`, { cookie: A });
+const dentro = r.d.messages.at(-1).preview;
+r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
+const naLista = r.d.records.find((c) => c.chatId === "111@lid").preview;
+ok(naLista === "[foto]", "foto como última mensagem aparece [foto] NA LISTA, não em branco", JSON.stringify(naLista));
+ok(naLista === dentro, "e é o MESMO texto de dentro da conversa -- uma função só", `${JSON.stringify(naLista)} vs ${JSON.stringify(dentro)}`);
+// O `lastMessage` cru da conta real chegou a ter 78.336 caracteres com tipo
+// `unknown`. Derivando, vira marcador; sem derivar, vira lixo truncado.
+caixa.chats[1].lastMessage = "lixo ".repeat(1000);
+caixa.mensagens.get("222@lid").push(
+  { id: "b9", chatId: "222@lid", from: "222@lid", body: "lixo ".repeat(1000), type: "unknown", timestamp: agora - 100, fromMe: false });
+await call("GET", `/api/whatsapp/conversas/${idOutra}`, { cookie: A });
+r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
+const gigante = r.d.records.find((c) => c.chatId === "222@lid").preview;
+ok(gigante.startsWith("[mensagem não suportada]") && gigante.length <= 300,
+   "tipo não suportado vira marcador curto, não 300 caracteres de lixo", `${gigante.length} chars`);
+
+console.log("\n== o contrato não pode ter dois nomes para o mesmo campo ==");
+r = await call("GET", `/api/whatsapp/conversas/${idMaria}`, { cookie: A });
+const chavesDaMensagem = Object.keys(r.d.messages[0]).sort();
+const cruas = ["mediaMimetype", "mediaFilename", "quotedWaMessageId", "quotedType", "quotedBody"];
+ok(cruas.every((k) => !(k in r.d.messages[0])),
+   "as colunas cruas do JOIN não vazam junto com media{} e quoted{}", chavesDaMensagem.join(","));
+ok(JSON.stringify(chavesDaMensagem) === JSON.stringify(
+     ["author","authorName","body","fromMe","hasMedia","id","media","preview","quoted","sentAt","type","waMessageId"]),
+   "e a mensagem tem EXATAMENTE os campos do contrato, nem mais nem menos", chavesDaMensagem.join(","));
+
 console.log("\n== a citação que veio do WhatsApp ==");
 const citando = r.d.messages.find((m) => m.waMessageId === "a3");
 ok(citando.quoted?.waMessageId === "a1", "a mensagem citada é identificada", citando.quoted?.waMessageId);
@@ -124,8 +159,6 @@ let antes = enviadas.length;
 r = await call("POST", `/api/whatsapp/conversas/${idMaria}`, { cookie: A, body: { message: "sobre isso:", quotedWaMessageId: "a1" } });
 ok(r.s === 201, "aceita", `${r.s} ${r.d?.code}`);
 ok(enviadas.at(-1).quotedMessageId === "a1", "e o id da citada chega ao OpenWA com o nome certo (quotedMessageId)", JSON.stringify(enviadas.at(-1)));
-r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
-const idOutra = r.d.records.find((c) => c.chatId === "222@lid").id;
 r = await call("POST", `/api/whatsapp/conversas/${idMaria}`, { cookie: A, body: { message: "x", quotedWaMessageId: "b1" } });
 ok(r.s === 404 && r.d.code === "quoted_not_found",
    "citar mensagem de OUTRA conversa -> 404: o balão enviado mostraria o texto dela", `${r.s} ${r.d?.code}`);
