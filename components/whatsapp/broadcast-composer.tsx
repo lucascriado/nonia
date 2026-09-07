@@ -1,19 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { LoaderCircle, Search, Send, TriangleAlert, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, LoaderCircle, Search, Send, TriangleAlert, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AuthError } from "@/components/auth/session";
 import {
+  MOTIVO_TEXTO,
   createBroadcast,
   formatDuration,
-  previewBroadcast,
+  listBroadcastRecipients,
   type BroadcastAudience,
   type BroadcastFilters,
   type BroadcastPreview,
+  type BroadcastTarget,
 } from "@/components/whatsapp/api";
 
 const MENSAGEM_MAX = 4096;
+/** O máximo que a rota aceita por página. Menos páginas, menos idas. */
+const POR_PAGINA = 100;
 
 /**
  * Compor e disparar um envio.
@@ -36,6 +40,11 @@ export function BroadcastComposer({ conectado, onCreated }: { conectado: boolean
   const [sending, setSending] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [ministries, setMinistries] = useState<string[]>([]);
+  const [destinatarios, setDestinatarios] = useState<BroadcastTarget[]>([]);
+  /** Quem a pessoa DESMARCOU. Guardar quem saiu, e não quem ficou, faz o
+   *  padrão ser "todo mundo que pode receber", que é o que o filtro disse. */
+  const [tirados, setTirados] = useState<Set<string>>(new Set());
+  const [listaAberta, setListaAberta] = useState(false);
 
   useEffect(() => {
     fetch("/api/ministries", { cache: "no-store" })
@@ -44,13 +53,41 @@ export function BroadcastComposer({ conectado, onCreated }: { conectado: boolean
       .catch(() => undefined);
   }, []);
 
+  /**
+   * Uma fonte só para o resumo E para os nomes.
+   *
+   * A rota de destinatários devolve os dois na MESMA resolução, e é por isso
+   * que ela substituiu a prévia: pedir o resumo de um lado e a lista de outro
+   * seriam dois instantes diferentes, e eles podem discordar.
+   *
+   * Traz TODAS as páginas até o teto, porque é a lista inteira que vira o
+   * `incluir` do envio -- mandar só a primeira página faria a tela conferir
+   * duzentos e enviar para cinquenta.
+   */
   const conferir = useCallback(async (proximoPublico: BroadcastAudience, proximosFiltros: BroadcastFilters) => {
     setPreviewing(true);
     try {
-      const { preview: resultado } = await previewBroadcast({ audience: proximoPublico, filters: proximosFiltros });
-      setPreview(resultado);
+      const primeira = await listBroadcastRecipients({
+        audience: proximoPublico, filters: proximosFiltros, page: 1, pageSize: POR_PAGINA,
+      });
+      setPreview(primeira.resumo);
+
+      const teto = primeira.resumo.teto;
+      const alvo = Math.min(primeira.total, teto);
+      const juntos = [...primeira.records];
+      for (let pagina = 2; juntos.length < alvo; pagina += 1) {
+        const proxima = await listBroadcastRecipients({
+          audience: proximoPublico, filters: proximosFiltros, page: pagina, pageSize: POR_PAGINA,
+        });
+        if (!proxima.records.length) break;
+        juntos.push(...proxima.records);
+      }
+      setDestinatarios(juntos.slice(0, teto));
+      // Filtro novo, seleção nova: quem foi desmarcado era de outra pergunta.
+      setTirados(new Set());
     } catch {
       setPreview(null);
+      setDestinatarios([]);
     } finally {
       setPreviewing(false);
     }
@@ -83,7 +120,12 @@ export function BroadcastComposer({ conectado, onCreated }: { conectado: boolean
     if (sending) return;
     setSending(true);
     try {
-      const criado = await createBroadcast({ audience, message: message.trim(), filters });
+      // `incluir` vai SEMPRE, mesmo sem ninguém desmarcado: é o que faz o que
+      // foi conferido na tela e o que sai serem a mesma lista, e não duas
+      // resoluções em momentos diferentes.
+      const criado = await createBroadcast({
+        audience, message: message.trim(), filters, incluir: escolhidos.map((d) => d.personId),
+      });
       toast.success("Envio criado. Acompanhe abaixo.");
       onCreated(criado.id);
       setMessage("");
@@ -95,9 +137,25 @@ export function BroadcastComposer({ conectado, onCreated }: { conectado: boolean
     }
   }
 
-  const semDestinatario = preview !== null && preview.comTelefone === 0;
+  const podemReceber = destinatarios.filter((d) => d.recebe);
+  const escolhidos = podemReceber.filter((d) => !tirados.has(d.personId));
+  const foraDoEnvio = destinatarios.filter((d) => !d.recebe);
+  const semDestinatario = preview !== null && escolhidos.length === 0;
   const podeConfirmar = conectado && !semDestinatario && message.trim().length > 0 && message.length <= MENSAGEM_MAX;
-  const acimaDe100 = (preview?.comTelefone ?? 0) > 100;
+  const acimaDe100 = escolhidos.length > 100;
+
+  /**
+   * A duração de QUEM FOI ESCOLHIDO.
+   *
+   * O intervalo entre mensagens é do servidor e a tela não o conhece -- mas ela
+   * conhece dois números dele: quanto tempo leva para `comTelefone` pessoas.
+   * Dividir um pelo outro dá a taxa do servidor, e multiplicar pela seleção é
+   * usar essa taxa, não inventar uma. Sem isto, desmarcar metade da lista
+   * continuaria anunciando a duração da lista inteira.
+   */
+  const segundosDoEnvio = preview && preview.comTelefone > 0
+    ? Math.round((preview.estimativaSegundos / preview.comTelefone) * escolhidos.length)
+    : 0;
 
   return (
     <article className="wa-panel">
@@ -151,19 +209,90 @@ export function BroadcastComposer({ conectado, onCreated }: { conectado: boolean
               De <strong>{preview.total}</strong> {audience === "members" ? "membros" : "visitantes"} nesse filtro,{" "}
               <strong>{preview.comTelefone}</strong> {preview.comTelefone === 1 ? "tem telefone" : "têm telefone"}
               {preview.semTelefone > 0 && <> e {preview.semTelefone} {preview.semTelefone === 1 ? "ficará de fora" : "ficarão de fora"}</>}.
-              {preview.comTelefone > 0 && <> O envio leva <strong>{formatDuration(preview.estimativaSegundos)}</strong>.</>}
+              {/* Quando há seleção manual, o número da duração NÃO é o dos que
+                  têm telefone -- dizer "24 têm telefone. O envio leva X" com X
+                  calculado sobre 12 gruda um tempo no número errado. */}
+              {escolhidos.length !== preview.comTelefone && (
+                <> Você selecionou <strong>{escolhidos.length}</strong>.</>
+              )}
+              {escolhidos.length > 0 && <> O envio leva <strong>{formatDuration(segundosDoEnvio)}</strong>.</>}
             </span>
           ) : (
             <span>Não foi possível conferir quem entra agora.</span>
           )}
         </div>
 
+        {destinatarios.length > 0 && (
+          <div className="wa-alvos">
+            <button
+              aria-expanded={listaAberta}
+              className="wa-alvos-abrir"
+              onClick={() => setListaAberta((valor) => !valor)}
+              type="button"
+            >
+              {listaAberta ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
+              Ver e escolher quem recebe
+              <small>{escolhidos.length} de {podemReceber.length} selecionados</small>
+            </button>
+
+            {listaAberta && (
+              <>
+                {escolhidos.length !== podemReceber.length && (
+                  <button className="wa-alvos-todos" onClick={() => setTirados(new Set())} type="button">
+                    Marcar todos de novo
+                  </button>
+                )}
+                <ul className="wa-alvos-lista">
+                  {destinatarios.map((pessoa) => (
+                    <li key={pessoa.personId}>
+                      <label className={pessoa.recebe ? undefined : "is-fora"}>
+                        <input
+                          checked={pessoa.recebe && !tirados.has(pessoa.personId)}
+                          /* Quem não pode receber não é uma escolha: desmarcar
+                             ou marcar não mudaria nada, e uma caixa que não faz
+                             nada é a promessa vazia de sempre. */
+                          disabled={!pessoa.recebe}
+                          onChange={() => setTirados((atuais) => {
+                            const proximos = new Set(atuais);
+                            if (proximos.has(pessoa.personId)) proximos.delete(pessoa.personId);
+                            else proximos.add(pessoa.personId);
+                            return proximos;
+                          })}
+                          type="checkbox"
+                        />
+                        <strong>{pessoa.name}</strong>
+                        <small>{pessoa.phone ?? "—"}</small>
+                        {/* Quem fica de fora APARECE, com o porquê. Sumir com a
+                            linha esconderia justamente o que precisa de conserto
+                            na ficha da pessoa. */}
+                        {pessoa.motivo && <small className="wa-alvos-motivo">{MOTIVO_TEXTO[pessoa.motivo]}</small>}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                {foraDoEnvio.length > 0 && (
+                  <p className="wa-alvos-nota">
+                    {foraDoEnvio.length === 1 ? "1 pessoa aparece na lista e não recebe" : `${foraDoEnvio.length} pessoas aparecem na lista e não recebem`}
+                    , com o motivo ao lado do nome. Corrigir a ficha resolve para os próximos envios.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {preview?.acimaDoTeto && (
           <p className="wa-note"><TriangleAlert aria-hidden /><span>O limite é de {preview.teto} pessoas por envio. Este vai para as {preview.teto} primeiras; para alcançar o resto, filtre e faça um segundo envio.</span></p>
         )}
 
-        {semDestinatario && (
+        {/* Dois motivos diferentes para não haver destinatário, e a frase de um
+            não serve para o outro: "ninguém tem telefone" para quem acabou de
+            desmarcar todo mundo mandaria a pessoa procurar defeito na ficha. */}
+        {semDestinatario && podemReceber.length === 0 && (
           <p className="wa-note"><TriangleAlert aria-hidden /><span>Ninguém nesse filtro tem telefone cadastrado, então não há para quem enviar. O telefone entra na ficha da pessoa.</span></p>
+        )}
+        {semDestinatario && podemReceber.length > 0 && (
+          <p className="wa-note"><TriangleAlert aria-hidden /><span>Todos foram desmarcados, então não há para quem enviar. Marque ao menos uma pessoa na lista acima.</span></p>
         )}
 
         <label className="wa-message">
@@ -185,9 +314,16 @@ export function BroadcastComposer({ conectado, onCreated }: { conectado: boolean
         {confirming ? (
           <div className="wa-confirm">
             <p>
-              Enviar para <strong>{preview?.comTelefone}</strong> {preview?.comTelefone === 1 ? "pessoa" : "pessoas"},{" "}
-              {formatDuration(preview?.estimativaSegundos ?? 0)}.
+              Enviar para <strong>{escolhidos.length}</strong> {escolhidos.length === 1 ? "pessoa" : "pessoas"},{" "}
+              {formatDuration(segundosDoEnvio)}.
             </p>
+            {escolhidos.length !== podemReceber.length && (
+              <p className="wa-confirm-note">
+                {podemReceber.length - escolhidos.length === 1
+                  ? "1 pessoa que podia receber foi desmarcada e não entra neste envio."
+                  : `${podemReceber.length - escolhidos.length} pessoas que podiam receber foram desmarcadas e não entram neste envio.`}
+              </p>
+            )}
             {/* Acima de 100 o envio anda em blocos e pausa na virada se ninguém
                 olha. Dizer isso antes é a diferença entre a pessoa fechar a aba
                 sabendo e descobrir depois. */}

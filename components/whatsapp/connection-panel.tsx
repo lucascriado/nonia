@@ -26,6 +26,9 @@ export function ConnectionPanel({ onChange }: { onChange?: (state: WhatsappState
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [failed, setFailed] = useState<number | null>(null);
+  /** Desconectar é IRREVERSÍVEL do lado da mídia, então pede confirmação de
+   *  verdade -- não um texto ao lado do botão, que ninguém lê antes de clicar. */
+  const [confirmandoSaida, setConfirmandoSaida] = useState(false);
   const aoMudar = useRef(onChange);
   aoMudar.current = onChange;
 
@@ -84,7 +87,8 @@ export function ConnectionPanel({ onChange }: { onChange?: (state: WhatsappState
     setWorking(true);
     try {
       await disconnectWhatsapp();
-      toast.success("WhatsApp desconectado. O histórico de envios continua aqui.");
+      setConfirmandoSaida(false);
+      toast.success("WhatsApp desconectado. O histórico e o texto das conversas continuam aqui.");
       await ler();
     } catch (error) {
       toast.error(error instanceof AuthError ? error.message : "Não foi possível desconectar.");
@@ -164,11 +168,38 @@ export function ConnectionPanel({ onChange }: { onChange?: (state: WhatsappState
           <p className="wa-note"><LoaderCircle className="button-spinner" aria-hidden /><span>Preparando o código de conexão…</span></p>
         )}
 
-        {canWrite && (
+        {/* O QUE SE PERDE E O QUE FICA, nesta ordem e nas duas metades.
+            Desconectar apaga a sessão no gateway, e os bytes de foto, áudio e
+            figurinha moram lá -- some tudo, para sempre, e reconectar não
+            traz de volta. Só a metade ruim assusta sem informar; por isso a
+            frase diz também que a conversa e o texto ficam.
+
+            Sem número na frase de propósito: a quantidade de mídia desta
+            caixa é um dado do servidor, e um número chumbado aqui estaria
+            errado no dia seguinte. Melhor sem número do que com um errado. */}
+        {canWrite && confirmandoSaida && (
+          <div className="wa-confirm">
+            <p>Desconectar apaga a sessão no serviço de WhatsApp.</p>
+            <p className="wa-confirm-note">
+              As conversas e o texto <strong>continuam aqui no nonia</strong>. Mas as <strong>fotos, áudios e
+              figurinhas deixam de abrir para sempre</strong>: os arquivos ficam só no serviço e são apagados junto.
+              Reconectar exige escanear o QR de novo e <strong>não</strong> traz os arquivos de volta.
+            </p>
+            <div className="wa-actions">
+              <button disabled={working} onClick={() => setConfirmandoSaida(false)} type="button">Cancelar</button>
+              <button aria-busy={working} className="primary-action is-danger" disabled={working} onClick={desconectar} type="button">
+                {working ? <LoaderCircle className="button-spinner" aria-hidden /> : <Plug aria-hidden />}
+                {working ? "Desconectando…" : "Desconectar e perder os arquivos"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {canWrite && !confirmandoSaida && (
           <div className="wa-actions">
             {state.status === "not_configured" ? null : state.connected ? (
-              <button disabled={working} onClick={desconectar} type="button">
-                {working ? <LoaderCircle className="button-spinner" aria-hidden /> : <Plug aria-hidden />}Desconectar
+              <button disabled={working} onClick={() => setConfirmandoSaida(true)} type="button">
+                <Plug aria-hidden />Desconectar
               </button>
             ) : EM_ANDAMENTO.includes(state.status) ? null : (
               <button className="primary-action" disabled={working} onClick={conectar} type="button">

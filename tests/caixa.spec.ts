@@ -285,6 +285,47 @@ test.describe("caixa de entrada do WhatsApp", () => {
   });
 
   /**
+   * Desconectar apaga a sessão no gateway, e os bytes de foto, áudio e
+   * figurinha moram lá: somem para sempre, e reconectar não os traz de volta.
+   * Aconteceu de verdade -- 326 imagens, 121 notas de voz e 78 figurinhas.
+   *
+   * ESTE TESTE NUNCA DESCONECTA. Ele confere que o primeiro clique NÃO age e
+   * que a frase diz as duas metades, e sai pelo Cancelar. Confirmar aqui
+   * destruiria a mídia do banco em que a suíte estiver rodando.
+   */
+  test("desconectar avisa o que se perde antes de agir, e não age no primeiro clique", async ({ page }) => {
+    let apagou = false;
+    page.on("request", (r) => {
+      if (r.method() === "DELETE" && r.url().endsWith("/api/whatsapp")) apagou = true;
+    });
+
+    await page.goto("/whatsapp");
+    await waitForSettled(page);
+    const aba = page.locator(".wa-tabs button", { hasText: "Conexão" });
+    test.skip(!(await aba.count()), "sem aba de conexão nesta conta");
+    await aba.click();
+    await page.waitForTimeout(1500);
+
+    const botao = page.locator("button", { hasText: "Desconectar" }).first();
+    test.skip(!(await botao.count()), "esta igreja não está conectada");
+    await botao.click();
+
+    const confirmacao = page.locator(".wa-confirm");
+    await expect(confirmacao).toBeVisible();
+    expect(apagou, "o primeiro clique já desconectou, sem confirmação").toBe(false);
+
+    // As DUAS metades: o que se perde e o que fica. Só a metade ruim assusta
+    // sem informar, e só a metade boa esconde que a mídia não volta.
+    await expect(confirmacao).toContainText("continuam aqui");
+    await expect(confirmacao).toContainText("para sempre");
+    await expect(confirmacao).toContainText("não");
+
+    await page.locator("button", { hasText: "Cancelar" }).click();
+    await expect(confirmacao).toHaveCount(0);
+    expect(apagou, "cancelar desconectou mesmo assim").toBe(false);
+  });
+
+  /**
    * Geometria com uma CONVERSA ABERTA, que é o estado que a suíte de geometria
    * não alcança: ela carrega a tela e mede, e a tela carrega na lista.
    *

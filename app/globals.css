@@ -2928,6 +2928,29 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 .wa-sync-barra { display: block; height: 4px; overflow: hidden; border-radius: 999px; background: var(--neutral-soft); }
 .wa-sync-barra > i { display: block; height: 100%; border-radius: 999px; background: var(--primary); transition: width .5s var(--ease-out); }
 
+/* Quem recebe o disparo, com nome. Sóbrio: sem cor de alarme em quem fica de
+   fora -- ficar de fora por não ter telefone é fato de cadastro, não erro. */
+.wa-alvos { display: grid; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-soft); }
+.wa-alvos-abrir { display: flex; width: 100%; min-height: 40px; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--text); font-size: 0.84375rem; font-weight: 600; text-align: left; }
+.wa-alvos-abrir svg { width: var(--icon-sm); flex: 0 0 var(--icon-sm); color: var(--muted); }
+.wa-alvos-abrir small { margin-left: auto; color: var(--muted); font-size: 0.75rem; font-weight: 400; }
+.wa-alvos-todos { justify-self: start; min-height: 32px; padding: 0 var(--space-3); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.wa-alvos-todos:hover { border-color: var(--primary-border); color: var(--text); }
+.wa-alvos-lista { display: grid; max-height: 320px; overflow-y: auto; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.wa-alvos-lista label { display: flex; min-height: 40px; align-items: center; gap: var(--space-3); padding: 6px var(--space-3); border-radius: var(--radius-sm); background: var(--panel); }
+.wa-alvos-lista label:hover { background: var(--panel-inset); }
+.wa-alvos-lista label.is-fora { opacity: .7; }
+.wa-alvos-lista input { width: 18px; height: 18px; flex: 0 0 18px; accent-color: var(--primary); }
+.wa-alvos-lista strong { overflow: hidden; min-width: 0; flex: 1; color: var(--text); font-size: 0.8125rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.wa-alvos-lista small { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+.wa-alvos-motivo { padding: 2px 8px; border-radius: 999px; background: var(--neutral-soft); font-size: 0.6875rem !important; }
+.wa-alvos-nota { margin: 0; color: var(--muted); font-size: 0.75rem; line-height: 1.5; }
+
+/* Ação que não se desfaz. Vermelho SÓ aqui, e sóbrio: é o único botão da
+   caixa que apaga arquivo para sempre. */
+.primary-action.is-danger { border-color: var(--danger); background: var(--danger); color: var(--on-primary-fill); }
+.primary-action.is-danger:hover:not(:disabled) { filter: brightness(.94); }
+
 @media (pointer: coarse), (max-width: 800px) {
   /* A ação primária tem 40px de piso no desktop, e 40 não passa no dedo. Vale
      para TODAS as ocorrências: o detector achou uma nova em /usuarios, mas o
@@ -2953,7 +2976,8 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   /* Abas, chips e pilulas de filtro tambem sao alvo de toque. */
   .visitor-tabs button, .activities-filters button, .calendar-view-toggle button,
   .today, .calendar-today-button, .clear-filters,
-  .wa-tabs button, .wa-chip, .wa-load-more, .wa-bubble-acoes button { min-height: 44px; }
+  .wa-tabs button, .wa-chip, .wa-load-more, .wa-bubble-acoes button,
+  .wa-alvos-abrir, .wa-alvos-todos, .wa-alvos-lista label { min-height: 44px; }
   /* Sem mouse não há "aproximar": citar e encaminhar ficam sempre à vista. */
   .wa-bubble-acoes { opacity: 1; }
   .wa-anexar { width: 44px; height: 44px; flex: 0 0 44px; }
