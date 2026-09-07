@@ -1328,8 +1328,6 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
    Usuarios e convites
    -------------------------------------------------------------------------- */
 
-/* Sem teto de largura, pelo mesmo motivo de .settings-row. */
-.users-grid { display: grid; }
 .users-panel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
 .users-panel.is-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-6); color: var(--muted); font-size: 0.875rem; }
 .users-panel.is-loading svg { width: var(--icon-xl); color: var(--primary); }
@@ -2284,7 +2282,6 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   }
 
   .settings-row { grid-template-columns: 1fr; }
-  .users-grid { max-width: none; }
   .users-list li { flex-wrap: wrap; }
   .users-role { margin-left: 54px; }
   .users-actions { width: 100%; flex-wrap: wrap; margin-left: 54px; }
