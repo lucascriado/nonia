@@ -31,6 +31,7 @@ export async function GET() {
         status: sessao.status,
         phone: sessao.phone ?? null,
         pushName: sessao.pushName ?? null,
+        connectedAt: sessao.connectedAt ?? conexao.connectedAt,
         stale: false,
       });
     } catch {
@@ -39,6 +40,7 @@ export async function GET() {
         connected: conn.conectado(conexao.status),
         status: conexao.status,
         phone: conexao.phone,
+        connectedAt: conexao.connectedAt,
         stale: true,
       });
     }
