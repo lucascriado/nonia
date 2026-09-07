@@ -3232,3 +3232,74 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 .wizard-acoes button:not(.primary-action):hover { border-color: var(--primary-border); }
 .wizard-acoes button svg { width: var(--icon-sm); }
 .wizard-acoes button:disabled { cursor: not-allowed; opacity: .55; }
+
+/* --------------------------------------------------------------------------
+   Kardex financeiro imprimível
+   Camada cheia sobre o conteúdo (como o diálogo de lançamento). A barra de
+   controle não é impressa; o relatório sim, com cabeçalho de tabela repetido a
+   cada página e sem quebrar linha no meio.
+   -------------------------------------------------------------------------- */
+.kardex-layer { position: fixed; inset: var(--topbar-height) 0 0 var(--sidebar-width); z-index: 20; overflow-y: auto; padding: 0 var(--gutter) 40px; background: var(--bg); transition: left .38s var(--ease-out); }
+.sidebar-collapse:checked ~ .kardex-layer { left: var(--sidebar-collapsed-width, 76px); }
+
+.kardex-toolbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-inline: calc(var(--gutter) * -1); padding: 16px var(--gutter); border-bottom: 1px solid var(--border); background: var(--bg); }
+.kardex-toolbar-title { margin-right: auto; }
+.kardex-toolbar-title strong { display: block; color: var(--text); font-size: 1.125rem; font-weight: 600; }
+.kardex-toolbar-title span { color: var(--muted); font-size: 0.8125rem; }
+.kardex-toolbar label { display: grid; gap: 4px; color: var(--muted); font-size: 0.6875rem; font-weight: 600; }
+.kardex-toolbar input[type=date] { min-height: 38px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-family: inherit; font-size: 0.8125rem; }
+.kardex-toolbar > button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 16px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-size: 0.8125rem; font-weight: 600; }
+.kardex-toolbar > button.primary-action { border-color: transparent; }
+.kardex-toolbar > button:disabled { cursor: wait; opacity: .6; }
+.kardex-toolbar > button svg { width: var(--icon-sm); }
+.kardex-fechar { display: grid !important; width: 38px; padding: 0 !important; place-items: center; color: var(--muted) !important; }
+
+.kardex-report { max-width: 900px; margin: 24px auto 0; padding: 28px 32px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
+.kardex-aviso { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 40px; color: var(--muted); font-size: 0.875rem; }
+/* A frase de recusa da API: destaque de aviso, não erro genérico. */
+.kardex-recusa { margin: 0; padding: 16px 18px; border: 1px solid var(--warning); border-left-width: 3px; border-radius: var(--radius-sm); background: var(--warning-soft); color: var(--text); font-size: 0.875rem; line-height: 1.55; }
+
+.kardex-cabecalho { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 2px solid var(--border-strong); }
+.kardex-cabecalho h2 { margin: 0; color: var(--heading); font-size: 1.375rem; font-weight: 700; letter-spacing: -.01em; }
+.kardex-org { margin: 4px 0 0; color: var(--muted); font-size: 0.9375rem; }
+.kardex-periodo { margin: 0; color: var(--muted); font-size: 0.8125rem; white-space: nowrap; }
+
+.kardex-saldo-anterior { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--panel-inset); }
+.kardex-saldo-anterior span { color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.kardex-saldo-anterior strong { color: var(--text); font-size: 1rem; font-variant-numeric: tabular-nums; }
+
+.kardex-tabela-wrap { overflow-x: auto; }
+.kardex-tabela { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.kardex-tabela th { padding: 8px 10px; border-bottom: 1px solid var(--border-strong); color: var(--muted); font-size: 0.6875rem; font-weight: 700; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
+.kardex-tabela td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); color: var(--text); vertical-align: top; }
+.kardex-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kardex-saldo { font-weight: 600; }
+.kardex-col-data { white-space: nowrap; }
+.kardex-col-cat { color: var(--muted); }
+.kardex-vazio { padding: 24px !important; color: var(--muted); text-align: center; }
+.kardex-tabela tfoot .kardex-totais td { padding-top: 12px; border-top: 2px solid var(--border-strong); border-bottom: 0; color: var(--heading); font-weight: 700; }
+
+.kardex-pendente { margin-top: 18px; padding: 12px 16px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--panel-soft); }
+.kardex-pendente strong { display: block; color: var(--text); font-size: 0.8125rem; }
+.kardex-pendente p { margin: 4px 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.5; }
+
+.kardex-abrir svg { width: var(--icon-md); }
+
+@media (max-width: 800px) {
+  .kardex-layer { inset: 0; padding-inline: 16px; }
+  .kardex-report { padding: 18px; }
+  .kardex-toolbar-title { flex: 1 1 100%; margin-right: 0; }
+}
+
+/* IMPRESSÃO: só o relatório na folha -- sem menu, sem barra, sem a lista atrás.
+   O cabeçalho da tabela se repete a cada página e nenhuma linha quebra no meio. */
+@media print {
+  .sidebar, .topbar, .menu-overlay, .billing-notice, .wa-thread-warning, main, [data-sonner-toaster] { display: none !important; }
+  .kardex-toolbar { display: none !important; }
+  .kardex-layer { position: static !important; inset: auto !important; overflow: visible !important; padding: 0 !important; background: #fff !important; }
+  .kardex-report { max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: #fff !important; box-shadow: none !important; }
+  .kardex-tabela thead { display: table-header-group; }
+  .kardex-tabela tfoot { display: table-footer-group; }
+  .kardex-tabela tr, .kardex-pendente, .kardex-saldo-anterior { break-inside: avoid; }
+  .kardex-cabecalho { break-after: avoid; }
+}
