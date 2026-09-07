@@ -470,6 +470,44 @@ export type ContatoLido = { id: string; name?: string | null; pushName?: string 
 export const lerContato = (sessionId: string, chave: string, contactId: string) =>
   chamar<ContatoLido>(`/api/sessions/${sessionId}/contacts/${encodeURIComponent(contactId)}`, { chave });
 
+/**
+ * FOTO DE PERFIL, EM LOTE.
+ *
+ * Os nomes vieram do controller do OpenWA, não de suposição -- é a mesma
+ * armadilha do `qrCode`/`qr`, e desta vez a leitura foi feita antes de escrever
+ * qualquer linha. Em `src/modules/contact/contact.controller.ts:46` e
+ * `ProfilePicturesResponseDto`:
+ *
+ *   GET /api/sessions/:sessionId/contacts/profile-pictures?ids=a,b,c
+ *       -> { "pictures": { "<id>": "https://pps.whatsapp.net/..." | null } }
+ *
+ * POR QUE O LOTE E NÃO O SINGULAR. Existe também
+ * `/contacts/:contactId/profile-picture` -> `{ url }`, e usá-lo seria uma
+ * requisição por conversa. O próprio OpenWA documenta o lote como sendo para
+ * este caso: "one request for a whole chat sidebar -- avoids the burst of
+ * parallel single fetches that would exhaust the per-IP throttle".
+ *
+ * TETO DE 50 POR CHAMADA, e ele é do outro lado (`PROFILE_PICTURES_MAX_IDS`).
+ * O que passa de 50 é IGNORADO EM SILÊNCIO: não dá erro, os ids excedentes
+ * simplesmente não aparecem no mapa. Por isso o corte é feito aqui também --
+ * quem chama precisa saber quantos foram perguntados, e não descobrir pela
+ * ausência.
+ *
+ * Um id que falha do lado de lá vira `null` e não derruba o lote. `null` aqui
+ * significa "não há foto, ou é privada, ou a consulta daquele id falhou" -- os
+ * três são o mesmo para a tela, que mostra as iniciais.
+ */
+export const FOTOS_MAX_IDS = 50;
+
+export const lerFotosDePerfil = (sessionId: string, chave: string, ids: string[]) =>
+  chamar<{ pictures: Record<string, string | null> }>(
+    `/api/sessions/${sessionId}/contacts/profile-pictures?ids=` +
+      encodeURIComponent(ids.slice(0, FOTOS_MAX_IDS).join(",")),
+    // O outro lado resolve de 5 em 5 com prazo de 8 s por id: 50 ids podem
+    // levar dez rodadas. 20 s cortaria um lote cheio pela metade.
+    { chave, timeoutMs: 45000 },
+  );
+
 export const resolverTelefone = (sessionId: string, chave: string, contactId: string) =>
   chamar<{ contactId: string; phone: string | null }>(
     `/api/sessions/${sessionId}/contacts/${encodeURIComponent(contactId)}/phone`,

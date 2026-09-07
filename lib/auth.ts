@@ -27,7 +27,11 @@ export type AuthContext = {
   sessionId: string;
   expiresAt: Date;
   user: { id: string; email: string; fullName: string; phone: string | null; avatarUrl: string | null };
-  organization: { id: string; name: string; slug: string; status: string };
+  // `timezone` entra aqui, e não numa consulta à parte, porque toda regra de
+  // NEGÓCIO que fala em "hoje" precisa do fuso da igreja e toda rota já carrega
+  // este contexto. Ver lib/datas.ts para o motivo de "hoje" não poder sair de
+  // toISOString().
+  organization: { id: string; name: string; slug: string; status: string; timezone: string };
   role: Role;
   personId: string | null;
   permissions: Set<string>;
@@ -138,6 +142,7 @@ type SessionRow = {
   organizationName: string;
   organizationSlug: string;
   organizationStatus: string;
+  organizationTimezone: string;
   membershipStatus: string;
   personId: string | null;
   roleSlug: string;
@@ -161,6 +166,7 @@ const SESSION_QUERY = `
     o.name AS "organizationName",
     o.slug AS "organizationSlug",
     o.status AS "organizationStatus",
+    o.timezone AS "organizationTimezone",
     om.status AS "membershipStatus",
     om.person_id AS "personId",
     r.slug AS "roleSlug",
@@ -227,6 +233,7 @@ async function loadContext(token: string): Promise<AuthContext | null> {
       name: row.organizationName,
       slug: row.organizationSlug,
       status: row.organizationStatus,
+      timezone: row.organizationTimezone,
     },
     role: { slug: row.roleSlug, name: row.roleName, level: row.roleLevel },
     personId: row.personId,

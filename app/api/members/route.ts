@@ -49,6 +49,31 @@ export async function GET(request: Request) {
       filtro.valores,
     );
 
+    /**
+     * ?compromissos=1 -- O QUE A PESSOA JÁ ASSUMIU EM MINISTÉRIO.
+     *
+     * Para o seletor de pessoas do ministério pintar de cinza quem já está
+     * comprometido. É OPT-IN e não campo novo em toda listagem: esta rota já é
+     * a mais pesada do sistema, e dois JOINs a mais em toda abertura de
+     * /membros seriam pagos por quem nunca vai abrir um seletor de ministério.
+     *
+     * A RESPOSTA É ASSIMÉTRICA, e a assimetria é do SCHEMA, não do gosto de
+     * quem escreveu a consulta:
+     *
+     *   lidera[]     LISTA. `ministries.leader_id` não tem UNIQUE, então a
+     *                mesma pessoa lidera quantos ministérios quiser.
+     *   ministerio   UM SÓ, ou null. `members.ministry_id` é uma coluna
+     *                anulável em `members`, cuja PK é `person_id`: cada pessoa
+     *                pertence a NO MÁXIMO UM ministério. Não existe tabela de
+     *                junção.
+     *
+     * Isto contradiz "a que ministérios ela já pertence", no plural, do pedido.
+     * O plural exigiria uma `ministry_members` e uma migration de verdade --
+     * decisão, não detalhe de contrato. Enquanto ela não existir, `ministerio`
+     * é singular e a tela não deve prometer mais do que isso.
+     */
+    const comCompromissos = searchParams.get("compromissos") === "1";
+
     const { rows } = await query(`
       SELECT id, full_name AS name, email, phone, birth_date AS "birthDate",
         gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
@@ -59,6 +84,24 @@ export async function GET(request: Request) {
         avatar_url IS NOT NULL AS "hasPhoto",
         role, status, baptism_status AS baptism, baptism_date AS "baptismDate",
         admission_date AS date, cell_name AS cell
+        ${comCompromissos ? `,
+        -- Os ministérios que esta pessoa LIDERA. Lista, porque liderar mais de
+        -- um é permitido pelo schema.
+        COALESCE((
+          SELECT json_agg(json_build_object('id', li.id, 'name', li.name) ORDER BY li.name)
+            FROM ministries li
+           WHERE li.leader_id = member_directory.id
+             AND li.organization_id = member_directory.organization_id
+        ), '[]') AS lidera,
+        -- O ministério a que ela PERTENCE. Um, ou nenhum -- ver o bloco acima.
+        (
+          SELECT json_build_object('id', mi.id, 'name', mi.name)
+            FROM members me
+            JOIN ministries mi ON mi.id = me.ministry_id
+                              AND mi.organization_id = me.organization_id
+           WHERE me.person_id = member_directory.id
+             AND me.organization_id = member_directory.organization_id
+        ) AS ministerio` : ""}
       FROM member_directory
       WHERE ${where}
       ORDER BY admission_date DESC, full_name

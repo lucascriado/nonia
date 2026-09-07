@@ -38,7 +38,11 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const { id } = await context.params;
     requireUuid(id, "Lançamento não encontrado.");
     const payload = await readJson<FinancePayload>(request);
-    const validationError = validateFinancePayload(payload);
+    // Mesmo fuso da criação. Vale para a edição também, e é de propósito:
+    // trocar a data de um lançamento para uma data passada é exatamente o ato
+    // que a marca de retroativo existe para registrar -- deixar a edição de
+    // fora seria um caminho por onde a data velha entra sem marca nenhuma.
+    const validationError = validateFinancePayload(payload, auth.organization.timezone);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
     const attributes = financeAttributes(payload);

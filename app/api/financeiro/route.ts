@@ -6,6 +6,7 @@ import { apiError } from "@/lib/records";
 import { filtrosDeFinanceiro, paginacao } from "@/lib/listings";
 import { financeAttributes, FinancePayload, validateFinancePayload } from "@/lib/finance-records";
 import { readJson } from "@/lib/http";
+import { FUSO_PADRAO } from "@/lib/datas";
 
 export const runtime = "nodejs";
 
@@ -56,13 +57,20 @@ export async function GET(request: Request) {
         -- do arquivo; o conteúdo sai pela rota do lançamento.
         attachment_url IS NOT NULL AS "hasAttachment",
         attachment_name AS "attachmentName", notes,
+        retroactive,
+        retroactive_reason AS "retroactiveReason",
+        -- QUANDO FOI LANÇADO, no fuso da igreja. Sai de created_at, que é
+        -- timestamptz -- um instante absoluto, gravado certo. É o par de
+        -- transaction_date que torna o retroativo auditável: o dia do FATO e o
+        -- dia do ATO, lado a lado, sem ninguém precisar deduzir nada.
+        (created_at AT TIME ZONE $${filtro.valores.length + 3})::date AS "recordedOn",
         deleted_at AS "deletedAt",
         (SELECT full_name FROM users u WHERE u.id = financial_transactions.deleted_by) AS "deletedByName"
       FROM financial_transactions
       WHERE ${where}
       ORDER BY ${naLixeira ? "deleted_at DESC" : "transaction_date DESC, created_at DESC"}
       LIMIT $${filtro.valores.length + 1} OFFSET $${filtro.valores.length + 2}
-    `, [...filtro.valores, pageSize, offset]);
+    `, [...filtro.valores, pageSize, offset, auth.organization.timezone || FUSO_PADRAO]);
 
     const { total, ...summary } = resumo.rows[0];
     return Response.json({ records: rows, total, page, pageSize, summary });
@@ -75,7 +83,10 @@ export async function POST(request: Request) {
   try {
     const auth = await requirePermission("finance.write");
     const payload = await readJson<FinancePayload>(request);
-    const validationError = validateFinancePayload(payload);
+    // O fuso da igreja, e não UTC: a regra do retroativo é inteirinha sobre
+    // "hoje", e em Brasília o "hoje" de UTC está errado das 21h à meia-noite.
+    // Ver lib/datas.ts.
+    const validationError = validateFinancePayload(payload, auth.organization.timezone);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
     const attributes = financeAttributes(payload);

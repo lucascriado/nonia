@@ -146,6 +146,10 @@ export class FinancialTransaction extends Model<InferAttributes<FinancialTransac
   declare attachmentUrl: string | null;
   declare attachmentName: string | null;
   declare notes: string | null;
+  // DECLARAÇÃO de quem lançou, não dedução de `transactionDate`. Ver o
+  // cabeçalho da migration 019.
+  declare retroactive: CreationOptional<boolean>;
+  declare retroactiveReason: string | null;
 }
 
 FinancialTransaction.init({
@@ -164,6 +168,8 @@ FinancialTransaction.init({
   notes: DataTypes.TEXT,
   deletedAt: { type: DataTypes.DATE, field: "deleted_at" },
   deletedBy: { type: DataTypes.UUID, field: "deleted_by" },
+  retroactive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  retroactiveReason: { type: DataTypes.STRING(200), field: "retroactive_reason" },
 }, { sequelize: db, tableName: "financial_transactions", createdAt: "created_at", updatedAt: "updated_at" });
 
 // ---------------------------------------------------------------------------
