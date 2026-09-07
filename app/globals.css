@@ -857,7 +857,10 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .member-actions button { display: grid; min-width: 30px; flex: 0 0 30px; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); transition: background .2s ease, color .2s ease; }
 .member-actions button:hover { background: var(--primary-soft); color: var(--heading); }
 .member-actions button:last-child:hover { background: var(--danger-soft); color: var(--danger); }
-.member-actions button:disabled { cursor: wait; opacity: .5; }
+/* `not-allowed` e nao `wait`: aqui o desabilitado quer dizer BLOQUEADO -- sem
+   permissao, ou conta em somente leitura -- e nao "aguarde, esta salvando". O
+   cursor de espera prometia que a acao ia acontecer sozinha. */
+.member-actions button:disabled { cursor: not-allowed; opacity: .5; }
 .member-actions svg { width: var(--icon-md); height: var(--icon-md); }
 .admission-date, .members-table th:nth-child(6), .visitors-table td:nth-child(2), .visitors-table th:nth-child(2) { white-space: nowrap; }
 
