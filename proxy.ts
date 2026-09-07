@@ -41,6 +41,7 @@ const APP_PAGES = [
   "/configuracoes",
   "/usuarios",
   "/whatsapp",
+  "/ajuda",
 ];
 
 /** Páginas que deixam de fazer sentido depois de entrar. */

@@ -3023,3 +3023,40 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    Sem isto os botões caem na esquerda -- o `margin-right: auto` que os
    empurrava morava no bloco do título, que saiu. */
 .resource-heading.is-acoes, .members-heading.is-acoes, .visitors-heading.is-acoes { justify-content: flex-end; }
+
+/* ── Documentação dentro do app ─────────────────────────────────────────
+   Mesmo conteúdo da /faq pública, lido do mesmo módulo, com a roupa do
+   painel: quem já entrou não devia sair para o site para ler o manual. */
+.ajuda-main { display: grid; align-items: start; gap: var(--space-5); grid-template-columns: 220px minmax(0, 1fr); }
+.ajuda-indice { position: sticky; top: calc(var(--topbar-h, 64px) + var(--space-4)); display: grid; gap: 2px; }
+.ajuda-indice a { display: flex; min-height: 40px; align-items: center; gap: 10px; padding: 0 var(--space-3); border-radius: var(--radius-sm); color: var(--muted); font-size: 0.8125rem; font-weight: 600; text-decoration: none; }
+.ajuda-indice a:hover { background: var(--panel-soft); color: var(--text); }
+.ajuda-indice svg { width: var(--icon-sm); flex: 0 0 var(--icon-sm); }
+
+.ajuda-conteudo { display: grid; min-width: 0; gap: var(--space-5); }
+.ajuda-topico { padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); scroll-margin-top: 88px; }
+.ajuda-topico > header { display: flex; align-items: center; gap: var(--space-3); }
+.ajuda-icone { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--heading); }
+.ajuda-icone svg { width: var(--icon-md); }
+.ajuda-topico h2 { margin: 2px 0 0; color: var(--heading); font-size: 1.0625rem; font-weight: 600; }
+.ajuda-topico > header small { color: var(--muted); font-size: 0.6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.ajuda-resumo { margin: var(--space-4) 0 0; color: var(--text); font-size: 0.875rem; line-height: 1.65; }
+.ajuda-pontos { display: grid; gap: 8px; margin: var(--space-4) 0 0; padding-left: 1.1em; color: var(--muted); font-size: 0.84375rem; line-height: 1.6; }
+.ajuda-perguntas { display: grid; gap: 2px; margin-top: var(--space-4); border-top: 1px solid var(--border-soft); padding-top: var(--space-3); }
+.ajuda-perguntas button { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 8px 0; border: 0; background: transparent; color: var(--text); font-size: 0.84375rem; font-weight: 600; text-align: left; }
+.ajuda-perguntas svg { width: var(--icon-sm); flex: 0 0 var(--icon-sm); color: var(--muted); transition: transform .25s var(--ease-out); }
+.ajuda-perguntas .is-aberta svg { transform: rotate(180deg); }
+.ajuda-perguntas p { margin: 0 0 var(--space-3); color: var(--muted); font-size: 0.84375rem; line-height: 1.65; }
+
+.ajuda-contato { display: grid; justify-items: start; gap: var(--space-2); padding: var(--space-5); border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); }
+.ajuda-contato h2 { margin: 0; color: var(--heading); font-size: 1rem; font-weight: 600; }
+.ajuda-contato p { margin: 0 0 var(--space-3); max-width: 56ch; color: var(--muted); font-size: 0.875rem; line-height: 1.6; }
+.ajuda-contato .primary-action { text-decoration: none; }
+
+@media (max-width: 900px) {
+  .ajuda-main { grid-template-columns: 1fr; }
+  /* No celular o índice vira uma tira que rola de lado, e não uma coluna
+     de 220px comendo metade da tela. */
+  .ajuda-indice { position: static; display: flex; overflow-x: auto; gap: 6px; }
+  .ajuda-indice a { border: 1px solid var(--border); white-space: nowrap; }
+}

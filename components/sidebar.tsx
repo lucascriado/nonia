@@ -1,12 +1,12 @@
 "use client";
 
 import {
+  BookOpen,
   CalendarDays,
   ChevronLeft,
   Church,
   History,
   LayoutDashboard,
-  LifeBuoy,
   LogOut,
   MessageCircle,
   Puzzle,
@@ -95,10 +95,16 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
           </div>
         ))}
 
-        <a className="sidebar-promo" href="mailto:suporte@nonia.app" title="Falar com o suporte">
-          <i aria-hidden><LifeBuoy /></i>
-          <span><strong>Central de apoio</strong><small>Fale com a gente</small></span>
-        </a>
+        {/* O rótulo passa a combinar com o destino. Antes dizia "Fale com a
+            gente" e era um `mailto:` -- e onde o mailto ia parar dependia da
+            máquina de quem clicava, o que fez o Lucas cair numa página que
+            ninguém tinha escrito. Agora leva à documentação, que é uma página
+            de verdade; e o caminho humano continua existindo, dentro dela,
+            que é onde está quem não achou a resposta. */}
+        <Link className="sidebar-promo" href="/ajuda" title="Documentação do nonia">
+          <i aria-hidden><BookOpen /></i>
+          <span><strong>Documentação</strong><small>Como cada parte funciona</small></span>
+        </Link>
       </div>
 
       <div className="sidebar-footer">
