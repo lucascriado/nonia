@@ -66,7 +66,19 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
                 ON q.organization_id = m.organization_id
                AND q.wa_message_id = m.quoted_wa_message_id
         WHERE m.conversation_id = $1 AND m.organization_id = $2
+          -- Aviso do WhatsApp não é mensagem de gente. Ver tipoParaGuardar().
+          AND m.type <> 'system'
         ORDER BY m.sent_at, m.id`,
+      [id, org],
+    );
+
+    // CONTADOS, e não sumidos em silêncio: numa conversa medida na conta real,
+    // 155 das 155 linhas eram avisos. Sem este número, a tela mostraria uma
+    // conversa vazia para um chat que o Lucas vê cheio no celular -- que é o
+    // vazio que mente, com outra roupa.
+    const { rows: avisos } = await query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM whatsapp_messages
+        WHERE conversation_id = $1 AND organization_id = $2 AND type = 'system'`,
       [id, org],
     );
 
@@ -91,6 +103,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       ...cab[0],
       hasMore: podeHaverMais,
       deep: fundo,
+      avisosIgnorados: avisos[0].n,
       // A prévia vem calculada daqui, e não da tela: mídia vira marcador de
       // texto ("[foto]") em vez de linha vazia, e o cálculo mora num lugar só.
       messages: rows.map((m) => {

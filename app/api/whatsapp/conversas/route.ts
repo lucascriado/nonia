@@ -80,6 +80,10 @@ export async function GET(request: Request) {
          LEFT JOIN LATERAL (
            SELECT m.type, m.body FROM whatsapp_messages m
             WHERE m.conversation_id = c.id AND m.organization_id = c.organization_id
+              -- O mesmo corte da conversa: a prévia da lista tem que ser a
+              -- última mensagem DE GENTE, senão a conversa aparece como
+              -- "[aviso do WhatsApp]" enquanto a última fala foi um texto.
+              AND m.type <> 'system'
             ORDER BY m.sent_at DESC, m.id DESC
             LIMIT 1
          ) u ON true
