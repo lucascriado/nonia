@@ -110,10 +110,10 @@ export async function conectar(organizationId: string, slug: string): Promise<Co
     `INSERT INTO organization_whatsapp
        (organization_id, session_id, session_name, api_key_id, api_key_encrypted, api_key_prefix, status)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [organizationId, sessao.id, nome, chave.id ?? null, cifrar(chave.key), chave.keyPrefix ?? null, sessao.status ?? "created"],
+    [organizationId, sessao.id, nome, chave.id ?? null, cifrar(chave.apiKey), chave.keyPrefix ?? null, sessao.status ?? "created"],
   );
 
-  await openwa.iniciarSessao(sessao.id, chave.key).catch(() => undefined);
+  await openwa.iniciarSessao(sessao.id, chave.apiKey).catch(() => undefined);
   const conexao = await carregarConexao(organizationId);
   if (!conexao) throw new HttpError(500, "Não foi possível concluir a conexão.", "whatsapp_connect_failed");
   return conexao;

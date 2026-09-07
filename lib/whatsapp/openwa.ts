@@ -95,7 +95,14 @@ function chaveAdmin(): string {
   return valor;
 }
 
-export type ChaveCriada = { id: string; key: string; keyPrefix?: string };
+/**
+  * Os NOMES aqui vieram do DTO do OpenWA, não de suposição -- e a diferença
+  * custou dois 500 no primeiro pareamento de verdade: a chave crua chama-se
+  * `apiKey` (ApiKeyCreatedResponseDto) e o QR chama-se `qrCode`
+  * (QRCodeResponseDto, "QR code as data URL"). O stub da suíte tinha inventado
+  * `key` e `qr`, então o teste concordava comigo em vez de me contradizer.
+  */
+export type ChaveCriada = { id: string; apiKey: string; keyPrefix?: string };
 
 export function criarChaveDaSessao(nome: string, sessionId: string) {
   return chamar<ChaveCriada>("/api/auth/api-keys", {
@@ -139,7 +146,7 @@ export const iniciarSessao = (sessionId: string, chave: string) =>
   chamar<unknown>(`/api/sessions/${sessionId}/start`, { metodo: "POST", chave });
 
 export const lerQr = (sessionId: string, chave: string) =>
-  chamar<{ qr?: string | null }>(`/api/sessions/${sessionId}/qr`, { chave });
+  chamar<{ qrCode?: string | null }>(`/api/sessions/${sessionId}/qr`, { chave });
 
 export const desconectarSessao = (sessionId: string, chave: string) =>
   chamar<unknown>(`/api/sessions/${sessionId}/logout`, { metodo: "POST", chave });

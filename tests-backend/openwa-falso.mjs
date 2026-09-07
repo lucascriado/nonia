@@ -45,7 +45,9 @@ export function iniciarOpenWaFalso(porta) {
       const key = `k-${randomUUID()}`;
       const id = randomUUID();
       chaves.set(key, { id, allowedSessions: body.allowedSessions ?? null });
-      return responder(201, { id, key, keyPrefix: key.slice(0, 12) });
+      // Nomes iguais aos do OpenWA de verdade: `apiKey`, nao `key`. O stub
+      // inventava e por isso concordava com o chamador em vez de contradize-lo.
+      return responder(201, { id, apiKey: key, keyPrefix: key.slice(0, 12) });
     }
     let g;
     if ((g = m(/^\/auth\/api-keys\/([^/]+)\/revoke$/)) && req.method === "POST") {
@@ -72,7 +74,7 @@ export function iniciarOpenWaFalso(porta) {
     }
     if ((g = m(/^\/sessions\/([^/]+)\/qr$/))) {
       const a = autorizar(req, g[1]); if (!a.ok) return responder(a.status, { message: a.message });
-      return responder(200, { qr: "QR-DE-TESTE" });
+      return responder(200, { qrCode: "data:image/png;base64,QR-DE-TESTE", status: "qr_ready" });
     }
     // ensureReady: no OpenWA de verdade, ler chat ou historico com a sessao fora
     // do ar responde 409. O stub modela isso -- sem ele o teste de "caiu" mentiria.

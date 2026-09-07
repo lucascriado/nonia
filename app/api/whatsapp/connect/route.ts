@@ -32,8 +32,10 @@ export async function GET() {
     if (conn.conectado(sessao.status ?? "")) {
       return Response.json({ qr: null, status: sessao.status, connected: true });
     }
-    const { qr } = await lerQr(conexao.sessionId, conexao.apiKey).catch(() => ({ qr: null }));
-    return Response.json({ qr: qr ?? null, status: sessao.status, connected: false });
+    const { qrCode } = await lerQr(conexao.sessionId, conexao.apiKey).catch(() => ({ qrCode: null }));
+    // O nome do campo NA NOSSA resposta continua `qr` -- é o contrato que o
+    // frontend já implementou. Só a leitura do OpenWA é que estava errada.
+    return Response.json({ qr: qrCode ?? null, status: sessao.status, connected: false });
   } catch (error) {
     return apiError(error);
   }

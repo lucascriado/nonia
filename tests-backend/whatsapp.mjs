@@ -32,7 +32,7 @@ ok(r.s === 201 && Boolean(sessaoA), "sessão criada para a igreja A", `${r.s} ${
 r = await call("POST", "/api/whatsapp/connect", { cookie: A });
 ok(r.s === 409 && r.d.code === "whatsapp_already_connected", "conectar de novo -> 409, não uma segunda sessão", `${r.s} ${r.d?.code}`);
 r = await call("GET", "/api/whatsapp/connect", { cookie: A });
-ok(r.s === 200 && r.d.qr === "QR-DE-TESTE" && r.d.connected === false, "o QR vem para a igreja ler", JSON.stringify(r.d));
+ok(r.s === 200 && (r.d.qr || "").startsWith("data:image/") && r.d.connected === false, "o QR vem para a igreja ler", JSON.stringify(r.d));
 
 console.log("\n== a chave fica CIFRADA no banco ==");
 const linha = (await sql.query("SELECT session_id, api_key_encrypted, api_key_prefix FROM organization_whatsapp WHERE organization_id=$1", [orgA])).rows[0];
