@@ -9,17 +9,29 @@ import { usePermission, useReadOnly } from "@/components/current-user";
 import { BroadcastComposer } from "@/components/whatsapp/broadcast-composer";
 import { BroadcastMonitor } from "@/components/whatsapp/broadcast-monitor";
 import { ConnectionPanel } from "@/components/whatsapp/connection-panel";
-import { listBroadcasts, type Broadcast, type WhatsappState } from "@/components/whatsapp/api";
+import { Inbox } from "@/components/whatsapp/inbox";
+import { getWhatsappState, listBroadcasts, type Broadcast, type WhatsappState } from "@/components/whatsapp/api";
 import { AuthError } from "@/components/auth/session";
 import { ActivitySkeleton } from "@/components/skeleton";
 
 /** O padrão do servidor. Quando o histórico encher, vira paginação. */
 const PAGINA = 25;
 
+type Aba = "conversas" | "disparos" | "conexao";
+
+/**
+ * A aba de WhatsApp.
+ *
+ * A CAIXA DE ENTRADA é o centro, e é ela que abre: a tela existe para a pessoa
+ * usar o WhatsApp da igreja, não para operar uma ferramenta de disparo. Disparo
+ * continua inteiro, do lado — e continua sendo permissão à parte, porque quem
+ * responde uma conversa não necessariamente manda para a igreja toda.
+ */
 export default function WhatsappPage() {
   const canRead = usePermission("whatsapp.read");
   const canBroadcast = usePermission("whatsapp.broadcast");
   const readOnly = useReadOnly();
+  const [aba, setAba] = useState<Aba>("conversas");
   const [state, setState] = useState<WhatsappState | null>(null);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +53,12 @@ export default function WhatsappPage() {
 
   useEffect(() => { void carregar(); }, [carregar]);
 
+  // O compositor precisa saber se dá para enviar mesmo quando o painel de
+  // conexão não está montado — ele só vive na aba de conexão.
+  useEffect(() => {
+    getWhatsappState().then(setState).catch(() => undefined);
+  }, []);
+
   if (!canRead) {
     return <DashboardShell title="WhatsApp"><main className="whatsapp-main"><LoadFailure status={403} /></main></DashboardShell>;
   }
@@ -51,75 +69,88 @@ export default function WhatsappPage() {
         <section className="resource-heading">
           <div>
             <h2>WhatsApp</h2>
-            <p>Conecte o número da igreja e envie mensagens para quem já está cadastrado.</p>
+            <p>As conversas do número da igreja, e o envio de mensagens para quem já está cadastrado.</p>
           </div>
+          <nav aria-label="Seções do WhatsApp" className="wa-tabs">
+            <button aria-current={aba === "conversas" || undefined} className={aba === "conversas" ? "active" : ""} onClick={() => setAba("conversas")} type="button">Conversas</button>
+            {canBroadcast && (
+              <button aria-current={aba === "disparos" || undefined} className={aba === "disparos" ? "active" : ""} onClick={() => setAba("disparos")} type="button">Disparos</button>
+            )}
+            <button aria-current={aba === "conexao" || undefined} className={aba === "conexao" ? "active" : ""} onClick={() => setAba("conexao")} type="button">Conexão</button>
+          </nav>
         </section>
 
-        <div className="whatsapp-content">
-          <ConnectionPanel onChange={setState} />
+        {aba === "conversas" && <Inbox onIrParaConexao={() => setAba("conexao")} />}
 
-          {acompanhando && <BroadcastMonitor id={acompanhando} onClose={() => { setAcompanhando(null); void carregar(); }} />}
+        {aba === "conexao" && (
+          <div className="whatsapp-content">
+            <ConnectionPanel onChange={setState} />
+          </div>
+        )}
 
-          {/* Disparar é permissão à parte: quem responde uma conversa não
-              necessariamente manda para quinhentas pessoas. E a guarda de
-              somente leitura também vale -- o servidor recusa com 402. */}
-          {canBroadcast && !readOnly && !acompanhando && (
-            <BroadcastComposer conectado={Boolean(state?.connected)} onCreated={(id) => { setAcompanhando(id); void carregar(); }} />
-          )}
+        {aba === "disparos" && canBroadcast && (
+          <div className="whatsapp-content">
+            {acompanhando && <BroadcastMonitor id={acompanhando} onClose={() => { setAcompanhando(null); void carregar(); }} />}
 
-          {canBroadcast && readOnly && (
-            <p className="users-readonly">
-              <History aria-hidden />
-              <span>Enviar mensagens fica indisponível enquanto a conta estiver em somente leitura. Consultar o histórico continua valendo.</span>
-            </p>
-          )}
+            {/* A guarda de somente leitura vale aqui também: o servidor
+                recusa com 402, e a tela não pode prometer o que ele nega. */}
+            {!readOnly && !acompanhando && (
+              <BroadcastComposer conectado={Boolean(state?.connected)} onCreated={(id) => { setAcompanhando(id); void carregar(); }} />
+            )}
 
-          <article className="wa-panel">
-            <header>
-              <span aria-hidden className="wa-state-icon is-neutro"><History /></span>
-              <div>
-                <h3>Envios anteriores</h3>
-                <p>Tudo o que a igreja já disparou, com o resultado de cada um.</p>
+            {readOnly && (
+              <p className="users-readonly">
+                <History aria-hidden />
+                <span>Enviar mensagens fica indisponível enquanto a conta estiver em somente leitura. Consultar o histórico continua valendo.</span>
+              </p>
+            )}
+
+            <article className="wa-panel">
+              <header>
+                <span aria-hidden className="wa-state-icon is-neutro"><History /></span>
+                <div>
+                  <h3>Envios anteriores</h3>
+                  <p>Tudo o que a igreja já disparou, com o resultado de cada um.</p>
+                </div>
+              </header>
+              <div className="wa-panel-body">
+                {loading && <ActivitySkeleton count={3} />}
+                {!loading && failed !== null && <LoadFailure onRetry={() => void carregar()} status={failed} />}
+                {!loading && failed === null && !broadcasts.length && (
+                  <FirstRun
+                    icon={MessageCircle}
+                    text="Quando a igreja disparar a primeira mensagem, ela aparece aqui com quantas saíram, quantas falharam e quem ficou de fora."
+                    title="Nenhum envio ainda"
+                  />
+                )}
+                {/* Diz que são os mais recentes, e não todos: lista que parece
+                    completa e não é tem o mesmo defeito do vazio que mente. */}
+                {!loading && failed === null && broadcasts.length >= PAGINA && (
+                  <p className="wa-history-note">Mostrando os {PAGINA} envios mais recentes.</p>
+                )}
+                {!loading && failed === null && broadcasts.length > 0 && (
+                  <ul className="wa-history">
+                    {broadcasts.map((envio) => (
+                      <li key={envio.id}>
+                        <button onClick={() => setAcompanhando(envio.id)} type="button">
+                          <span className={`wa-badge is-${envio.status === "done" ? "ok" : envio.status === "running" || envio.status === "pending" ? "andamento" : "alerta"}`}>{rotuloEnvio(envio.status)}</span>
+                          <span className="wa-history-text">
+                            <strong>{envio.message.slice(0, 90)}{envio.message.length > 90 ? "…" : ""}</strong>
+                            <small>
+                              {envio.audience === "members" ? "Membros" : "Visitantes"} · {envio.sentCount} de {envio.total} enviadas
+                              {envio.failedCount > 0 && ` · ${envio.failedCount} com falha`}
+                              {" · "}{formatarData(envio.createdAt)}
+                            </small>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            </header>
-            <div className="wa-panel-body">
-              {loading && <ActivitySkeleton count={3} />}
-              {!loading && failed !== null && <LoadFailure onRetry={() => void carregar()} status={failed} />}
-              {!loading && failed === null && !broadcasts.length && (
-                <FirstRun
-                  icon={MessageCircle}
-                  text="Quando a igreja disparar a primeira mensagem, ela aparece aqui com quantas saíram, quantas falharam e quem ficou de fora."
-                  title="Nenhum envio ainda"
-                />
-              )}
-              {/* Diz que são os mais recentes, e não todos: lista que parece
-                  completa e não é tem o mesmo defeito do vazio que mente. A
-                  paginação entra quando o histórico encher. */}
-              {!loading && failed === null && broadcasts.length >= PAGINA && (
-                <p className="wa-history-note">Mostrando os {PAGINA} envios mais recentes.</p>
-              )}
-              {!loading && failed === null && broadcasts.length > 0 && (
-                <ul className="wa-history">
-                  {broadcasts.map((envio) => (
-                    <li key={envio.id}>
-                      <button onClick={() => setAcompanhando(envio.id)} type="button">
-                        <span className={`wa-badge is-${envio.status === "done" ? "ok" : envio.status === "running" || envio.status === "pending" ? "andamento" : "alerta"}`}>{rotuloEnvio(envio.status)}</span>
-                        <span className="wa-history-text">
-                          <strong>{envio.message.slice(0, 90)}{envio.message.length > 90 ? "…" : ""}</strong>
-                          <small>
-                            {envio.audience === "members" ? "Membros" : "Visitantes"} · {envio.sentCount} de {envio.total} enviadas
-                            {envio.failedCount > 0 && ` · ${envio.failedCount} com falha`}
-                            {" · "}{formatarData(envio.createdAt)}
-                          </small>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </article>
-        </div>
+            </article>
+          </div>
+        )}
       </main>
     </DashboardShell>
   );

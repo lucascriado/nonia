@@ -2754,6 +2754,112 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    o piso sobe so onde o ponteiro e grosso — quem usa mouse nao ve diferenca.
    -------------------------------------------------------------------------- */
 
+/* ── WhatsApp: caixa de entrada ──────────────────────────────────────────
+   Sem verde de WhatsApp, sem ícone colorido e sem emoji: os balões usam os
+   mesmos tokens do resto do painel, e o que diferencia quem falou é a posição
+   e o peso do fundo, não a cor de outra marca. Marcador de mídia é texto entre
+   colchetes, e ele vem calculado do servidor. */
+.wa-tabs { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-soft); }
+.wa-tabs button { min-height: 40px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.wa-tabs button:hover { color: var(--text); }
+.wa-tabs button.active { background: var(--panel); color: var(--heading); box-shadow: var(--shadow-xs); }
+
+.wa-inbox-wrap { display: grid; gap: var(--space-4); }
+/* Altura fixa para que CADA coluna role sozinha. Com a página rolando junto,
+   ler o histórico levaria a lista embora e responder exigiria voltar. */
+.wa-inbox { display: grid; overflow: hidden; height: clamp(420px, calc(100vh - 260px), 780px); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); grid-template-columns: minmax(240px, 320px) 1fr; }
+
+/* `min-height: 0` nos DOIS filhos da grade, e não é enfeite: item de grade
+   nasce com `min-height: auto`, que é "não encolho abaixo do meu conteúdo".
+   Sem isso a coluna cresce até a altura das mensagens -- medi 12294px numa
+   caixa de 632px --, o corpo nunca rola por dentro e o campo de resposta vai
+   parar fora do alcance. Conversa comprida ficava impossível de responder. */
+.wa-list { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-right: 1px solid var(--border); }
+.wa-list-controls { display: grid; gap: var(--space-3); padding: var(--space-4); border-bottom: 1px solid var(--border); }
+.wa-search { position: relative; display: flex; align-items: center; }
+.wa-search svg { position: absolute; left: 10px; width: var(--icon-sm); color: var(--muted); pointer-events: none; }
+.wa-search input { width: 100%; min-height: 40px; padding: 0 var(--space-3) 0 32px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-family: inherit; font-size: 0.84375rem; }
+.wa-search input:focus-visible { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-soft); }
+.wa-chip { justify-self: start; min-height: 32px; padding: 0 var(--space-3); border: 1px solid var(--border-strong); border-radius: 999px; background: transparent; color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.wa-chip:hover { color: var(--text); }
+.wa-chip.is-on { border-color: var(--primary-border); background: var(--primary-soft); color: var(--heading); }
+
+.wa-list-body { display: grid; overflow-y: auto; align-content: start; gap: 2px; padding: var(--space-2); }
+/* Atualizando: a lista que já está na tela CONTINUA, só esmaece. Trocar por
+   esqueleto a cada leitura era o piscar do vazio. */
+.wa-list-body.is-refreshing { opacity: .65; transition: opacity .2s var(--ease-out); }
+.wa-conversations { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.wa-conversation { display: grid; width: 100%; gap: 3px; padding: var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; }
+.wa-conversation:hover { background: var(--panel-soft); }
+.wa-conversation.is-active { background: var(--primary-soft); }
+.wa-conversation-top { display: flex; align-items: baseline; gap: var(--space-3); }
+.wa-conversation-top strong { overflow: hidden; min-width: 0; flex: 1; color: var(--text); font-size: 0.84375rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.wa-conversation-top small { color: var(--muted); font-size: 0.6875rem; white-space: nowrap; }
+.wa-conversation-bottom { display: flex; align-items: center; gap: var(--space-3); }
+.wa-conversation-preview { overflow: hidden; min-width: 0; flex: 1; color: var(--muted); font-size: 0.78125rem; text-overflow: ellipsis; white-space: nowrap; }
+.wa-unread { min-width: 20px; padding: 2px 6px; border-radius: 999px; background: var(--primary-fill); color: var(--on-primary-fill); font-size: 0.6875rem; font-weight: 700; text-align: center; }
+.wa-conversation-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.wa-tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 0.6875rem; }
+.wa-tag svg { width: 11px; }
+
+.wa-empty { margin: 0; padding: var(--space-5) var(--space-4); color: var(--muted); font-size: 0.8125rem; line-height: 1.6; text-align: center; }
+.wa-empty strong { color: var(--text); }
+.wa-load-more { width: 100%; min-height: 40px; padding: 0 var(--space-3); border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.78125rem; font-weight: 600; }
+.wa-load-more:hover:not(:disabled) { border-color: var(--primary-border); color: var(--text); }
+.wa-load-more:disabled { cursor: wait; opacity: .6; }
+
+.wa-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.wa-pane-idle { display: grid; height: 100%; align-content: center; justify-items: center; gap: var(--space-3); padding: var(--space-6); color: var(--muted); text-align: center; }
+.wa-pane-idle svg { width: 28px; color: var(--border-strong); }
+.wa-pane-idle p { max-width: 34ch; margin: 0; font-size: 0.84375rem; line-height: 1.6; }
+
+.wa-thread { display: flex; min-height: 0; height: 100%; flex-direction: column; }
+.wa-thread-header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); }
+.wa-thread-who { min-width: 0; }
+.wa-thread-who strong { display: block; overflow: hidden; color: var(--heading); font-size: 0.9375rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.wa-thread-who small { display: flex; align-items: center; gap: 5px; margin-top: 2px; color: var(--muted); font-size: 0.75rem; }
+.wa-thread-who svg { width: 12px; }
+/* Só o celular tem para onde voltar: no desktop as duas colunas estão à vista. */
+.wa-back { display: none; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); }
+.wa-back:hover { background: var(--panel-soft); color: var(--text); }
+.wa-back svg { width: var(--icon-md); }
+
+.wa-thread-warning { display: flex; align-items: center; gap: var(--space-3); margin: 0; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); background: var(--panel-soft); color: var(--muted); font-size: 0.78125rem; line-height: 1.5; }
+.wa-thread-warning svg { width: var(--icon-sm); flex: 0 0 var(--icon-sm); color: var(--warning); }
+.wa-inline-action { min-height: 32px; padding: 0 var(--space-3); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.wa-inline-action:hover { border-color: var(--primary-border); }
+
+.wa-thread-body { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; gap: var(--space-3); padding: var(--space-4); }
+.wa-thread-cap { margin: 0; color: var(--muted); font-size: 0.75rem; line-height: 1.5; text-align: center; }
+.wa-messages { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.wa-day { margin: var(--space-2) auto; padding: 3px 10px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 0.6875rem; font-weight: 600; width: fit-content; }
+.wa-bubble { max-width: min(64ch, 78%); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-soft); width: fit-content; }
+.wa-bubble.is-mine { margin-left: auto; border-color: var(--primary-border); background: var(--primary-soft); }
+.wa-bubble p { margin: 0; overflow-wrap: anywhere; color: var(--text); font-size: 0.84375rem; line-height: 1.55; white-space: pre-wrap; }
+.wa-bubble-author { display: block; margin-bottom: 3px; color: var(--muted); font-size: 0.6875rem; font-weight: 600; }
+.wa-bubble time { display: block; margin-top: 4px; color: var(--muted); font-size: 0.6875rem; text-align: right; }
+
+.wa-composer { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); }
+.wa-composer textarea { min-height: 44px; max-height: 140px; min-width: 0; flex: 1; padding: 11px var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-family: inherit; font-size: 0.84375rem; line-height: 1.5; resize: vertical; }
+.wa-composer textarea:focus-visible { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-soft); }
+.wa-composer .primary-action { flex: 0 0 auto; padding: 0 var(--space-4); }
+.wa-composer small { flex-basis: 100%; color: var(--muted); font-size: 0.6875rem; text-align: right; }
+.wa-composer small.is-over { color: var(--danger); font-weight: 600; }
+.wa-thread-blocked { margin: 0; padding: var(--space-4); border-top: 1px solid var(--border); background: var(--panel-soft); color: var(--muted); font-size: 0.78125rem; line-height: 1.55; }
+
+/* O celular não comporta duas colunas: ou a lista, ou a conversa aberta. */
+@media (max-width: 800px) {
+  .wa-inbox { height: clamp(420px, calc(100vh - 210px), 780px); grid-template-columns: 1fr; }
+  .wa-list { border-right: 0; }
+  .wa-inbox > .wa-pane { display: none; }
+  .wa-inbox.is-open > .wa-list { display: none; }
+  .wa-inbox.is-open > .wa-pane { display: flex; }
+  .wa-back { display: grid; }
+  .wa-bubble { max-width: 88%; }
+  .wa-tabs { width: 100%; }
+  .wa-tabs button { flex: 1; }
+}
+
 @media (pointer: coarse), (max-width: 800px) {
   /* A ação primária tem 40px de piso no desktop, e 40 não passa no dedo. Vale
      para TODAS as ocorrências: o detector achou uma nova em /usuarios, mas o
@@ -2778,10 +2884,13 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .brand-link { min-height: 44px; }
   /* Abas, chips e pilulas de filtro tambem sao alvo de toque. */
   .visitor-tabs button, .activities-filters button, .calendar-view-toggle button,
-  .today, .calendar-today-button, .clear-filters { min-height: 44px; }
+  .today, .calendar-today-button, .clear-filters,
+  .wa-tabs button, .wa-chip, .wa-load-more { min-height: 44px; }
+  .wa-back { width: 44px; height: 44px; flex: 0 0 44px; }
   .visitor-tabs button { padding-inline: 4px; }
   .finance-attachment-link, .finance-attachment-none { min-width: 44px; min-height: 44px; }
   /* Campo de formulario tambem e alvo de toque: 36px de altura erra o dedo. */
+  .wa-search input,
   .member-filters select, .member-filters input,
   .resource-search input, .activities-filters select, .activities-filters input,
   .finance-filters select, .finance-filters input { min-height: 44px; }
