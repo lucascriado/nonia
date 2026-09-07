@@ -49,6 +49,19 @@ export function Header({ title }: { title: string }) {
   const [focused, setFocused] = useState(false);
   const campo = useRef<HTMLInputElement | null>(null);
   const [noMac, setNoMac] = useState(false);
+  /**
+   * O sino ABRE um painel, e o painel diz a verdade: não há notificação.
+   *
+   * Antes ele não tinha `onClick` -- clicar só movia o foco -- e carregava a
+   * classe `has-dot` CHUMBADA, o pontinho vermelho de "tem coisa nova". Numa
+   * igreja criada há cinco minutos, sem um único registro, o ponto já estava
+   * lá: mesmo gênero do logout que era link morto, com o agravante de PROMETER.
+   * O ponto some (não há o que anunciar) e o botão passa a fazer algo honesto:
+   * mostrar o estado vazio, como toda listagem da casa. Quando existir origem
+   * de notificação de verdade, é aqui que a lista entra.
+   */
+  const [notifAberto, setNotifAberto] = useState(false);
+  const notif = useRef<HTMLDivElement | null>(null);
 
   // O selinho dizia "Ctrl K" em toda máquina, e no Mac o atalho é Cmd K --
   // seria a mesma promessa vazia com outra roupa. A leitura vai DEPOIS de
@@ -86,6 +99,23 @@ export function Header({ title }: { title: string }) {
     document.addEventListener("keydown", aoTeclar);
     return () => document.removeEventListener("keydown", aoTeclar);
   }, []);
+
+  // Fecha o painel do sino ao clicar fora ou apertar Esc, como todo menu da casa.
+  useEffect(() => {
+    if (!notifAberto) return;
+    function aoClicarFora(evento: PointerEvent) {
+      if (evento.target instanceof Node && !notif.current?.contains(evento.target)) setNotifAberto(false);
+    }
+    function aoEscapar(evento: KeyboardEvent) {
+      if (evento.key === "Escape") setNotifAberto(false);
+    }
+    document.addEventListener("pointerdown", aoClicarFora);
+    document.addEventListener("keydown", aoEscapar);
+    return () => {
+      document.removeEventListener("pointerdown", aoClicarFora);
+      document.removeEventListener("keydown", aoEscapar);
+    };
+  }, [notifAberto]);
 
   const subtitle = subtitleFor(title);
   const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
@@ -140,7 +170,27 @@ export function Header({ title }: { title: string }) {
         )}
       </label>
 
-      <button className="icon-button has-dot" aria-label="Notificações"><Bell /></button>
+      <div className="notif" ref={notif}>
+        <button
+          className="icon-button"
+          aria-label="Notificações"
+          aria-expanded={notifAberto}
+          aria-haspopup="dialog"
+          onClick={() => setNotifAberto((valor) => !valor)}
+          type="button"
+        >
+          <Bell />
+        </button>
+        {notifAberto && (
+          <div className="notif-popover" role="dialog" aria-label="Notificações">
+            <strong>Notificações</strong>
+            <div className="notif-empty">
+              <Bell aria-hidden />
+              <p>Você está em dia. Nada de novo por aqui ainda.</p>
+            </div>
+          </div>
+        )}
+      </div>
       <span className="divider" />
       <div className="user">
         <span><strong>{user.name}</strong><small>{user.role}</small></span>

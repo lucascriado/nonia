@@ -140,15 +140,27 @@ export function ConnectionPanel({ onChange }: { onChange?: (state: WhatsappState
             </dl>
             {/* A EXPECTATIVA DE QUEM CONECTA É VER AS CONVERSAS. Hoje conectar
                 habilita só o envio. Dizer isso aqui é o que separa esta tela de
-                um estado vazio que mente. */}
-            <p className="wa-note is-info">
-              <Smartphone aria-hidden />
-              <span>
-                Com o número conectado você já pode <strong>enviar mensagens em massa</strong> para quem tem telefone
-                cadastrado. <strong>Ler e responder conversas ainda não existe</strong> nesta tela — é o próximo bloco, e
-                está sendo construído.
-              </span>
-            </p>
+                um estado vazio que mente.
+
+                A frase e o botão de desconectar dividem a MESMA linha: o aviso à
+                esquerda, ocupando o que sobra, e a ação à direita. Por isso o
+                botão sai do rodapé de ações e vem para cá -- lá embaixo ficava
+                só a ação de conectar, que agora nem existe no estado conectado. */}
+            <div className="wa-connected-row">
+              <p className="wa-note is-info">
+                <Smartphone aria-hidden />
+                <span>
+                  Com o número conectado você já pode <strong>enviar mensagens em massa</strong> para quem tem telefone
+                  cadastrado. <strong>Ler e responder conversas ainda não existe</strong> nesta tela — é o próximo bloco, e
+                  está sendo construído.
+                </span>
+              </p>
+              {canWrite && !confirmandoSaida && (
+                <button className="wa-connected-disconnect" disabled={working} onClick={() => setConfirmandoSaida(true)} type="button">
+                  <Plug aria-hidden />Desconectar
+                </button>
+              )}
+            </div>
           </>
         )}
 
@@ -195,13 +207,11 @@ export function ConnectionPanel({ onChange }: { onChange?: (state: WhatsappState
           </div>
         )}
 
-        {canWrite && !confirmandoSaida && (
+        {/* Só as ações de CONECTAR moram no rodapé. Desconectar subiu para a
+            linha do aviso, no bloco de conectado acima. */}
+        {canWrite && !confirmandoSaida && !state.connected && (
           <div className="wa-actions">
-            {state.status === "not_configured" ? null : state.connected ? (
-              <button disabled={working} onClick={() => setConfirmandoSaida(true)} type="button">
-                <Plug aria-hidden />Desconectar
-              </button>
-            ) : EM_ANDAMENTO.includes(state.status) ? null : (
+            {state.status === "not_configured" || EM_ANDAMENTO.includes(state.status) ? null : (
               <button className="primary-action" disabled={working} onClick={conectar} type="button">
                 {working ? <LoaderCircle className="button-spinner" aria-hidden /> : <QrCode aria-hidden />}
                 {state.status === "not_connected" ? "Conectar o WhatsApp da igreja" : "Gerar novo código"}

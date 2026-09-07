@@ -261,10 +261,14 @@ export function BroadcastComposer({ conectado, onCreated }: { conectado: boolean
                           type="checkbox"
                         />
                         <strong>{pessoa.name}</strong>
-                        <small>{pessoa.phone ?? "—"}</small>
-                        {/* Quem fica de fora APARECE, com o porquê. Sumir com a
-                            linha esconderia justamente o que precisa de conserto
+                        {/* Telefone OU motivo, nunca os dois com um traço no
+                            meio: quem tem telefone mostra o número; quem não tem
+                            mostra só o porquê. O "—" antes do motivo era ruído
+                            sobre uma informação que o próprio motivo já dá.
+                            Quem fica de fora continua APARECENDO, com o porquê --
+                            sumir com a linha esconderia o que precisa de conserto
                             na ficha da pessoa. */}
+                        {pessoa.phone && <small className="wa-alvos-fone">{pessoa.phone}</small>}
                         {pessoa.motivo && <small className="wa-alvos-motivo">{MOTIVO_TEXTO[pessoa.motivo]}</small>}
                       </label>
                     </li>
