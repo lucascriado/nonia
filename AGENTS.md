@@ -517,6 +517,11 @@ para concluir coisa alguma sobre o projeto.
   um alerta a lembrar.
 #### Outros
 
+- **Data "de hoje" calculada em UTC sai um dia adiantada à noite.**
+  `new Date().toISOString().slice(0, 10)` devolve a data **em UTC**: às 21h em
+  Brasília já é o dia seguinte lá. Quem lança às 21h30 vê 06/09 na tela e grava
+  07/09 — sem erro, sem aviso. **Data do usuário se calcula no fuso do usuário**,
+  nunca por `toISOString()`. Ver Pendências no [`CLAUDE.md`](CLAUDE.md).
 - **Data-texto convertida em instante sai um dia atrasada.** `new Date("2026-09-06")`
   é meia-noite **em UTC**, e no fuso de São Paulo imprime **05/09**. Um relatório
   inteiro sai um dia errado e ninguém percebe até a tesouraria fechar o mês.
