@@ -2921,6 +2921,13 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 .wa-forward-alvos small { color: var(--muted); font-size: 0.75rem; }
 .wa-forward-nota { margin: 0; padding: var(--space-3) var(--space-5) var(--space-4); border-top: 1px solid var(--border); color: var(--muted); font-size: 0.75rem; line-height: 1.5; }
 
+/* Progresso da sincronização das conversas. Fina e sem cor de alarme: é
+   informação de andamento, não aviso. */
+.wa-sync { display: grid; gap: 6px; margin: 0; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); background: var(--panel-soft); color: var(--muted); font-size: 0.75rem; line-height: 1.45; }
+.wa-sync strong { color: var(--text); font-weight: 600; }
+.wa-sync-barra { display: block; height: 4px; overflow: hidden; border-radius: 999px; background: var(--neutral-soft); }
+.wa-sync-barra > i { display: block; height: 100%; border-radius: 999px; background: var(--primary); transition: width .5s var(--ease-out); }
+
 @media (pointer: coarse), (max-width: 800px) {
   /* A ação primária tem 40px de piso no desktop, e 40 não passa no dedo. Vale
      para TODAS as ocorrências: o detector achou uma nova em /usuarios, mas o

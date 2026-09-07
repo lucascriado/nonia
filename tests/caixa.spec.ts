@@ -66,18 +66,51 @@ test.describe("caixa de entrada do WhatsApp", () => {
   });
 
   /**
-   * Progresso sem denominador é uma ampulheta. Se o servidor diz que ainda
-   * está trazendo, a tela tem de dizer QUANTAS de quantas.
+   * O progresso da sincronização, e as duas armadilhas dele.
+   *
+   * Ele fica FORA do bloco de vazio: a sincronização continua depois que as
+   * primeiras conversas aparecem, e era exatamente aí que ele sumia -- some no
+   * instante em que passa a ser útil.
+   *
+   * Nunca 100% enquanto `state` é `syncing`: o denominador cresce enquanto o
+   * servidor descobre conversas, então a conta pode bater 100 e voltar. Barra
+   * que chega ao fim e volta é pior que barra nenhuma. Quem anuncia o fim é o
+   * `state` virar `idle`, não a divisão.
    */
-  test("sincronizando, o progresso vem com denominador", async ({ page }) => {
+  test("sincronizando, o progresso aparece com denominador e nunca chega a 100%", async ({ page }) => {
     const resposta = await page.request.get("/api/whatsapp/conversas?pageSize=1");
     test.skip(!resposta.ok(), `a rota de conversas respondeu ${resposta.status()}`);
-    const { sync, total } = await resposta.json();
-    test.skip(sync.state !== "syncing" || total > 0, "só vale com a caixa ainda enchendo e nada para mostrar");
+    const { sync } = await resposta.json();
+    test.skip(sync.state !== "syncing", "a caixa deste banco não está sincronizando agora");
+
+    await page.goto("/whatsapp");
+    await page.waitForLoadState("networkidle");
+
+    const faixa = page.locator(".wa-sync");
+    await expect(faixa).toBeVisible();
+    // A fração vem antes: é ela que torna legível o denominador crescendo.
+    await expect(faixa).toContainText(" de ");
+    await expect(faixa).not.toContainText("100%");
+
+    const largura = await page.locator(".wa-sync-barra > i").evaluate((e) => (e as HTMLElement).style.width);
+    expect(largura, "a barra encheu antes de a sincronização terminar").not.toBe("100%");
+  });
+
+  /**
+   * `never_synced` não é 0%: zero por cento afirma que começou e nada veio, e
+   * a verdade é que não começou. São estados diferentes.
+   */
+  test("nunca sincronizado não vira zero por cento", async ({ page }) => {
+    const resposta = await page.request.get("/api/whatsapp/conversas?pageSize=1");
+    test.skip(!resposta.ok(), `a rota de conversas respondeu ${resposta.status()}`);
+    const { sync, connected } = await resposta.json();
+    test.skip(sync.state !== "never_synced" || !connected, "esta caixa já começou a sincronizar");
 
     await page.goto("/whatsapp");
     await waitForSettled(page);
-    await expect(page.getByText(`${sync.chatsSincronizados} de ${sync.chatsConhecidos}`)).toBeVisible();
+    const faixa = page.locator(".wa-sync");
+    await expect(faixa).toBeVisible();
+    await expect(faixa).not.toContainText("%");
   });
 
   /**
@@ -148,6 +181,53 @@ test.describe("caixa de entrada do WhatsApp", () => {
     await expect(ausente.locator("strong")).toContainText("[");
     expect(await ausente.locator("svg").count(), "marcador virou ícone").toBe(0);
     await expect(ausente.locator("small")).toContainText("anterior à conexão");
+  });
+
+  /**
+   * Figurinha e áudio aparecem e TOCAM, sem base64.
+   *
+   * O caminho é `media.url`, que devolve os bytes com Content-Type real e
+   * cookie de sessão -- serve direto em <img> e <audio>. Base64 no JSON
+   * inflaria 33% e é o caminho que já colocou imagem dentro do banco.
+   *
+   * Figurinha tem teto próprio: ela NÃO é foto, e esticar uma até o tamanho de
+   * foto é o que faz a conversa parecer um mural.
+   */
+  test("figurinha e áudio aparecem, e a figurinha não vira foto", async ({ page }) => {
+    await page.goto("/whatsapp");
+    await waitForSettled(page);
+    const conversas = page.locator(".wa-conversation");
+    test.skip(!(await conversas.count()), "não há conversa neste banco");
+
+    let achou = false;
+    for (let i = 0; i < Math.min(await conversas.count(), 8); i += 1) {
+      await conversas.nth(i).click();
+      await waitForSettled(page);
+      if (await page.locator(".wa-media img.is-sticker, .wa-media audio").count()) { achou = true; break; }
+    }
+    test.skip(!achou, "nenhuma conversa deste banco tem figurinha ou áudio com bytes guardados");
+
+    const figurinha = page.locator(".wa-media img.is-sticker").first();
+    if (await figurinha.count()) {
+      const medida = await figurinha.evaluate((e) => {
+        const i = e as HTMLImageElement;
+        return { carregou: i.complete && i.naturalWidth > 0, largura: Math.round(i.getBoundingClientRect().width) };
+      });
+      expect(medida.carregou, "a figurinha não carregou").toBe(true);
+      expect(medida.largura, "figurinha esticada como se fosse foto").toBeLessThanOrEqual(128);
+    }
+
+    const audio = page.locator(".wa-media audio").first();
+    if (await audio.count()) {
+      const medida = await audio.evaluate(async (e) => {
+        const a = e as HTMLAudioElement;
+        if (a.readyState < 1) await new Promise((r) => { a.addEventListener("loadedmetadata", r, { once: true }); setTimeout(r, 3000); });
+        return { controles: a.hasAttribute("controls"), pronto: a.readyState >= 1, erro: a.error ? a.error.code : null };
+      });
+      expect(medida.controles, "áudio sem controle de tocar").toBe(true);
+      expect(medida.erro, "o navegador recusou os bytes do áudio").toBeNull();
+      expect(medida.pronto, "o áudio não chegou a ficar pronto para tocar").toBe(true);
+    }
   });
 
   /** A citada aparece dentro do balão, com a prévia que o servidor calculou. */

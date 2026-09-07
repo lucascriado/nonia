@@ -68,6 +68,8 @@ export function ConversationList({
         </button>
       </div>
 
+      <ProgressoDaSincronia sync={sync} connected={connected} />
+
       <div className={`wa-list-body${refreshing ? " is-refreshing" : ""}`}>
         {/* Esqueleto SÓ quando não há nada para manter na tela. Trocar de
             filtro com a lista carregada mantém a lista e escurece; era o
@@ -136,6 +138,54 @@ export function ConversationList({
 }
 
 /**
+ * Quanto já veio, enquanto está vindo.
+ *
+ * Fica FORA do bloco de vazio de propósito: a sincronização continua depois
+ * que as primeiras conversas aparecem, e era justamente aí que o progresso
+ * sumia -- some no instante em que ele passa a ser útil, porque a lista já tem
+ * o que mostrar e ninguém sabe que ainda falta.
+ *
+ * Duas coisas que este bloco NÃO faz, e as duas são da família de hoje:
+ *
+ * 1. Não diz 0% em `never_synced`. Zero por cento afirma que começou e nada
+ *    veio; a verdade é que não começou. São estados diferentes.
+ * 2. Não chega a 100%. O denominador CRESCE enquanto o servidor descobre
+ *    conversas, então a conta pode bater 100 e voltar para 60 -- barra que
+ *    chega ao fim e volta é pior que barra nenhuma. O teto fica em 99% e quem
+ *    anuncia o fim é o `state` virar `idle`, não a divisão.
+ *
+ * A FRAÇÃO vem antes da porcentagem, e é ela que torna a queda legível: "34 de
+ * 210" virando "34 de 340" se explica sozinho; "16%" virando "10%" não.
+ */
+function ProgressoDaSincronia({ sync, connected }: { sync: InboxSync | null; connected: boolean }) {
+  if (!connected || !sync || sync.state === "idle") return null;
+
+  if (sync.state === "never_synced") {
+    return (
+      <p className="wa-sync" role="status">
+        <span>As conversas ainda não começaram a ser trazidas.</span>
+      </p>
+    );
+  }
+
+  const total = sync.chatsConhecidos;
+  const feitas = sync.chatsSincronizados;
+  const porcento = total > 0 ? Math.min(99, Math.floor((feitas / total) * 100)) : null;
+
+  return (
+    <p aria-live="polite" className="wa-sync" role="status">
+      <span>
+        Trazendo as conversas: <strong>{feitas} de {total}</strong>
+        {porcento !== null && ` · ${porcento}%`}
+      </span>
+      {porcento !== null && (
+        <i aria-hidden className="wa-sync-barra"><i style={{ width: `${porcento}%` }} /></i>
+      )}
+    </p>
+  );
+}
+
+/**
  * O vazio, e as quatro razões diferentes de ele estar vazio.
  *
  * "Nenhuma conversa" é a ÚNICA que afirma ausência, e só vale com a
@@ -161,12 +211,9 @@ function ListaVazia({
     return <p className="wa-empty">As conversas ainda não foram trazidas. Isso acontece na primeira vez que esta tela abre.</p>;
   }
   if (sync.state === "syncing") {
-    return (
-      <p className="wa-empty">
-        Trazendo as conversas: <strong>{sync.chatsSincronizados} de {sync.chatsConhecidos}</strong>. Elas vão aparecendo
-        conforme chegam.
-      </p>
-    );
+    // Os números ficam na faixa de progresso, logo acima. Repeti-los aqui
+    // seria dizer duas vezes a mesma coisa em dois lugares que podem divergir.
+    return <p className="wa-empty">Elas vão aparecendo conforme chegam.</p>;
   }
   return <p className="wa-empty">Nenhuma conversa neste número ainda.</p>;
 }
