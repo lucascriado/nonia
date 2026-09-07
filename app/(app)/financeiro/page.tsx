@@ -232,8 +232,10 @@ export default function FinancePage() {
   return (
     <DashboardShell title="Financeiro">
       <main className="finance-main">
-        <section className="resource-heading">
-          <div><h2>Gestão Financeira</h2><p>Acompanhe entradas, saídas, pendências e comprovantes das movimentações.</p></div>
+        {/* Sem título aqui: ele vive na BARRA DO TOPO, e só lá. A faixa de
+            ações FICA -- ela é o que esta seção passa a ser. Ver
+            components/header.tsx, que monta título e legenda de `searchItems`. */}
+        <section className="resource-heading is-acoes">
           <ExportButton resource="financeiro" permission="finance.read" filters={{ search, type, status, category, attachment }} />
           {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>}
         </section>
