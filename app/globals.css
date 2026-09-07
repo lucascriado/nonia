@@ -2846,9 +2846,12 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    esqueleto a cada leitura era o piscar do vazio. */
 .wa-list-body.is-refreshing { opacity: .65; transition: opacity .2s var(--ease-out); }
 .wa-conversations { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.wa-conversation { display: grid; width: 100%; gap: 3px; padding: var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; }
+/* A foto (ou as iniciais) fica à esquerda; o texto empilha à direita. A largura
+   da coluna do avatar é fixa, então trocar iniciais por foto não mexe no texto. */
+.wa-conversation { display: flex; width: 100%; align-items: center; gap: 10px; padding: var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; }
 .wa-conversation:hover { background: var(--panel-soft); }
 .wa-conversation.is-active { background: var(--primary-soft); }
+.wa-conversation-main { display: grid; min-width: 0; flex: 1; gap: 3px; }
 .wa-conversation-top { display: flex; align-items: baseline; gap: var(--space-3); }
 .wa-conversation-top strong { overflow: hidden; min-width: 0; flex: 1; color: var(--text); font-size: 0.84375rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .wa-conversation-top small { color: var(--muted); font-size: 0.6875rem; white-space: nowrap; }
@@ -2872,7 +2875,7 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 
 .wa-thread { display: flex; min-height: 0; height: 100%; flex-direction: column; }
 .wa-thread-header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); }
-.wa-thread-who { min-width: 0; }
+.wa-thread-who { min-width: 0; flex: 1; }
 .wa-thread-who strong { display: block; overflow: hidden; color: var(--heading); font-size: 0.9375rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .wa-thread-who small { display: flex; align-items: center; gap: 5px; margin-top: 2px; color: var(--muted); font-size: 0.75rem; }
 .wa-thread-who svg { width: 12px; }

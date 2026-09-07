@@ -8,6 +8,7 @@ import { READ_ONLY_REASON } from "@/components/current-user";
 import { HttpError, LoadFailure } from "@/components/load-failure";
 import { ActivitySkeleton } from "@/components/skeleton";
 import { foraDoCadastro, formatarTelefone, nomeDe } from "@/components/whatsapp/conversation-list";
+import { WaAvatar } from "@/components/whatsapp/wa-avatar";
 import { ForwardDialog } from "@/components/whatsapp/forward-dialog";
 import { MessageMedia } from "@/components/whatsapp/message-media";
 import {
@@ -40,12 +41,15 @@ export function ConversationView({
   readOnly,
   onBack,
   onChanged,
+  photoUrl,
 }: {
   id: string;
   canWrite: boolean;
   readOnly: boolean;
   onBack: () => void;
   onChanged: () => void;
+  /** Foto do contato desta conversa, vinda da caixa (mesma fonte da lista). */
+  photoUrl?: string | null;
 }) {
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -246,6 +250,7 @@ export function ConversationView({
         <button aria-label="Voltar para a lista" className="wa-back" onClick={onBack} type="button">
           <ArrowLeft aria-hidden />
         </button>
+        <WaAvatar name={nomeDe(detail)} photoUrl={photoUrl} size={40} />
         <div className="wa-thread-who">
           <strong>{nomeDe(detail)}</strong>
           <small>

@@ -2,6 +2,7 @@
 
 import { Check, Search, Users } from "lucide-react";
 import { ActivitySkeleton } from "@/components/skeleton";
+import { WaAvatar } from "@/components/whatsapp/wa-avatar";
 import type { Conversation, InboxSync } from "@/components/whatsapp/api";
 
 /**
@@ -14,6 +15,7 @@ import type { Conversation, InboxSync } from "@/components/whatsapp/api";
  */
 export function ConversationList({
   conversations,
+  fotos,
   selectedId,
   onSelect,
   search,
@@ -29,6 +31,8 @@ export function ConversationList({
   loadingMore,
 }: {
   conversations: Conversation[];
+  /** Mapa chatId -> URL da foto (ou null). Chega DEPOIS da lista; ver useConversationPhotos. */
+  fotos: Record<string, string | null>;
   selectedId: string | null;
   onSelect: (id: string) => void;
   search: string;
@@ -90,6 +94,10 @@ export function ConversationList({
                   onClick={() => onSelect(conversa.id)}
                   type="button"
                 >
+                  {/* Iniciais primeiro; a foto (se houver) troca depois, no mesmo
+                      círculo, sem empurrar o texto. */}
+                  <WaAvatar name={nomeDe(conversa)} photoUrl={fotos[conversa.chatId]} size={44} />
+                  <span className="wa-conversation-main">
                   <span className="wa-conversation-top">
                     <strong>{nomeDe(conversa)}</strong>
                     <small>{quando(conversa.lastMessageAt)}</small>
@@ -121,6 +129,7 @@ export function ConversationList({
                       {foraDoCadastro(conversa) && <span className="wa-tag">Fora do cadastro</span>}
                     </span>
                   )}
+                  </span>
                 </button>
               </li>
             ))}
