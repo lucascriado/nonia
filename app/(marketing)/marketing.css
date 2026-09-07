@@ -21,7 +21,16 @@ main.mk-main {
   margin-left: 0;
   padding: 0;
 }
-main.mk-main > * { max-width: none; margin-inline: 0; }
+/* Desfaz o `main > *` de globals.css (trilho de 1560px, centralizado) para as
+   SEÇÕES de largura total do site -- herói, faixas, planos. Mas NÃO para o
+   `.mk-container`: nas páginas de autenticação (/cadastro, /entrar, /convite) o
+   container é filho DIRETO do main, e sem o `:not()` este reset zerava o teto de
+   1160px dele -- a página inteira ia de borda a borda com um vão enorme no meio.
+   Na landing o mesmo container mora dentro de um `<section>`, então lá o defeito
+   não aparecia. Medido em 1850px: sem o `:not()`, `.mk-auth-inner` computa
+   `max-width: none`; com ele, volta a 1160px centralizado. O container já vence
+   o `main > *` de globals pela própria especificidade. */
+main.mk-main > *:not(.mk-container) { max-width: none; margin-inline: 0; }
 
 .mk-container {
   width: 100%;
