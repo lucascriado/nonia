@@ -81,11 +81,59 @@ export function midiaDoTipo(tipo: string) {
   return TIPOS_COM_MIDIA[tipo] ?? null;
 }
 
+/**
+ * EM QUAIS TIPOS O `body` É LEGENDA DE GENTE -- e a resposta não é opinião
+ * minha, está numa linha do whatsapp-web.js:
+ *
+ *     this.body = this.hasMedia
+ *       ? data.caption || ''
+ *       : data.body || data.pollName || data.eventName || '';
+ *
+ * Ou seja: **o `body` só é legenda quando a mensagem tem MÍDIA.** Sem mídia ele
+ * é o `data.body` cru do WhatsApp, que é texto de gente em `text`, é a pergunta
+ * em `poll` (`pollName`) -- e é A CARGA DA MENSAGEM em todo o resto.
+ *
+ * Foi isso que colocou 300 caracteres de base64 de JPEG ao lado do nome de um
+ * contato na tela do Lucas: tipo `unknown`, sem mídia declarada, `data.body`
+ * com o arquivo inteiro dentro, e a regra da legenda aplicada a ele.
+ *
+ * A regra antiga acertava a metade que alguém foi olhar (foto com legenda) e
+ * errava a que ninguém pediu para olhar. A lista abaixo é BRANCA de propósito,
+ * pelo mesmo motivo do `isWrite` invertido em lib/auth.ts: os dois erros não
+ * custam igual. Deixar um tipo de fora perde uma legenda e o marcador continua
+ * honesto; deixar um tipo entrar por engano põe carga binária na tela. Tipo
+ * novo do WhatsApp cai fora sozinho, que é o lado certo para cair.
+ */
+const TIPOS_COM_LEGENDA = new Set([...Object.keys(TIPOS_COM_MIDIA), "poll"]);
+
+/**
+ * O QUE VALE GUARDAR DO `body`, e isto é mais que arrumação: é o mesmo defeito
+ * que a prévia, um passo antes.
+ *
+ * Medido na conta real em 07/09/2026: a única mensagem do chat "WhatsApp
+ * Business" é do tipo `unknown` e traz **78.336 caracteres** de base64 de um
+ * JPEG no `body`. Guardando o corpo cru, aquele JPEG inteiro ia parar em
+ * `whatsapp_messages.body` -- exatamente a doença que o cabeçalho da 015 existe
+ * para recusar, a mesma que fez as listagens chegarem a 43 MB. A mídia não é
+ * copiada pela porta da frente e estava entrando pela janela.
+ *
+ * Mesma regra da prévia, de propósito: onde o corpo não é legenda de gente, ele
+ * não é texto nosso para guardar. Uma regra só, nos dois lugares.
+ */
+export function corpoParaGuardar(tipo: string, corpo: string | null | undefined): string | null {
+  if (tipo !== "text" && !TIPOS_COM_LEGENDA.has(tipo)) return null;
+  return corpo ?? null;
+}
+
 export function previa(tipo: string, corpo: string | null | undefined): string {
   const texto = (corpo ?? "").trim();
   if (tipo === "text") return texto.slice(0, 300);
   const marca = MARCADOR[tipo] ?? MARCADOR.unknown;
   // Foto COM legenda mostra as duas coisas: a legenda é conteúdo de verdade.
+  // Fora da lista, o marcador vai SOZINHO -- "[mensagem não suportada]" já é
+  // uma frase inteira e honesta, e colar a carga no fim dela não acrescenta
+  // informação nenhuma a quem lê.
+  if (!TIPOS_COM_LEGENDA.has(tipo)) return marca;
   return (texto ? `${marca} ${texto}` : marca).slice(0, 300);
 }
 
@@ -281,7 +329,7 @@ export async function sincronizarMensagens(
          quoted_wa_message_id = COALESCE(EXCLUDED.quoted_wa_message_id, whatsapp_messages.quoted_wa_message_id)`,
       [conversaId, conexao.organizationId, m.id, Boolean(m.fromMe), m.author ?? null,
        m.contact?.name ?? m.contact?.pushName ?? null,
-       m.type ?? "text", m.body ?? null, m.quotedMessage?.id ?? null, m.timestamp || 0],
+       m.type ?? "text", corpoParaGuardar(m.type ?? "text", m.body), m.quotedMessage?.id ?? null, m.timestamp || 0],
     );
     ultimo = m.id;
   }

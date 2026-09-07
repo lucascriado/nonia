@@ -128,16 +128,44 @@ r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
 const naLista = r.d.records.find((c) => c.chatId === "111@lid").preview;
 ok(naLista === "[foto]", "foto como última mensagem aparece [foto] NA LISTA, não em branco", JSON.stringify(naLista));
 ok(naLista === dentro, "e é o MESMO texto de dentro da conversa -- uma função só", `${JSON.stringify(naLista)} vs ${JSON.stringify(dentro)}`);
-// O `lastMessage` cru da conta real chegou a ter 78.336 caracteres com tipo
-// `unknown`. Derivando, vira marcador; sem derivar, vira lixo truncado.
-caixa.chats[1].lastMessage = "lixo ".repeat(1000);
+// O CASO REAL, e nao uma aproximacao dele: na conta do Lucas o chat
+// "WhatsApp Business" (0@c.us) tem UMA mensagem, tipo `unknown`, com 78.336
+// caracteres de base64 de um JPEG no `body` -- da para ler o EXIF do Photoshop
+// la dentro. O comeco abaixo e o comeco real dele.
+const CARGA_REAL = "/9j/4R5XRXhpZgAATU0AKgAAAAgABwESAAMAAAABAAEAAAEaAAUAAAABAAAA" + "A".repeat(78000);
+caixa.chats[1].lastMessage = CARGA_REAL;
 caixa.mensagens.get("222@lid").push(
-  { id: "b9", chatId: "222@lid", from: "222@lid", body: "lixo ".repeat(1000), type: "unknown", timestamp: agora - 100, fromMe: false });
+  { id: "b9", chatId: "222@lid", from: "222@lid", body: CARGA_REAL, type: "unknown", timestamp: agora - 100, fromMe: false });
 await call("GET", `/api/whatsapp/conversas/${idOutra}`, { cookie: A });
 r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
 const gigante = r.d.records.find((c) => c.chatId === "222@lid").preview;
-ok(gigante.startsWith("[mensagem não suportada]") && gigante.length <= 300,
-   "tipo não suportado vira marcador curto, não 300 caracteres de lixo", `${gigante.length} chars`);
+ok(gigante === "[mensagem nao suportada]".replace("nao", "não"),
+   "tipo `unknown`: o marcador vai SOZINHO -- em `unknown` o corpo e a carga, nao legenda", JSON.stringify(gigante.slice(0, 60)));
+r = await call("GET", `/api/whatsapp/conversas/${idOutra}`, { cookie: A });
+ok(r.d.messages.find((m) => m.waMessageId === "b9")?.preview === "[mensagem não suportada]",
+   "e vale igual DENTRO da conversa, porque e uma funcao so",
+   JSON.stringify(r.d.messages.find((m) => m.waMessageId === "b9")?.preview?.slice(0, 60)));
+// Os outros tipos cujo corpo o whatsapp-web.js tira de `data.body`, e nao de
+// `caption`: vCard inteiro, log de chamada, apagada, protegida.
+for (const [tipo, esperado] of [["contact", "[contato]"], ["call", "[chamada]"],
+                                ["revoked", "[mensagem apagada]"], ["masked", "[mensagem protegida]"]]) {
+  caixa.mensagens.get("222@lid").push({ id: `c-${tipo}`, chatId: "222@lid", from: "222@lid",
+    body: "BEGIN:VCARD\nFN:Fulano\nTEL:+5511999999999\nEND:VCARD", type: tipo, timestamp: agora - 90, fromMe: false });
+  r = await call("GET", `/api/whatsapp/conversas/${idOutra}`, { cookie: A });
+  // Procurada pelo id, e nao com at(-1): as quatro tem o mesmo instante, e a
+  // ordem entre elas e por uuid -- arbitraria.
+  const achada = r.d.messages.find((m) => m.waMessageId === `c-${tipo}`);
+  ok(achada?.preview === esperado,
+     `${tipo}: marcador sozinho, sem a carga colada no fim`, JSON.stringify(achada?.preview));
+}
+// E a legenda continua aparecendo onde legenda existe de verdade -- que e onde
+// o whatsapp-web.js preenche `body` com `data.caption`: mensagem COM midia.
+caixa.mensagens.get("222@lid").push({ id: "c-img", chatId: "222@lid", from: "222@lid",
+  body: "olha o cartaz do culto", type: "image", timestamp: agora - 80, fromMe: false });
+r = await call("GET", `/api/whatsapp/conversas/${idOutra}`, { cookie: A });
+ok(r.d.messages.find((m) => m.waMessageId === "c-img")?.preview === "[foto] olha o cartaz do culto",
+   "foto COM legenda continua mostrando as duas coisas -- o conserto nao comeu isso",
+   JSON.stringify(r.d.messages.find((m) => m.waMessageId === "c-img")?.preview));
 
 console.log("\n== o contrato não pode ter dois nomes para o mesmo campo ==");
 r = await call("GET", `/api/whatsapp/conversas/${idMaria}`, { cookie: A });
@@ -215,8 +243,13 @@ ok(r.s === 200 && r.ct === "image/png", "os bytes voltam com o tipo certo", `${r
 ok(Buffer.compare(r.bytes, png) === 0, "e são OS MESMOS bytes que subiram", `${r.bytes?.length} vs ${png.length}`);
 ok(/^inline/.test(r.cd || ""), "inline, para a foto aparecer no balão em vez de baixar", r.cd);
 ok(r.nosniff === "nosniff", "com nosniff: o navegador não adivinha tipo", r.nosniff);
-ok(midias.size > 0 && (await sql.query("SELECT count(*)::int n FROM whatsapp_messages WHERE body ~ '^[A-Za-z0-9+/]{200,}'")).rows[0].n === 0,
-   "e NADA de base64 foi copiado para o nosso banco", "");
+const b64 = (await sql.query("SELECT count(*)::int n FROM whatsapp_messages WHERE body ~ '^[A-Za-z0-9+/]{200,}'")).rows[0].n;
+ok(midias.size > 0 && b64 === 0, "e NADA de base64 foi copiado para o nosso banco", `${b64} linhas`);
+// A mesma regra da previa, um passo antes: o corpo de um tipo cuja carga nao e
+// legenda NAO E GUARDADO. Sem isto, o JPEG de 78 KB do chat "WhatsApp Business"
+// entrava inteiro em whatsapp_messages.body -- a midia entrando pela janela.
+const maior = (await sql.query("SELECT coalesce(max(length(body)),0)::int n FROM whatsapp_messages")).rows[0].n;
+ok(maior < 1000, "e nenhum corpo guardado passa de 1000 caracteres, com uma carga de 78 KB no caminho", `${maior} chars`);
 
 console.log("\n== 404 de mídia antiga é caso NORMAL, e precisa ser legível ==");
 r = await baixar(`/api/whatsapp/conversas/${idMaria}/midia/a2`, A);
