@@ -7,28 +7,54 @@ Este arquivo descreve **o que existe hoje** e **o que foi decidido**. Convençõ
 de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 [`README.md`](README.md). Não duplique conteúdo entre os três.
 
-> Última reconciliação com a realidade: **06/09/2026**. O conteúdo anterior a
-> essa data descrevia um deploy que nunca existiu — se algo aqui divergir do
-> que você observar, o observado ganha e este arquivo precisa ser corrigido.
+> Última reconciliação com a realidade: **07/09/2026**, o dia em que a produção
+> subiu. Se algo aqui divergir do que você observar, **o observado ganha e este
+> arquivo precisa ser corrigido** — é por essa regra que esta reconciliação
+> existe, e a de 06/09/2026 antes dela. Um arquivo que todo agente lê ao entrar
+> no projeto envelhece pior que código: ninguém compila documentação.
 
-## Estado real — 06/09/2026
+## Estado real — 07/09/2026
 
 | Item | Situação |
 | --- | --- |
-| Produção | **Não existe e está fora de escopo.** O nonia nunca foi deployado; desde 06/09/2026 ele roda **só localmente** — ver "Escopo atual" |
-| Aplicação no Coolify | **Descartada.** Foi criada em 06/09/2026 e nunca publicada; a exclusão ficou a cargo do admin de VPS no mesmo dia — ver "Mudanças de escopo" |
-| Base `postgres` do servidor | Provisionada e **vazia** (0 tabelas). Era a base destinada à produção; segue intocada. Baseline em `~/backups/nonia-2026-09-06.sql` |
-| Domínio `nonia.app` | **Não responde, e não vai passar a responder.** O DNS foi **dispensado**, não adiado — ver "Mudanças de escopo" |
+| Produção | **Existe desde 07/09/2026:** **https://nonia.lucascriado.com**, `running:healthy`. É **subdomínio de `lucascriado.com`**, e não `nonia.app` — ver "Produção" |
+| Aplicação no Coolify | **Existe de novo**, criada em 07/09/2026 no projeto `nonia.app`. **Não é a de 06/09/2026** — aquela foi excluída e continua morta. Uuid, container e destino vivem em `/home/lucas/claude.md`, não aqui: o repositório é público |
+| Base `postgres` do servidor | **É a base de PRODUÇÃO desde 07/09/2026.** 32 tabelas, migrations **001–019**, 4 planos, 5 papéis, 25 permissões — e **0 organizações, 0 usuários**. O baseline vazio (`~/backups/nonia-2026-09-06.sql`) virou **histórico**, não é mais o estado |
+| Domínio `nonia.app` | **Continua não respondendo**, e nada aponta para ele. Isso **não** significa "não há produção": ela mora em `nonia.lucascriado.com`. O nome `nonia.app` sobrevive como nome do **projeto** no Coolify, o que engana quem lê rápido |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `4b67d08`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
-| Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
+| Integração | **Feita em 06/09/2026**, `main` em `4b67d08`: Fase 1 e site público mesclados, `typecheck` limpo e `build` passando contra o `nonia_dev`. Depois disso a `main` seguiu andando — o que entrou hoje está em "O que entrou em 07/09/2026" |
+| Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com as migrations **001–019** aplicadas e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
-### Escopo atual: execução local (06/09/2026)
+> **O mesmo cluster hospeda a produção e os bancos de desenvolvimento**, e a
+> aplicação de produção entra nele como **superusuário** — escolha do Lucas em
+> 07/09/2026, registrada com a consequência em `/home/lucas/claude.md`. Não é
+> convite para apontar dev para a base `postgres`: continua sendo a produção.
 
-Decisão do Lucas: **o nonia roda localmente por enquanto.** Sem domínio, sem
-DNS, sem deploy. A única infra que importa é **o banco estar online** — e ele
-está, pelo túnel.
+### Produção — no ar desde 07/09/2026
+
+**Decisão do Lucas em 07/09/2026, que reverte a de 06/09/2026:** o nonia, o
+Postgres dele e o gateway de WhatsApp ficam **online**. O site é
+**https://nonia.lucascriado.com** — **subdomínio de `lucascriado.com`**, não
+`nonia.app`. O porquê do subdomínio é de infra e está com o admin de VPS, em
+`/home/lucas/claude.md`.
+
+**O auto-deploy está DESLIGADO de propósito, e quem manda deployar é o gerente.**
+Não é configuração esquecida: quatro frentes trabalham na `main` e **todo deploy
+roda as migrations no boot do container**. Com auto-deploy, o push de qualquer
+uma viraria migration em produção sem ninguém decidir.
+
+> ### Produção está VAZIA, e isso muda como ler este arquivo
+>
+> **0 organizações e 0 usuários.** Nada do que subiu foi exercitado contra dado
+> real de igreja em produção. Todo "medido", "verificado" e "percorrido" deste
+> arquivo se refere ao **`nonia_dev`** e ao **`nonia_front`**, salvo onde
+> estiver escrito o contrário. Deploy que sobe não é funcionalidade exercitada,
+> e chamar uma coisa da outra é o mesmo erro do `build` passando: artefato não é
+> evidência de comportamento.
+>
+> O `/cadastro` é **público**. A primeira pessoa que se cadastrar cria uma
+> **igreja de verdade**, com dono, na base de produção.
 
 A regra que valia até a integração — a autenticação não entra na `main` antes
 das telas de login existirem — foi **cumprida**: as duas branches entraram
@@ -66,7 +92,10 @@ As três branches estão em `origin` desde 06/09/2026.
   permissão. É backup: até 06/09/2026 o dia inteiro de trabalho existia em uma
   máquina só.
 - **Ninguém dá push na `main`** — ela é a árvore de integração e é do gerente,
-  que faz o merge das branches quando a hora chega.
+  que faz o merge das branches quando a hora chega. **Desde 07/09/2026 há
+  produção atrás dela.** O push não publica sozinho, porque o auto-deploy está
+  desligado; mas é a `main` que vira produção no dia em que o gerente mandar
+  deployar. Ver "Ninguém dá push".
 - **O repositório é público.** Antes de qualquer push, confira que o diff não
   leva senha, token, uuid de infra, IP nem conteúdo de `.env`. É por isso que a
   regra de manter identificador de infra fora do repo existe.
@@ -112,8 +141,10 @@ app/
   layout.tsx  globals.css  icon.svg
 proxy.ts        desvio de navegação no Edge (era middleware.ts)
 components/     shell, sidebar, header, diálogos, skeletons, marketing/
-lib/            db.ts, models.ts, auth.ts, tenant.ts, passwords.ts, http.ts, …
-database/       migrate.mjs, migrations/ (001–013), seeds/
+lib/            db.ts, models.ts, auth.ts, tenant.ts, passwords.ts, http.ts,
+                datas.ts ("hoje" no fuso da igreja), finance-kardex.ts,
+                whatsapp/, …
+database/       migrate.mjs, migrations/ (001–019), seeds/
 ```
 
 Os parênteses são route groups e **não** aparecem na URL.
@@ -160,15 +191,16 @@ primeira.
 | **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. Ver "Assinatura e acesso" | 06/09/2026 |
 | **Cancelar avaliação vigente é recusado** | `409 trial_not_cancelable`. Parece restritivo e não é: quem clica quer uma de duas coisas e nenhuma é atendida. "Não quero ser cobrado" já está garantido — a avaliação termina sozinha e a igreja cai no gratuito. "Quero sair do produto" é apagar a conta, que é outra coisa e não existe. Em troca, a ação seria **irreversível**: perde os dias restantes e não há volta para `trialing`, nem contratando. **Ação irreversível sem benefício nenhum é caso de recusar, não de confirmar na tela.** Só vale enquanto a avaliação é **válida** — vencida é linha morta, e recusar ali produziria a mensagem errada; `incomplete` continua cancelável | 06/09/2026 |
 | **`slug` da organização não é editável** | `400 slug_not_editable`, em vez de ignorar em silêncio — ignorar faria a pessoa achar que mudou. Ele aparece no nome dos arquivos exportados e é aceito como identificador no login. O argumento é assimétrico: a igreja **não vê o slug em tela nenhuma**, então não poder editar não custa nada; desfazer link quebrado custa | 06/09/2026 |
-| **`timezone` não é exposto** | A coluna existe e **nada no código a usa**. Seletor de fuso que não muda nada seria promessa vazia | 06/09/2026 |
+| **`timezone` não é exposto na tela** | **Reescrita em 07/09/2026: a coluna deixou de ser órfã.** `lib/datas.ts` a usa para calcular "hoje" no fuso da igreja, e dela dependem a validação do lançamento retroativo e o período padrão do kardex. O que continua de pé é **não colocar seletor de fuso na interface** — o valor é o default `America/Sao_Paulo` da 004 para todo mundo, e uma igreja em Manaus só sai disso por `UPDATE`. Seletor entra quando houver igreja em outro fuso, não antes | 06/09, reescrita em 07/09/2026 |
 | **Perfil próprio em rota própria** | `PATCH /api/auth/profile`, não um caso especial dentro de `/api/users/[id]` — aquela rota existe para agir sobre **terceiros**, e todas as guardas dela são recusas de agir sobre si | 06/09/2026 |
-| **Coluna órfã fica; permissão órfã sai** | A `timezone` fica, as `people.*` saíram na migration **010**. A coluna **não promete nada a ninguém**, porque não aparece em lugar nenhum; a permissão aparece no seletor de papéis e promete poder que não existe. Papéis agora: owner 22, admin 21, secretaria 18, líder 12, leitura 9 | 06/09/2026 |
+| **Coluna órfã fica; permissão órfã sai** | A `timezone` ficou — e em 07/09/2026 **deixou de ser órfã**, quando `lib/datas.ts` passou a lê-la; guardar a coluna foi a decisão certa. As `people.*` saíram na migration **010**. A coluna **não promete nada a ninguém**, porque não aparece em lugar nenhum; a permissão aparece no seletor de papéis e promete poder que não existe. Papéis agora: owner 22, admin 21, secretaria 18, líder 12, leitura 9 | 06/09/2026 |
 | **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura | 06/09/2026 |
 | **Somente leitura vem de DÍVIDA, não de ausência de plano pago** | Cancelar leva ao gratuito, com o teto do gratuito; **atrasar** leva a somente leitura. Sem essa distinção, cancelar seria melhor que atrasar e o somente leitura seria contornável em um clique | 06/09/2026 |
 | **Exportar entra no MVP** | A promessa "quem quiser sair leva o que é seu" só era verdadeira pela API — não havia botão de exportar em lugar nenhum. Decidido implementar em vez de recuar a promessa. Formato e cuidados em [`AGENTS.md`](AGENTS.md) | 06/09/2026 |
 | **Bypass de contratação no lugar do gateway** | A igreja clica e a assinatura vale na hora, sem pagamento real. Atalho de desenvolvimento, **não é produto**, e nasce com guarda-corpo obrigatório. Ver "Cobrança" | 06/09/2026 |
 | **Mercado Pago: API de Pagamentos, não recorrência** | `POST /v1/payments`, Checkout Transparente. **Decisão suspensa**, não revogada: vale para quando o pagamento real entrar. **Retomar quando** houver hospedagem com URL pública. Ver "Cobrança" | 06/09/2026 |
 | **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
+| **Ctrl+K dispara pelo atalho DA PLATAFORMA** | Cmd+K no Mac, Ctrl+K no resto, **sem olhar o foco**. A guarda anterior protegia o *kill-line* do Cocoa em **toda** plataforma — e no Linux/Windows, onde esse kill-line **não é padrão**, ela matava em silêncio justamente o atalho que a interface anuncia no `<kbd>`. Proteção que só atuava onde não havia o que proteger, contra um atalho anunciado que não funcionava: **atalho anunciado e morto é pior que atalho inexistente, porque a pessoa culpa a si mesma.** Hoje a guarda vale só para o modificador que **não** é o da plataforma — na prática, o Ctrl no Mac. **Custo aceito e escrito:** no Linux com keymap emacs, Ctrl+K num campo abre a busca em vez de apagar a linha | 07/09/2026 |
 | **Tema sage/verde-floresta FICA** | Uma paleta índigo foi proposta e **reprovada pelo Lucas em 06/09/2026**. O commit da proposta já foi revertido na branch de UI. Não reabrir | 06/09/2026 |
 
 ### Rotas públicas decididas
@@ -306,7 +338,13 @@ por conta própria: banco compartilhado não é território de quem está numa b
 `listagem` 6, `sessao` 4. **Não há suíte de backend no repositório**: medido com
 `git ls-files` na `main` e nas duas branches em 06/09/2026. Contagens maiores
 que circularam (627 no backend, 51 no frontend) **não se confirmam no código**.
-A aplicação roda em `localhost:3000` com `npm run dev`.
+
+> **A convenção do projeto é a porta 3111**, não 3000: é o `baseURL` padrão do
+> `playwright.config.ts` e é onde o Lucas abre o sistema. **`npm run dev` sozinho
+> sobe na 3000**, que é o padrão do Next — ninguém fixa a porta no
+> `package.json`. Quem rodar o servidor na 3000 e a suíte de tela em seguida vê
+> os testes falharem por não achar aplicação nenhuma. Suba com **`PORT=3111 npm
+> run dev`**, ou aponte a suíte com `NONIA_URL`.
 
 **O lado do backend está fechado.** O que resta depende de decisão do Lucas: DNS
 para a recuperação de senha, exclusão lógica em membros e visitantes, os
@@ -331,6 +369,75 @@ varredura inteira. O **logout foi clicado**: revoga a linha em `sessions` e
 voltar ao painel cai em `/entrar`. O que quebra sem dado é outra coisa, e está
 em "Pendências" — os ministérios fantasma e o sino. O medido está na nota de
 canvas "Estado real do MVP".
+
+## O que entrou em 07/09/2026
+
+**Onde isto foi medido:** `nonia_dev` e `nonia_front`. **Nada disto foi
+exercitado com dado real de igreja em produção**, que tem 0 organizações e 0
+usuários. Subiu no deploy; não foi usado.
+
+### Migrations 018 e 019
+
+Aplicadas nos três bancos — `nonia_dev`, `nonia_front` e **produção**.
+
+- **018** — `whatsapp_contacts.avatar_url` e `avatar_checked_at`.
+- **019** — `financial_transactions.retroactive` e `retroactive_reason`, com
+  `CHECK (retroactive_reason IS NULL OR retroactive)`: o motivo não existe sem a
+  marca. O `CHECK` **não** compara com `CURRENT_DATE` — não seria imutável e
+  dependeria do fuso da sessão, que é exatamente o defeito que a 019 não quis
+  herdar.
+
+### Rotas novas
+
+| Rota | O que faz |
+| --- | --- |
+| `GET /api/whatsapp/fotos` | foto de perfil de um punhado de conversas, **separada da listagem de propósito**: a lista já paga sincronização e resolução de telefone antes de desenhar, e foto é enfeite de linha — não pode segurar a lista. A tela desenha em dois tempos: primeiro as iniciais, depois as fotos que houver |
+| `GET /api/financeiro/kardex` | extrato em ordem, com saldo corrente linha a linha, para imprimir. Sem `de`/`ate`, o mês corrente **no fuso da igreja** |
+
+### Telas
+
+Foto de perfil na lista de conversas do WhatsApp, **kardex imprimível** no
+financeiro, seletor de pessoas em cartões e criação de ministério em passos.
+
+### A foto guarda URL, e NÃO bytes — contra o pedido original
+
+`people.avatar_url` guarda a imagem em base64; **`whatsapp_contacts.avatar_url`
+guarda a URL**. A diferença é deliberada e o motivo é de propriedade, não de
+espaço: **a foto do WhatsApp não é nossa**, e a URL do `pps.whatsapp.net`
+**expira**.
+
+> **Daí um requisito, não um zelo:** a imagem tem que cair para as iniciais no
+> **`onError`**, e não só quando o campo vem nulo. Uma URL guardada continua
+> parecendo válida no banco depois de morrer, e é o navegador que descobre.
+> **É o mesmo caminho de quem removeu a foto no WhatsApp** — os dois casos
+> chegam na tela como imagem que não carrega, e a tela não sabe distinguir.
+
+Os três estados de `avatar_checked_at` estão comentados na própria 018:
+nunca perguntamos; perguntamos e não há; temos foto, válida até expirar.
+
+### O kardex é leitura pura, e a ordem dele é o conteúdo
+
+Sem migration, sem coluna nova, sem gravar nada.
+
+> **A tela NÃO pode reordenar as linhas** — nem por valor, nem por categoria,
+> nem clicando no cabeçalho. **Saldo corrente só existe na ordem em que o
+> dinheiro andou.** Reordenado, cada linha continua mostrando um saldo, e o
+> saldo passa a ser mentira: a coluna vira uma sequência de números que não
+> corresponde a movimentação nenhuma. Ordenação em tabela é gesto tão comum que
+> alguém a acrescenta por simetria com as outras listagens — esta não é como as
+> outras.
+
+### `lib/datas.ts` — "hoje" no fuso da igreja
+
+Nasceu com o lançamento retroativo e **não conserta o defeito de UTC**; ele
+existe para **impedir que uma regra nova nascesse em cima do defeito**. A regra
+do retroativo é inteiramente sobre data: com o "hoje" de UTC ela erraria três
+horas por dia, justamente no horário em que a secretaria lança o culto da noite.
+
+Usa `organizations.timezone`, com `America/Sao_Paulo` de fallback, e é
+consumido por **dois lugares só**: a validação do lançamento retroativo
+(`lib/finance-records.ts`) e o período padrão do kardex (`lib/finance-kardex.ts`).
+Ver a pendência do UTC, que **continua aberta**.
 
 ## Isolamento entre organizações
 
@@ -442,18 +549,30 @@ comercial, não é permissão.
 ### Bypass de contratação (06/09/2026) — decidido, em implementação
 
 A igreja escolhe o plano, clica, e **a assinatura passa a valer na hora**: sem
-gateway, sem QR, sem webhook e sem credencial. O motivo é direto — o produto
-roda local, não há URL pública para receber webhook, e o que se quer agora é ver
-o fluxo funcionando ponta a ponta.
+gateway, sem QR, sem webhook e sem credencial. O motivo era direto: em
+06/09/2026 o produto rodava local, não havia URL pública para receber webhook, e
+o que se queria era ver o fluxo funcionando ponta a ponta. **A URL pública
+existe desde 07/09/2026** — o que falta agora para o pagamento real é
+credencial e decisão, não hospedagem. Ver "Mercado Pago".
 
-**É atalho de desenvolvimento, não é produto.** Nada aqui substitui a integração
-de pagamento; ele existe para destravar o fluxo enquanto não há hospedagem.
+**É atalho de desenvolvimento, não é produto.** Nada aqui substitui a
+integração de pagamento; ele existe para destravar o fluxo enquanto não há
+pagamento real. **Desde 07/09/2026 há hospedagem** — o que ele destrava passou a
+ser o desenvolvimento, e nada mais: em produção ele é recusado pelo código.
 
 > ### ⚠ O bypass é uma porta dos fundos de faturamento
 >
 > O que está sendo construído é, literalmente, **"clicar e ganhar o plano
 > pago"**. Rodando local é inofensivo. No dia em que existir hospedagem,
 > qualquer pessoa se promoveria para o Comunidade sozinha.
+>
+> **Esse dia chegou em 07/09/2026, e o guarda-corpo é o que está entre as duas
+> frases.** Duas coisas seguram a porta hoje, e é bom que sejam duas: o código
+> **recusa o bypass sempre que `NODE_ENV=production`**, ligada a variável ou não
+> (`lib/billing-bypass.ts`), e a `BILLING_BYPASS` **não foi gravada nas envs de
+> produção**, deixada de fora de propósito — registrado em
+> `/home/lucas/claude.md`. Nenhuma das duas é dispensável por causa da outra:
+> a segunda é configuração, e configuração muda com um clique no painel.
 >
 > Por isso ele nasce com guarda-corpo, e **nenhum destes itens é opcional**:
 >
@@ -519,6 +638,16 @@ concreto:
 webhook existir. **Reabrir a escolha de API** só se cartão virar meio de
 pagamento aceito: aí `preapproval` passa a fazer sentido, e
 `subscriptions.provider_subscription_id` já está reservado para ele.
+
+> **A condição de retomar disparou em 07/09/2026.** Existe hospedagem com URL
+> pública: `https://nonia.lucascriado.com` recebe webhook. Isto está escrito
+> aqui porque condição de retomada que ninguém confere é o mesmo que decisão
+> esquecida — foi para isso que ela foi escrita junto da decisão.
+>
+> **Disparar a condição não é a ordem de retomar.** Retomar exige credencial do
+> Mercado Pago e é decisão do Lucas; o que mudou é que o impedimento técnico
+> acabou, e a análise de _como_ integrar (API de Pagamentos, não `preapproval`)
+> continua valendo tal como está.
 
 ### O que não muda
 
@@ -605,19 +734,25 @@ your own email address"*.
 antes de existir e-mail.
 
 > **O envio está construído, testado contra a API real, e desligado por falta de
-> domínio verificado — por decisão, não por pendência.** O DNS foi dispensado em
-> 06/09/2026. Não é algo a fazer: é algo que dorme até o projeto ter domínio, se
-> um dia tiver. O convite por link continua funcionando e é por ele que a equipe
-> entra.
+> domínio verificado.** O convite por link continua funcionando e é por ele que
+> a equipe entra.
+>
+> **A premissa desta seção caiu em 07/09/2026.** Ela dizia que o envio "dorme
+> até o projeto ter domínio, se um dia tiver" — o projeto tem domínio. Isso
+> **não** significa que o e-mail passou a funcionar: verificar remetente no
+> Resend depende de três registros DNS, e **ninguém mediu se eles foram criados
+> ou se vale criá-los sob `lucascriado.com`**. O que mudou é que deixou de ser
+> impossível e virou decisão do Lucas. Não escreva que funciona sem medir.
 
 Se o assunto voltar, para o envio funcionar faltam três registros DNS: **MX** em
 `send`, **TXT de SPF** em `send` e **TXT de DKIM** em `resend._domainkey`.
 
 > **No Cloudflare eles precisam ficar como DNS only, com o proxy DESLIGADO.**
 > Com a nuvem laranja a verificação falha — é o erro clássico de quem usa
-> Cloudflare. O Resend recomenda subdomínio (`mail.nonia.app`) em vez do domínio
-> raiz. **Verificar não exige hospedar nada**, então isso é possível mesmo com o
-> deploy fora de escopo.
+> Cloudflare. O Resend recomenda subdomínio em vez do domínio raiz. **Verificar
+> não exige hospedar nada** — nunca exigiu, e hoje há hospedagem de qualquer
+> forma. Sob qual zona verificar (`nonia.app`, parada, ou `lucascriado.com`, que
+> é onde a produção está) é parte da decisão.
 
 ## Convite pendente ocupa assento
 
@@ -731,7 +866,12 @@ criação ou se ela alcança algo que já pertence a quem usa.
 
 ## Recuperação de senha — desenho decidido (06/09/2026)
 
-**Nada implementado.** Fica para quando o DNS existir, porque depende de e-mail.
+**Nada implementado.** Depende de e-mail transacional, que depende de remetente
+verificado no Resend — e isso depende de registros DNS que **ninguém mediu se
+existem**. O impedimento que estava escrito aqui era "quando o DNS existir": em
+07/09/2026 o projeto ganhou domínio, então o impedimento deixou de ser
+"não há domínio" e passou a ser "ninguém verificou o remetente". Ver
+"E-mail de convite"; o desenho abaixo continua valendo inteiro.
 
 **Tabela própria, `password_resets`, e não reuso de `invitations`.** O motivo é
 de segurança, não de organização:
@@ -776,10 +916,11 @@ trava de tentativas do login, revoga todas as sessões e emite uma nova (ningué
 Continuam como lacunas conhecidas:
 
 **1. Não existe recuperação de senha por e-mail.** Exige e-mail transacional
-configurado — SMTP e domínio verificado —, que não existe; com o domínio fora de
-escopo, ficou mais caro ainda. O caminho `/recuperar-senha` aparece em
-`GUEST_ONLY_PAGES` do `proxy.ts` sem página correspondente: é resíduo, não
-promessa.
+com **remetente verificado**, que não existe. Até 06/09/2026 o obstáculo era não
+haver domínio nenhum; **desde 07/09/2026 há domínio**, e o obstáculo passou a ser
+só a verificação — mais barato que antes, e ainda assim não feito. O caminho
+`/recuperar-senha` aparece em `GUEST_ONLY_PAGES` do `proxy.ts` sem página
+correspondente: é resíduo, não promessa.
 
 **2. Quem acessa duas igrejas e ESQUECE a senha continua sem saída.** A nuance
 importa: quem ainda lembra da senha troca por `POST /api/auth/password` — que
@@ -797,31 +938,49 @@ Nada aqui foi esquecido nem apagado: foi feito, estava certo para o contexto de
 então, e o contexto mudou. Está escrito para que ninguém refaça achando que
 faltou.
 
-### "Ninguém dá push" — regra revista em 06/09/2026
+### "Ninguém dá push" — a REGRA é a mesma; o MOTIVO já mudou duas vezes
 
-A proibição de push valia por um motivo específico: push na `main` disparava
-deploy em produção pelo GitHub App. **Com a aplicação do Coolify excluída, esse
-gatilho não existe mais**, e o risco se inverteu — o trabalho todo passou a
-viver numa máquina só. Push na própria branch virou obrigação, não permissão.
-O que sobreviveu da regra antiga é a `main`, que continua sendo do gerente.
+A proibição nasceu de um motivo específico: push na `main` disparava deploy em
+produção pelo GitHub App. Em **06/09/2026** a aplicação do Coolify foi excluída,
+esse gatilho sumiu e o risco se inverteu — o trabalho todo passou a viver numa
+máquina só. Push **na própria branch** virou obrigação, não permissão.
 
-### Hospedagem, domínio e deploy — fora de escopo em 06/09/2026
+**Em 07/09/2026 a produção voltou.** O texto anterior desta seção dizia que "o
+gatilho não existe mais" porque a aplicação tinha sido excluída — **isso deixou
+de ser verdade**, e é o tipo de frase que faz alguém relaxar a regra achando que
+o risco sumiu junto com o motivo. O que segura o gatilho hoje é outra coisa:
 
-Decisão do Lucas: rodar localmente por enquanto, sem domínio nem DNS, e excluir
-a aplicação criada no Coolify. Só importa o banco estar online.
+- o **auto-deploy está desligado**, de propósito, porque **todo deploy roda as
+  migrations**;
+- **quem manda deployar é o gerente**, à mão.
 
-| O que existia | Situação |
+A regra, portanto, continua idêntica — **push na sua branch sempre, `main` só o
+gerente** —, mas agora ela protege produção de novo, e não apenas a árvore de
+integração. Quem um dia ligar o auto-deploy está mexendo na única coisa que
+separa um push de uma migration em produção.
+
+### ~~Hospedagem, domínio e deploy — fora de escopo em 06/09/2026~~ — REVERTIDA em 07/09/2026
+
+**Decisão de 06/09/2026:** rodar localmente, sem domínio nem DNS, e excluir a
+aplicação criada no Coolify. **Revertida pelo Lucas em 07/09/2026:** há produção
+no ar — ver "Produção".
+
+As duas datas ficam porque a seção era **instrução**, e a instrução mudou de
+sinal. Quem só ler o título antigo faz o contrário do que vale hoje.
+
+| O que aquela decisão dizia | O que vale em 07/09/2026 |
 | --- | --- |
-| Aplicação `nonia` no Coolify, criada em 06/09/2026 com `fqdn` nulo e auto-deploy desligado | **Descartada.** Nunca foi publicada, nunca teve container. A exclusão ficou com o admin de VPS. O uuid dela é **histórico** — não recrie a aplicação |
-| Plano de DNS/Cloudflare para `nonia.app` (7 etapas, Origin CA da zona antes da nuvem laranja) | **Dispensado pelo Lucas em 06/09/2026**, porque o projeto roda local e só o banco é remoto. Não é "aguardando decisão": a decisão veio, e é não. O levantamento continua correto e está em `/home/lucas/www/FASE0-INFRA.md` caso o assunto volte um dia |
-| `www.nonia.app` | Nunca existiu registro, e não vai existir por ora |
-| Env `APP_URL` | **Saiu da lista.** Só servia para montar link de convite com domínio público |
-| "Não deployar enquanto as rotas estiverem abertas" | O raciocínio estava certo e virou **inaplicável**: não há para onde deployar. A regra que sobrevive é a de integração — ver "Escopo atual" |
+| "Aplicação `nonia` no Coolify: descartada. O uuid dela é histórico — **não recrie a aplicação**" | **Instrução vencida.** Uma aplicação nova foi criada em 07/09/2026, no projeto `nonia.app`, e está publicada. A de 06/09/2026 continua excluída e o uuid dela continua histórico: **são duas aplicações diferentes**, e confundi-las manda trabalho para um recurso que não existe |
+| "Plano de DNS/Cloudflare para `nonia.app`: dispensado" | **Parcialmente vencido.** A produção subiu em **subdomínio de `lucascriado.com`**, que não precisou de DNS novo nem de certificado novo. Para **`nonia.app`** o plano segue dispensado e o levantamento em `/home/lucas/www/FASE0-INFRA.md` continua correto |
+| "`www.nonia.app`: nunca existiu registro" | Continua verdade |
+| "Env `APP_URL`: **saiu da lista**. Só servia para montar link de convite com domínio público" | **Instrução vencida, pelo próprio motivo dela.** O domínio público existe, e a variável está gravada em produção. Voltou à lista — ver "Variáveis de ambiente" |
+| "Não deployar enquanto as rotas estiverem abertas" | **Vencido em 07/09/2026**, e conferido, não presumido: 46 das 49 rotas de API têm guarda (`requirePermission`, `requireSession` ou `requireRole`), e as três sem guarda — `health`, `auth/invite`, `auth/logout` — são abertas de propósito; as páginas de `(app)` devolvem 307 para `/entrar`. Medido em produção: `/painel` 307, `/api/members` 401 |
 
 O `Dockerfile`, o `docker-compose.yml` e o `HEALTHCHECK` em `/api/health`
-continuam no repositório e funcionam localmente. Quando a hospedagem voltar ao
-escopo, o caminho é Coolify com build pack `dockerfile` na porta 3000, e as
-migrations rodam no boot do container — mas isso é plano, não estado.
+continuam no repositório. **Deixaram de ser plano:** é por esse caminho que a
+produção roda — Coolify, build pack `dockerfile`, porta 3000 no container, e as
+migrations rodando no boot. É justamente por rodarem no boot que o auto-deploy
+fica desligado.
 
 ## Por que existe um banco compartilhado
 
@@ -830,7 +989,7 @@ o `sudo` pede uma senha que ninguém do time tem —, então o desenvolvimento
 aponta para o `nonia_dev`, remoto, por túnel SSH.
 
 **A limitação é desta máquina e não se transfere.** O repositório é
-auto-suficiente: 8 migrations, seed idempotente com login de demonstração, e
+auto-suficiente: **19 migrations**, seed idempotente com login de demonstração, e
 `db:migrate`, `db:seed:dev`, `db:status` e `auth:owner` prontos. Quem tem
 administrador no próprio computador instala Postgres 15+, aponta a
 `DATABASE_URL` para `localhost` e não precisa de SSH, de túnel, de credencial de
@@ -848,18 +1007,22 @@ vezes em 06/09/2026.
 
 ## Infraestrutura — o que importa hoje
 
-**Só o banco.** Não há aplicação hospedada, domínio nem deploy no escopo atual.
-Cada dev roda o nonia na própria máquina (`npm run dev`) contra o `nonia_dev`,
-alcançado pelo túnel SSH `nonia-db-tunnel.service` em `127.0.0.1:5432`.
+**São duas coisas desde 07/09/2026, não uma.**
 
-Daí a pendência de infra número 1 ser o **`linger`**: sem ele, o túnel morre
-quando o Lucas encerra a sessão e o time inteiro fica sem banco. Antes era um
-incômodo; com tudo rodando local contra um banco remoto, é o ponto único de
-falha do dia a dia.
+- **Produção** — `https://nonia.lucascriado.com`, no Coolify, contra a base
+  `postgres` do servidor. Deploy à mão, pelo gerente, com auto-deploy desligado.
+- **Desenvolvimento** — cada dev roda o nonia na própria máquina contra o
+  `nonia_dev`, alcançado pelo túnel SSH `nonia-db-tunnel.service` em
+  `127.0.0.1:5432`.
 
-O `Dockerfile` e o `docker-compose.yml` continuam no repositório e funcionam
-para subir tudo localmente. O que saiu de cena foi a hospedagem — ver
-"Mudanças de escopo".
+O **`linger` deixou de ser a pendência de infra nº 1** em 07/09/2026. O
+argumento que o colocava em primeiro lugar era que o túnel seria o **único**
+caminho do time até dado — e não é mais, porque existe produção. Ele continua
+sendo o único caminho até o `nonia_dev` e o `nonia_front`: sem ele o time para
+de desenvolver, mas o produto não cai. Continua aberto, com outro peso.
+
+O `Dockerfile` e o `docker-compose.yml` continuam subindo tudo localmente **e
+agora são o caminho da produção** — ver "Mudanças de escopo".
 
 **Identificadores e pendências de infra (uuids, hosts, senhas, faixas de
 firewall, `linger` do túnel de desenvolvimento) vivem em um
@@ -891,7 +1054,8 @@ português em servidor anterior, em vez de estourar erro de sintaxe.
 | Variável | Papel |
 | --- | --- |
 | `DATABASE_URL` | **obrigatória**, única exigida hoje |
-| `PORT` | opcional, padrão 3000 |
+| `APP_URL` | **voltou à lista em 07/09/2026**, e está setada em produção com `https://nonia.lucascriado.com`. `lib/invitations.ts` a usa para montar o link do convite; sem ela vale o host da requisição, que localmente é o que se quer e em produção seria o link errado |
+| `PORT` | opcional, padrão 3000. A convenção do projeto em desenvolvimento é **3111** — ver "Estado do MVP" |
 | `MIGRATE_CONNECT_ATTEMPTS` | opcional, tentativas de conexão do `migrate.mjs` (padrão 15) |
 | `BILLING_BYPASS` | liga o bypass de contratação. **Desligada por padrão; sem ela a rota não existe**, e é recusada em produção mesmo ligada. Nunca em ambiente exposto |
 
@@ -901,9 +1065,11 @@ As credenciais do Mercado Pago (`MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) saíram
 desta lista em 06/09/2026: com a integração suspensa, não são necessárias.
 Voltam quando o pagamento real voltar.
 
-`APP_URL` saiu desta lista em 06/09/2026: ela só servia para montar o link de
-convite com um domínio público, que não existe mais no escopo. Sem ela, vale o
-host da requisição — que localmente é o que se quer.
+**`APP_URL` voltou em 07/09/2026, e o motivo pelo qual ela voltou é o mesmo
+pelo qual tinha saído.** Ela saiu porque só servia para montar o link de convite
+com um domínio público, e domínio público não existia. Existe: a variável está
+gravada em produção com `https://nonia.lucascriado.com`. Em desenvolvimento
+continua opcional — sem ela vale o host da requisição, que é o certo localmente.
 
 ## Listagens: paginação e filtro no servidor
 
@@ -973,8 +1139,17 @@ Datadas para que ninguém as leia como fato consumado.
 | **`purgeStaleSessions()` existe em `lib/auth.ts` e ninguém chama** — a tabela `sessions` cresce para sempre. Levantado pelo próprio backend logo após remover as permissões órfãs, para não ficar com dois pesos | 06/09/2026 |
 | **`PATCH /api/users/<id>` com id malformado devolve 500 em vez de 404.** Uuid válido inexistente devolve 404 certo; o malformado cai no catch genérico — mesmo gênero do JSON malformado | 06/09/2026 |
 | **"Consolidação financeira da rede" é promessa não cumprida.** O seletor de igreja existe; consolidar dados de várias numa visão só não. Ver "Multi-congregação" | 06/09/2026 |
-| **Data gravada em UTC nasce errada à noite.** `lib/models.ts:159` usa `new Date().toISOString().slice(0, 10)` como padrão de `transaction_date`. Medido em 06/09/2026: às 21h30 em Brasília, o local é 06/09 e o gravado é **07/09**. Todo lançamento criado **entre 21h e meia-noite** cai no dia seguinte — e no dia 30 ou 31, no **mês** seguinte, deslocando o fechamento da tesouraria. É dado contábil, e reunião de igreja termina de noite. **A correção carrega uma escolha de desenho:** usar o `timezone` da organização (a coluna existe e está sem uso) ou fixar `America/Sao_Paulo`. Decisão do Lucas | 06/09/2026 |
-| **`linger` do túnel de banco — pendência de infra nº 1.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão e **o time inteiro fica sem banco**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09/2026 |
-| **`.env.example` descreve um mundo que não existe mais**: documenta `APP_URL`, que saiu do escopo junto com o domínio, e fala em "Em produção (Coolify)" num projeto sem produção. É arquivo do backend pela regra de propriedade, e está com ele | 06/09/2026 |
+| **Data gravada em UTC nasce errada à noite — CONTINUA ABERTA, e mudou de forma em 07/09/2026.** Medido em 06/09/2026: às 21h30 em Brasília, o local é 06/09 e o gravado é **07/09**. Todo lançamento criado **entre 21h e meia-noite** cai no dia seguinte — e no dia 30 ou 31, no **mês** seguinte, deslocando o fechamento da tesouraria. É dado contábil, e reunião de igreja termina de noite. **O que mudou:** existe `lib/datas.ts`, que calcula "hoje" no fuso da igreja por `organizations.timezone` — mas ele é usado **só** pela validação do lançamento retroativo e pelo período padrão do kardex. Ele foi escrito para **não deixar uma regra nova nascer em cima do defeito**, não para consertá-lo. **Os três lugares do defeito continuam intocados:** `components/financial-record-dialog.tsx:28`, o `defaultValue` de `transactionDate` em `lib/models.ts` e o `DEFAULT CURRENT_DATE` do banco (`003`). Quem ler o `lib/datas.ts` e achar que a pendência fechou está errado. **A correção carrega uma escolha de desenho** — usar o `timezone` da organização, como o `datas.ts` já faz, ou fixar `America/Sao_Paulo` — e mudá-la muda o que a igreja vê e o que passa a ser gravado. Decisão do Lucas | 06/09, revista em 07/09/2026 |
+| **`linger` do túnel de banco — continua aberta, e DEIXOU de ser a nº 1 em 07/09/2026.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão. O que a colocava em primeiro lugar era o túnel ser o **único** caminho do time até dado; com produção no ar, ele deixou de ser. Continua sendo o único caminho até o `nonia_dev` e o `nonia_front`: sem ele **o time para de desenvolver, mas o produto não cai**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09, rebaixada em 07/09/2026 |
+| **`.env.example` descreve um mundo que não existe mais — e desde 07/09/2026 pelo motivo oposto.** Ele diz que `APP_URL` é "opcional, e hoje sem uso" e que "não há hospedagem nem domínio no escopo atual". As duas frases eram verdade em 06/09 e são falsas agora: há domínio, e a variável **está gravada em produção**. O bloco do `BILLING_BYPASS` continua correto e é o melhor pedaço do arquivo. É arquivo do backend pela regra de propriedade, e está com ele | 06/09, revista em 07/09/2026 |
 | **Formulário de membro oferece quatro ministérios que não existem.** `components/person-record-dialog.tsx:120` traz `["Nenhum", "Louvor", "Missões", "Acolhimento", "Infantil"]` fixos como estado inicial; a linha 189 só troca pela lista real da igreja **se a resposta for `ok`**, e o `catch` engole a falha. Medido em igreja com zero ministérios, com `/api/ministries` forçado a 403: o campo oferece os quatro. Quem escolher um é atendido em silêncio — `app/api/members/route.ts:90` resolve pelo nome dentro da organização, não acha e grava `ministry_id NULL`; o `POST` respondeu **201** e a listagem depois mostra "Nenhum". O campo ainda está marcado obrigatório. Frontend | 07/09/2026 |
-| **O sino de notificações não faz nada, e promete que faz.** `components/header.tsx:94` não tem `onClick`, e a classe `has-dot` — o pontinho vermelho de "tem coisa nova" — é fixa no código, não vem de dado. Numa igreja criada havia cinco minutos e sem um único registro, o pontinho está lá; clicar só move o foco, nenhuma chamada sai. Mesmo gênero do logout que era link morto, com o agravante de prometer. Frontend | 07/09/2026 |
+| **Superusuário do Postgres em produção.** A aplicação de produção entra no cluster como `postgres`, e esse cluster também hospeda o `nonia_dev` e o `nonia_front` — escolha do Lucas em 07/09/2026, depois de recomendação em contrário. Migrar para role própria quando houver janela. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 07/09/2026 |
+
+### Fechadas em 07/09/2026
+
+Ficam registradas para que ninguém as reabra achando que continuam de pé, e
+porque o motivo de cada uma ensina mais que o conserto.
+
+| Pendência | O que fechou |
+| --- | --- |
+| **O sino de notificações não faz nada, e promete que faz** | O pontinho vermelho `has-dot` era **chumbado no código**, não vinha de dado: numa igreja criada havia cinco minutos, sem um único registro, ele estava lá. Agora o botão **abre um painel**, e o painel diz a verdade — estado vazio honesto. **Prometer é pior que faltar:** o sino sem `onClick` era o mesmo gênero do logout que era link morto, com o agravante de anunciar novidade inexistente |
