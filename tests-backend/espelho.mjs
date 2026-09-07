@@ -3,7 +3,7 @@
 //
 // O nome da suíte é o pedido do Lucas: espelhar o WhatsApp, não ler mensagens.
 import pg from "/home/lucas/www/nonia-auth/node_modules/pg/lib/index.js";
-import { iniciarOpenWaFalso, conectarSessao, caixa, enviadas, midias, telefonesPorLid, chamadas } from "./openwa-falso.mjs";
+import { iniciarOpenWaFalso, conectarSessao, caixa, enviadas, midias, telefonesPorLid, contatos, chamadas } from "./openwa-falso.mjs";
 const BASE = "http://127.0.0.1:3210";
 let pass = 0, fail = 0;
 const ok = (c, l, e = "") => { c ? (pass++, console.log(`  ok    ${l}`)) : (fail++, console.log(`  FALHA ${l} ${e}`)); };
@@ -91,7 +91,7 @@ ok(chamadas.resolverTelefone === depoisDaPrimeira,
 const grupoConsultado = (await sql.query("SELECT phone_lookup_at FROM whatsapp_conversations WHERE chat_id = '120363@g.us'")).rows[0];
 ok(grupoConsultado.phone_lookup_at === null, "grupo nunca é consultado: grupo não tem telefone", String(grupoConsultado?.phone_lookup_at));
 
-console.log("\n== GRUPO: desenhado e defendido, mas NUNCA medido contra um grupo real ==");
+console.log("\n== GRUPO: agora medido contra grupo real -- 16 na conta, 655/655 com author ==");
 r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
 const idGrupo = r.d.records.find((c) => c.chatId === "120363@g.us").id;
 ok(r.d.records.find((c) => c.id === idGrupo).kind === "group", "entra como grupo", "");
@@ -99,6 +99,37 @@ r = await call("GET", `/api/whatsapp/conversas/${idGrupo}`, { cookie: A });
 ok(r.s === 200 && r.d.messages.length === 1, "abrir um grupo não quebra", `${r.s} ${r.d?.messages?.length}`);
 ok(r.d.messages[0].author === "444@lid", "quem falou vem em author -- em grupo, `from` é o grupo", r.d.messages[0]?.author);
 ok(r.d.messages[0].authorName === "Irmão João", "e com NOME, senão o grupo vira balão sem dono", r.d.messages[0]?.authorName);
+
+console.log("\n== NO HISTORICO NAO VEM NOME, e e assim na conta real ==");
+// Medido: `author` preenchido em 655 de 655 mensagens de grupo, e `author_name`
+// VAZIO em 655 de 655 -- o notifyName vive no evento ao vivo e nao no historico.
+// Estas tres NAO trazem `contact`, que e a forma que o historico real tem.
+contatos.set("777@lid", { name: "Irmã Cida", number: "5511977770000" });
+contatos.set("888@lid", { pushName: "Ze do Louvor" });         // sem agenda, so nome de exibicao
+// 999@lid nao entra no mapa: o motor nao conhece, e isso e resposta, nao erro.
+caixa.mensagens.get("120363@g.us").push(
+  { id: "g2", chatId: "120363@g.us", from: "120363@g.us", author: "777@lid", body: "levo o bolo", type: "text", timestamp: agora - 240, fromMe: false, isGroup: true },
+  { id: "g3", chatId: "120363@g.us", from: "120363@g.us", author: "888@lid", body: "combinado", type: "text", timestamp: agora - 230, fromMe: false, isGroup: true },
+  { id: "g4", chatId: "120363@g.us", from: "120363@g.us", author: "999@lid", body: "amem", type: "text", timestamp: agora - 220, fromMe: false, isGroup: true });
+r = await call("GET", `/api/whatsapp/conversas/${idGrupo}`, { cookie: A });
+const porAutor = Object.fromEntries(r.d.messages.map((m) => [m.waMessageId, m]));
+ok(porAutor.g2?.authorName === "Irmã Cida", "nome da agenda aparece", porAutor.g2?.authorName);
+ok(porAutor.g3?.authorName === "Ze do Louvor", "e quem nao esta na agenda aparece pelo nome de exibicao", porAutor.g3?.authorName);
+ok(porAutor.g4?.authorName === null, "quem o motor nao conhece fica sem nome -- e resposta, nao erro", JSON.stringify(porAutor.g4?.authorName));
+ok(porAutor.g4?.author === "999@lid", "mas o id de quem falou continua la, para a tela nao juntar balao de gente diferente", porAutor.g4?.author);
+
+console.log("\n== e nao vira uma consulta de rede por participante a cada abertura ==");
+const depois = chamadas.lerContato;
+await call("GET", `/api/whatsapp/conversas/${idGrupo}`, { cookie: A });
+await call("GET", `/api/whatsapp/conversas/${idGrupo}`, { cookie: A });
+ok(chamadas.lerContato === depois,
+   "reabrir o grupo duas vezes NAO repete nenhuma consulta -- nem para quem nunca resolve",
+   `${depois} -> ${chamadas.lerContato}`);
+const antesDoIndividual = chamadas.lerContato;
+const umIndividual = (await call("GET", "/api/whatsapp/conversas", { cookie: A })).d.records.find((c) => c.kind !== "group").id;
+await call("GET", `/api/whatsapp/conversas/${umIndividual}`, { cookie: A });
+ok(chamadas.lerContato === antesDoIndividual,
+   "e conversa individual nao pede nome nenhum: la o author vem vazio, medido 0 de 45", chamadas.lerContato);
 
 console.log("\n== hasMedia sai do TIPO, nunca da presença dos bytes ==");
 r = await call("GET", "/api/whatsapp/conversas", { cookie: A });

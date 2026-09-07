@@ -413,6 +413,23 @@ export async function baixarMidia(
  * aqui nunca derruba a sincronização -- ela deixa a conversa sem telefone, que é
  * o estado que já existia.
  */
+/**
+ * O contato por trás de um id -- é como o nome de quem falou num grupo aparece.
+ *
+ * `name` é o da agenda e só existe para contato salvo; `pushName` é o nome de
+ * exibição que a própria pessoa escolheu, e vem mesmo para quem não está na
+ * agenda. Medido em 07/09/2026: cinco autores de grupo, cinco respostas, e o
+ * quinto tinha só `pushName` -- por isso os dois, nessa ordem.
+ *
+ * A resposta traz `number` junto. Não é usado hoje, e fica registrado porque é
+ * o caminho para casar quem fala num grupo com a ficha do cadastro sem gastar
+ * uma segunda requisição.
+ */
+export type ContatoLido = { id: string; name?: string | null; pushName?: string | null; number?: string | null };
+
+export const lerContato = (sessionId: string, chave: string, contactId: string) =>
+  chamar<ContatoLido>(`/api/sessions/${sessionId}/contacts/${encodeURIComponent(contactId)}`, { chave });
+
 export const resolverTelefone = (sessionId: string, chave: string, contactId: string) =>
   chamar<{ contactId: string; phone: string | null }>(
     `/api/sessions/${sessionId}/contacts/${encodeURIComponent(contactId)}/phone`,

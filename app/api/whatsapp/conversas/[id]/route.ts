@@ -46,6 +46,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       await inbox.sincronizarMensagens(
         conexao, conversa.id, conversa.chat_id, conversa.sync_cursor, fundo ? 500 : undefined);
       await openwa.marcarLida(conexao.sessionId, conexao.apiKey, conversa.chat_id).catch(() => undefined);
+      // Só em grupo: em conversa individual o remetente é a própria conversa, e
+      // `author` vem vazio -- medido, 0 de 45. Pedir nome ali seria uma
+      // requisição de rede garantidamente inútil.
+      if (conversa.kind === "group") {
+        await inbox.resolverNomesDeAutores(conexao, conversa.id).catch(() => undefined);
+      }
       await query(`UPDATE whatsapp_conversations SET unread_count = 0 WHERE id = $1`, [id]);
     } catch {
       sincronizou = false;
@@ -53,7 +59,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     const { rows } = await query(
       `SELECT m.id, m.wa_message_id AS "waMessageId", m.from_me AS "fromMe",
-              m.author, m.author_name AS "authorName",
+              m.author,
+              -- O nome gravado na mensagem só existe quando ela chegou pelo
+              -- evento AO VIVO (é de lá que vem o notifyName). No histórico
+              -- ele é sempre nulo -- 655 de 655 --, e aí quem responde é a
+              -- tabela de contatos, resolvida sob demanda.
+              COALESCE(m.author_name, wc.name) AS "authorName",
               m.type, m.body, m.sent_at AS "sentAt",
               m.media_mimetype AS "mediaMimetype", m.media_filename AS "mediaFilename",
               m.quoted_wa_message_id AS "quotedWaMessageId",
@@ -65,6 +76,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
          LEFT JOIN whatsapp_messages q
                 ON q.organization_id = m.organization_id
                AND q.wa_message_id = m.quoted_wa_message_id
+         LEFT JOIN whatsapp_contacts wc
+                ON wc.organization_id = m.organization_id AND wc.wa_id = m.author
         WHERE m.conversation_id = $1 AND m.organization_id = $2
           -- Aviso do WhatsApp não é mensagem de gente. Ver tipoParaGuardar().
           AND m.type <> 'system'

@@ -22,11 +22,15 @@ export const midias = new Map();  // `${chatId}|${messageId}` -> { bytes, mimety
 // Mapa @lid -> telefone. `null` e resposta legitima: o proprio OpenWA chama a
 // resolucao de best-effort.
 export const telefonesPorLid = new Map();
+// Nome por id de contato. `undefined` no mapa = o motor nao conhece esse
+// contato, e a rota responde 200 com name/pushName ausentes -- que e o que o
+// OpenWA de verdade faz para quem nao esta na agenda nem tem nome de exibicao.
+export const contatos = new Map();  // waId -> { name?, pushName?, number? }
 // Contador de chamadas por rota. Serve a UM teste especifico: resolver contato
 // e chamada de rede POR CONVERSA, e sem memoria o nonia repetiria a consulta a
 // cada abertura da caixa para toda conversa que nunca resolve. Sem contar, esse
 // desperdicio passaria despercebido -- o resultado final seria igual.
-export const chamadas = { resolverTelefone: 0 };
+export const chamadas = { resolverTelefone: 0, lerContato: 0 };
 
 const ADMIN = "admin-de-teste";
 
@@ -189,6 +193,17 @@ export function iniciarOpenWaFalso(porta) {
         "x-content-type-options": "nosniff",
       });
       return res.end(guardada.bytes);
+    }
+    // O contato por tras de um id: e assim que o nome de quem fala num grupo
+    // aparece. `name` so existe para contato salvo; `pushName` vem tambem para
+    // quem nao esta na agenda. Um id desconhecido responde 200 SEM os dois --
+    // nao 404 --, porque "nao sei o nome dele" e resposta, nao erro.
+    if ((g = m(/^\/sessions\/([^/]+)\/contacts\/([^/]+)$/)) && req.method === "GET") {
+      const a = autorizar(req, g[1]); if (!a.ok) return responder(a.status, { message: a.message });
+      if (!pronta(g[1])) return responder(409, { message: "The session is not connected" });
+      const waId = decodeURIComponent(g[2]);
+      chamadas.lerContato += 1;
+      return responder(200, { id: waId, ...(contatos.get(waId) ?? {}) });
     }
     // Resolver @lid -> telefone. `phone: null` e resposta valida, nao erro.
     if ((g = m(/^\/sessions\/([^/]+)\/contacts\/([^/]+)\/phone$/)) && req.method === "GET") {

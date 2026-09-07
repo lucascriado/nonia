@@ -411,6 +411,60 @@ export async function avancarSincronizacao(conexao: Conexao, quantas = 3) {
   return rows.length;
 }
 
+/**
+ * O NOME DE QUEM FALOU NUM GRUPO, resolvido sob demanda.
+ *
+ * Mesmo desenho do `@lid`, e pela mesma razão: é UMA REQUISIÇÃO DE REDE POR
+ * PARTICIPANTE. Sob demanda (só ao abrir a conversa), com teto (alguns por
+ * abertura) e com memória (`whatsapp_contacts`) -- sem a memória, um grupo de
+ * 200 pessoas vira 200 consultas toda vez que alguém abre a conversa, para
+ * sempre, inclusive para quem nunca vai resolver.
+ *
+ * A LINHA EXISTIR é a memória. `name` NULL é resposta -- perguntamos e o motor
+ * não soube --, e é diferente de não ter perguntado, que é a linha não existir.
+ * Sem essa distinção, "não sei o nome dele" viraria uma pergunta eterna.
+ *
+ * Resolve os autores DESTA conversa, e não os da igreja inteira: quem abriu um
+ * grupo quer os nomes daquele grupo. Uma varredura global gastaria rede com
+ * conversas que ninguém está olhando -- o mesmo "quem avança é quem olha" do
+ * resto do projeto.
+ */
+export async function resolverNomesDeAutores(conexao: Conexao, conversaId: string, quantos = 20) {
+  const { rows } = await query<{ author: string }>(
+    `SELECT DISTINCT m.author FROM whatsapp_messages m
+       LEFT JOIN whatsapp_contacts c
+              ON c.organization_id = m.organization_id AND c.wa_id = m.author
+      WHERE m.conversation_id = $1 AND m.organization_id = $2
+        AND m.author IS NOT NULL AND m.author_name IS NULL
+        AND c.wa_id IS NULL
+      LIMIT ${quantos}`,
+    [conversaId, conexao.organizationId],
+  );
+  let resolvidos = 0;
+  for (const { author } of rows) {
+    let nome: string | null = null;
+    try {
+      const contato = await openwa.lerContato(conexao.sessionId, conexao.apiKey, author);
+      nome = contato.name?.trim() || contato.pushName?.trim() || null;
+    } catch {
+      // Segue para o próximo. Um participante que o motor não conhece não pode
+      // impedir os outros de ganharem nome.
+    }
+    // Gravada mesmo com nome nulo: é a marca de "já perguntei". Sem ela, este
+    // mesmo autor voltaria na consulta acima a cada abertura da conversa.
+    await query(
+      `INSERT INTO whatsapp_contacts (organization_id, wa_id, name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (organization_id, wa_id) DO UPDATE SET
+         name = COALESCE(EXCLUDED.name, whatsapp_contacts.name),
+         looked_up_at = now(), updated_at = now()`,
+      [conexao.organizationId, author, nome],
+    );
+    if (nome) resolvidos += 1;
+  }
+  return resolvidos;
+}
+
 export type EstadoSync = {
   state: "never_synced" | "syncing" | "idle";
   chatsConhecidos: number;
