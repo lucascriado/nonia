@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Users } from "lucide-react";
+import { Check, Search, Users } from "lucide-react";
 import { ActivitySkeleton } from "@/components/skeleton";
 import type { Conversation, InboxSync } from "@/components/whatsapp/api";
 
@@ -138,7 +138,7 @@ export function ConversationList({
 }
 
 /**
- * Quanto já veio, enquanto está vindo.
+ * Em que pé está a caixa, e ela responde DUAS perguntas.
  *
  * Fica FORA do bloco de vazio de propósito: a sincronização continua depois
  * que as primeiras conversas aparecem, e era justamente aí que o progresso
@@ -158,7 +158,7 @@ export function ConversationList({
  * 210" virando "34 de 340" se explica sozinho; "16%" virando "10%" não.
  */
 function ProgressoDaSincronia({ sync, connected }: { sync: InboxSync | null; connected: boolean }) {
-  if (!connected || !sync || sync.state === "idle") return null;
+  if (!connected || !sync) return null;
 
   if (sync.state === "never_synced") {
     return (
@@ -170,6 +170,26 @@ function ProgressoDaSincronia({ sync, connected }: { sync: InboxSync | null; con
 
   const total = sync.chatsConhecidos;
   const feitas = sync.chatsSincronizados;
+
+  if (sync.state === "idle") {
+    // Sem conversa nenhuma quem responde é o cartão de vazio, logo abaixo.
+    if (total === 0) return null;
+    return (
+      <p className="wa-sync is-pronta" role="status">
+        <Check aria-hidden />
+        <span>
+          {/* CONVERSAS, nunca "mensagens". O que veio de cada conversa foram as
+              mais recentes, e há mais atrás -- o `hasMore` de cada uma diz
+              isso. Escrever "tudo carregado" trocaria uma dúvida honesta por
+              uma afirmação falsa, que ele descobriria sozinho ao rolar até o
+              topo de uma conversa. */}
+          <strong>{total} {total === 1 ? "conversa carregada" : "conversas carregadas"}.</strong>{" "}
+          Dentro de cada uma estão as mensagens mais recentes; as antigas você traz na própria conversa.
+        </span>
+      </p>
+    );
+  }
+
   const porcento = total > 0 ? Math.min(99, Math.floor((feitas / total) * 100)) : null;
 
   return (
@@ -181,6 +201,11 @@ function ProgressoDaSincronia({ sync, connected }: { sync: InboxSync | null; con
       {porcento !== null && (
         <i aria-hidden className="wa-sync-barra"><i style={{ width: `${porcento}%` }} /></i>
       )}
+      {/* A segunda pergunta dele: "quando eu já consigo ler?". A resposta é
+          AGORA, e foi medida -- abrir uma conversa traz o histórico dela na
+          hora, mesmo as que a sincronização de fundo ainda não alcançou. Sem
+          esta linha ele fica esperando o fim para começar a usar. */}
+      <small>Já dá para ler: abra qualquer conversa da lista, não precisa esperar terminar.</small>
     </p>
   );
 }

@@ -2925,6 +2925,11 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    informação de andamento, não aviso. */
 .wa-sync { display: grid; gap: 6px; margin: 0; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); background: var(--panel-soft); color: var(--muted); font-size: 0.75rem; line-height: 1.45; }
 .wa-sync strong { color: var(--text); font-weight: 600; }
+.wa-sync small { color: var(--muted); font-size: 0.6875rem; }
+/* Terminou: AFIRMA, em vez de sumir. Ausência não é confirmação -- sem esta
+   linha, "acabou" e "nunca começou" produziam a mesma tela: nada. */
+.wa-sync.is-pronta { display: flex; align-items: flex-start; gap: 8px; }
+.wa-sync.is-pronta svg { width: 14px; flex: 0 0 14px; margin-top: 2px; color: var(--primary); }
 .wa-sync-barra { display: block; height: 4px; overflow: hidden; border-radius: 999px; background: var(--neutral-soft); }
 .wa-sync-barra > i { display: block; height: 100%; border-radius: 999px; background: var(--primary); transition: width .5s var(--ease-out); }
 
