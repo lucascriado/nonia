@@ -159,3 +159,128 @@ export function formatDuration(segundos: number) {
   const resto = minutos % 60;
   return resto ? `cerca de ${horas}h${String(resto).padStart(2, "0")}` : `cerca de ${horas} hora${horas > 1 ? "s" : ""}`;
 }
+
+/* ------------------------------------------------------------------ *
+ * Caixa de entrada
+ *
+ * Os tipos abaixo vêm das rotas `app/api/whatsapp/conversas/*`, que são o
+ * contrato. Três coisas que a tela NÃO pode inventar por conta própria, e por
+ * isso estão anotadas aqui:
+ *
+ *  - marcar como lida NÃO tem rota: abrir a conversa é o que zera o não-lido,
+ *    do lado do servidor. Não existe "marcar como não lida", então a tela não
+ *    oferece.
+ *  - o PATCH não é leitura: ele VINCULA a conversa a uma pessoa do cadastro.
+ *  - a prévia de mídia vem calculada do servidor, em texto entre colchetes.
+ *    A tela não tem tabela de tipos e não deve ganhar uma.
+ * ------------------------------------------------------------------ */
+
+export type SyncState = "never_synced" | "syncing" | "idle";
+
+/**
+ * O bloco que impede o vazio mentiroso.
+ *
+ * A tela só pode dizer "nenhuma conversa" com `state === "idle" && total === 0`.
+ * Em qualquer outro caso ela mostra progresso COM DENOMINADOR, porque progresso
+ * sem denominador é uma ampulheta.
+ */
+export type InboxSync = {
+  state: SyncState;
+  chatsConhecidos: number;
+  chatsSincronizados: number;
+  lastSyncAt: string | null;
+};
+
+export type Conversation = {
+  id: string;
+  chatId: string;
+  /** `group` é conversa de grupo; o resto é individual. */
+  kind: string;
+  phone: string | null;
+  /** Nome da PESSOA cadastrada quando existe; senão o nome do WhatsApp. */
+  name: string | null;
+  personId: string | null;
+  /** Ninguém do cadastro casou com este número. */
+  naoIdentificado: boolean;
+  lastMessageAt: string | null;
+  preview: string | null;
+  unreadCount: number;
+  /** Já teve o histórico buscado ao menos uma vez. */
+  synced: boolean;
+};
+
+export type ConversationPage = {
+  records: Conversation[];
+  total: number;
+  page: number;
+  pageSize: number;
+  sync: InboxSync;
+  /** DERIVADO de ter conseguido listar, e não da coluna gravada. */
+  connected: boolean;
+};
+
+export type Message = {
+  id: string;
+  waMessageId: string;
+  fromMe: boolean;
+  author: string | null;
+  type: string;
+  body: string | null;
+  hasMedia: boolean;
+  sentAt: string;
+  /** Mídia vira marcador de texto — "[foto]" —, nunca ícone e nunca cor. */
+  preview: string;
+};
+
+export type ConversationDetail = Conversation & {
+  /** Vieram N cheias: há mais atrás, e a tela precisa dizer isso. */
+  hasMore: boolean;
+  deep: boolean;
+  messages: Message[];
+  /** O OpenWA não respondeu: o que está na tela é o último fato conhecido. */
+  stale: boolean;
+};
+
+export function listConversations(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  unread?: boolean;
+}) {
+  const q = new URLSearchParams();
+  q.set("page", String(params.page ?? 1));
+  q.set("pageSize", String(params.pageSize ?? 25));
+  if (params.search?.trim()) q.set("search", params.search.trim());
+  if (params.unread) q.set("unread", "true");
+  return apiRequest<ConversationPage>(`/api/whatsapp/conversas?${q}`);
+}
+
+/**
+ * Abrir a conversa. ABRIR É O QUE SINCRONIZA, e é também o que zera o não-lido.
+ *
+ * `deep` é SOB DEMANDA e nunca automático: acima de 100 a rota do OpenWA avisa
+ * que aumenta o risco de o WhatsApp limitar o número. Gastar esse risco sem
+ * ninguém ter pedido seria decidir pela igreja.
+ */
+export function getConversation(id: string, deep = false) {
+  return apiRequest<ConversationDetail>(`/api/whatsapp/conversas/${id}${deep ? "?deep=true" : ""}`);
+}
+
+/** Responder. 429 `whatsapp_too_fast` é teto de sanidade, não bloqueio da conta. */
+export function replyToConversation(id: string, message: string) {
+  return apiRequest<{ ok: true; waMessageId: string }>(`/api/whatsapp/conversas/${id}`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
+/** Vincula a conversa a uma pessoa do cadastro; `null` desvincula. */
+export function linkConversation(id: string, personId: string | null) {
+  return apiRequest<{ ok: true; personId: string | null }>(`/api/whatsapp/conversas/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ personId }),
+  });
+}
+
+/** O limite do WhatsApp, e o mesmo que o servidor recusa em `message_too_long`. */
+export const LIMITE_MENSAGEM = 4096;
