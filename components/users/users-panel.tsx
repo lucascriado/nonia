@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, KeyRound, LoaderCircle, MailWarning, ShieldCheck, UserMinus, UserPlus, X } from "lucide-react";
+import { Check, Copy, KeyRound, LoaderCircle, Lock, MailWarning, ShieldCheck, UserMinus, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/avatar";
 import { AuthAlert } from "@/components/auth/auth-alert";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthError, emailProblem } from "@/components/auth/session";
 import Link from "next/link";
-import { usePermission, useSession } from "@/components/current-user";
+import { usePermission, useReadOnly, useSession } from "@/components/current-user";
 import { LoadFailure } from "@/components/load-failure";
 import { createInvitation, getRoles, getUsers, removeUser, revokeInvitation, updateUser, type OrganizationUser, type PendingInvitation, type Role } from "@/components/users/users-api";
 import { ResetPasswordDialog } from "@/components/users/reset-password-dialog";
@@ -17,7 +17,12 @@ const emptyForm = { fullName: "", email: "", roleSlug: "" };
 
 export function UsersPanel() {
   const { user: currentUser, plan } = useSession();
-  const canInvite = usePermission("users.write");
+  const podeGerir = usePermission("users.write");
+  // Somente leitura vale para convidar, mudar papel, suspender e remover: são
+  // escritas na organização, e a rota devolve 402. Antes o formulário inteiro
+  // ficava à disposição de quem não podia usá-lo.
+  const readOnly = useReadOnly();
+  const canInvite = podeGerir && !readOnly;
   const [users, setUsers] = useState<OrganizationUser[]>([]);
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -31,6 +36,8 @@ export function UsersPanel() {
   /** Link do convite recém-criado. Só existe aqui: nenhuma listagem o devolve. */
   const [freshInvite, setFreshInvite] = useState<PendingInvitation | null>(null);
   const [resetTarget, setResetTarget] = useState<OrganizationUser | null>(null);
+  /** Convite aberto em diálogo, como o cadastro das cinco listagens. */
+  const [inviting, setInviting] = useState(false);
 
   const refresh = useMemo(
     () => () => {
@@ -95,6 +102,9 @@ export function UsersPanel() {
       setInvitations((current) => [...current, invitation]);
       setFreshInvite(invitation);
       setForm(emptyForm);
+      // Fecha o diálogo: o link do convite aparece no painel atrás dele, e é a
+      // única vez que ele existe — ficar escondido sob um modal seria perdê-lo.
+      setInviting(false);
     } catch (error) {
       if (!(error instanceof AuthError)) throw error;
       if (error.code === "email_taken") setErrors((current) => ({ ...current, email: error.message }));
@@ -132,6 +142,14 @@ export function UsersPanel() {
           <h3>Quem tem acesso</h3>
           <p>Convide a secretaria, os líderes e quem mais ajuda na administração.</p>
         </div>
+        {/* `margin-left: auto` no CSS, não `space-between` no cabeçalho: com
+            três filhos, o space-between joga o do meio para o centro -- o
+            mesmo defeito que o botão de exportar teve nas listagens. */}
+        {canInvite && !seatsFull && (
+          <button className="primary-action" onClick={() => setInviting(true)} type="button">
+            <UserPlus aria-hidden />Convidar
+          </button>
+        )}
       </header>
 
       <ul className="users-list">
@@ -152,7 +170,10 @@ export function UsersPanel() {
             canManage={canInvite}
             invitation={invitation}
             key={invitation.id}
-            onChanged={refresh}
+            // Cancelar o convite tem que levar o link junto: ele fica na tela
+            // depois de criado, e um link revogado que continua copiável manda
+            // a pessoa repassar um endereço que já não abre nada.
+            onChanged={() => { if (invitation.id === freshInvite?.id) setFreshInvite(null); refresh(); }}
             roleName={roles.find((role) => role.slug === invitation.roleSlug)?.name ?? invitation.roleSlug}
           />
         ))}
@@ -176,47 +197,75 @@ export function UsersPanel() {
         </div>
       )}
 
-      {canInvite && !freshInvite && !seatsFull && (
-        <form className="users-invite" noValidate onSubmit={handleSubmit}>
-          <h4><UserPlus aria-hidden />Convidar alguém</h4>
-
-          <AuthAlert message={formError} />
-
-          <AuthField
-            error={errors.fullName}
-            label="Nome"
-            onChange={(event) => setForm((c) => ({ ...c, fullName: event.target.value }))}
-            placeholder="Nome e sobrenome"
-            value={form.fullName}
-          />
-
-          <AuthField
-            error={errors.email}
-            inputMode="email"
-            label="E-mail"
-            onChange={(event) => setForm((c) => ({ ...c, email: event.target.value }))}
-            placeholder="pessoa@suaigreja.com.br"
-            type="email"
-            value={form.email}
-          />
-
-          <div className="mk-field">
-            <label htmlFor="convite-papel">Papel</label>
-            <select
-              id="convite-papel"
-              onChange={(event) => setForm((c) => ({ ...c, roleSlug: event.target.value }))}
-              value={form.roleSlug || defaultRole}
-            >
-              {roles.map((role) => <option key={role.slug} value={role.slug}>{role.name}</option>)}
-            </select>
-            <small>{roles.find((role) => role.slug === (form.roleSlug || defaultRole))?.description}</small>
-          </div>
-
-          <button className="primary-action" disabled={submitting} type="submit">
-            {submitting ? <><LoaderCircle className="button-spinner" aria-hidden /> Gerando convite…</> : <><UserPlus aria-hidden />Gerar convite</>}
-          </button>
-        </form>
+      {/* Sozinha na igreja: uma frase e um caminho, como o estado de primeira
+          vez das listagens. Uma linha só na lista, com o formulário inteiro
+          embaixo, era a tela cheia com dado vazio. */}
+      {users.length === 1 && invitations.length === 0 && !freshInvite && (
+        <p className="users-solo">
+          Você é a única pessoa com acesso a esta igreja.
+          {canInvite && !seatsFull && " Convide quem ajuda na administração para dividir o trabalho."}
+        </p>
       )}
+
+      {readOnly && podeGerir && (
+        <p className="users-readonly">
+          <Lock aria-hidden />
+          <span>Convidar, mudar papel, suspender e remover ficam indisponíveis enquanto a conta estiver em somente leitura. Regularize a mensalidade para voltar a gerir os acessos.</span>
+        </p>
+      )}
+
+      {inviting && (
+        <div className="form-dialog-layer" onPointerDown={(event) => !submitting && event.currentTarget === event.target && setInviting(false)}>
+          <section aria-labelledby="convidar-titulo" aria-modal="true" className="form-dialog" role="dialog">
+            <form className="users-invite" noValidate onSubmit={handleSubmit}>
+              <div className="form-dialog-body">
+                <h2 id="convidar-titulo">Convidar alguém</h2>
+                <p>O convite vira um link que você mesmo repassa: o nonia ainda não envia e-mail.</p>
+
+                    <AuthAlert message={formError} />
+
+                <AuthField
+                  error={errors.fullName}
+                  label="Nome"
+                  onChange={(event) => setForm((c) => ({ ...c, fullName: event.target.value }))}
+                  placeholder="Nome e sobrenome"
+                  value={form.fullName}
+                />
+
+                <AuthField
+                  error={errors.email}
+                  inputMode="email"
+                  label="E-mail"
+                  onChange={(event) => setForm((c) => ({ ...c, email: event.target.value }))}
+                  placeholder="pessoa@suaigreja.com.br"
+                  type="email"
+                  value={form.email}
+                />
+
+                <div className="mk-field">
+                  <label htmlFor="convite-papel">Papel</label>
+                  <select
+                    id="convite-papel"
+                    onChange={(event) => setForm((c) => ({ ...c, roleSlug: event.target.value }))}
+                    value={form.roleSlug || defaultRole}
+                  >
+                    {roles.map((role) => <option key={role.slug} value={role.slug}>{role.name}</option>)}
+                  </select>
+                  <small>{roles.find((role) => role.slug === (form.roleSlug || defaultRole))?.description}</small>
+                </div>
+
+              </div>
+              <footer>
+                <button disabled={submitting} onClick={() => setInviting(false)} type="button">Cancelar</button>
+                <button className="primary-action" disabled={submitting} type="submit">
+                  {submitting ? <><LoaderCircle className="button-spinner" aria-hidden /> Gerando convite…</> : <><UserPlus aria-hidden />Gerar convite</>}
+                </button>
+              </footer>
+                    </form>
+          </section>
+        </div>
+      )}
+
       {resetTarget && <ResetPasswordDialog onClose={() => setResetTarget(null)} user={resetTarget} />}
     </article>
   );

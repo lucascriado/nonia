@@ -28,7 +28,7 @@ const searchItems = [
   { title: "Ministérios", description: "Equipes, voluntários e chamada da escola bíblica", href: "/ministerios", icon: Puzzle, keywords: "ministerios voluntarios escola biblica chamada presenca domingo" },
   { title: "Financeiro", description: "Entradas, saídas, comprovantes e saldo disponível", href: "/financeiro", icon: Wallet, keywords: "financeiro dizimo oferta despesa saldo lancamento comprovante" },
   { title: "Usuários", description: "Quem tem acesso ao painel e com qual papel", href: "/usuarios", icon: ShieldCheck, keywords: "usuarios acesso papel permissao convite equipe secretaria lider" },
-  { title: "Configurações", description: "Perfil da conta", href: "/configuracoes", icon: Settings, keywords: "configuracoes perfil conta usuario" },
+  { title: "Configurações", description: "Sua conta, os dados da igreja e o plano", href: "/configuracoes", icon: Settings, keywords: "configuracoes perfil conta usuario" },
 ];
 
 // Algumas páginas passam um título mais longo ("Gestão de Ministérios"), então a
