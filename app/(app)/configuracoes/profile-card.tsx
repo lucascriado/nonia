@@ -6,18 +6,14 @@ import { toast } from "sonner";
 import { Avatar } from "@/components/avatar";
 import { AuthAlert } from "@/components/auth/auth-alert";
 import { AuthField } from "@/components/auth/auth-field";
-import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { AuthError, updateProfile } from "@/components/auth/session";
 import { useSession } from "@/components/current-user";
 import { maskPhone } from "@/components/masks";
 
 const PHOTO_MAX_BYTES = 120 * 1024;
 
-/**
- * Componente à parte de propósito: o provider de sessão vive DENTRO do
- * DashboardShell, então um hook chamado no componente de página — que é quem
- * renderiza o shell — leria o valor padrão do contexto, não a sessão.
- */
+/** O cartão da pessoa: nome, foto e contato. Sem a senha, que virou cartão
+ *  próprio — segurança e identidade têm donos diferentes na tela. */
 export function ProfileCard() {
   const { user, refresh } = useSession();
   const [editing, setEditing] = useState(false);
@@ -156,7 +152,6 @@ export function ProfileCard() {
           <button className="profile-secondary-action" onClick={startEditing} type="button">
             <Pencil aria-hidden />Editar perfil
           </button>
-          <ChangePasswordForm />
         </>
       )}
     </article>

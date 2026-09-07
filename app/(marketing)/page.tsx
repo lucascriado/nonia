@@ -176,7 +176,7 @@ export default function LandingPage() {
 
           <ol className="mk-steps">
             {steps.map((step, index) => (
-              <Reveal as="li" className="mk-step" delay={index * 110} key={step.title}>
+              <Reveal as="li" className="mk-step" delay={index * 460} key={step.title}>
                 <span className="mk-step-number" aria-hidden>{index + 1}</span>
                 <div>
                   <h3>{step.title}</h3>

@@ -10,7 +10,13 @@ import { AuthError, changePassword, passwordProblem } from "@/components/auth/se
 const empty = { currentPassword: "", newPassword: "", confirmPassword: "" };
 
 /**
- * Troca da própria senha, no cartão de perfil.
+ * Troca da própria senha, no cartão de Segurança.
+ *
+ * O formulário fica ABERTO, sem botão que o revele. Ele morava dentro do
+ * cartão de perfil, onde um formulário de três campos aparecendo do nada seria
+ * intrusão; num cartão que existe só para isso, esconder atrás de um clique
+ * deixava o cartão com um título, uma frase e nada mais -- oco ao lado de um
+ * cartão de perfil cheio.
  *
  * Não há "esqueci minha senha": recuperação por e-mail não existe no produto,
  * então a tela não oferece uma saída que não leva a lugar nenhum. Quem perde a
@@ -21,7 +27,6 @@ export function ChangePasswordForm() {
   const [errors, setErrors] = useState<Partial<Record<keyof typeof empty, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [open, setOpen] = useState(false);
 
   function update(field: keyof typeof empty, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -52,7 +57,6 @@ export function ChangePasswordForm() {
       // OUTRAS sessões caem. Por isso não há redirecionamento aqui.
       toast.success("Senha alterada. Suas outras sessões foram encerradas.");
       setValues(empty);
-      setOpen(false);
     } catch (error) {
       if (!(error instanceof AuthError)) throw error;
 
@@ -73,19 +77,8 @@ export function ChangePasswordForm() {
     setSubmitting(false);
   }
 
-  if (!open) {
-    return (
-      <button className="profile-secondary-action" onClick={() => setOpen(true)} type="button">
-        <KeyRound aria-hidden />
-        Alterar senha
-      </button>
-    );
-  }
-
   return (
     <form className="profile-password-form" noValidate onSubmit={handleSubmit}>
-      <h4><KeyRound aria-hidden />Alterar senha</h4>
-
       <AuthAlert message={formError} />
 
       <AuthField
@@ -117,18 +110,15 @@ export function ChangePasswordForm() {
         value={values.confirmPassword}
       />
 
-      <p className="profile-password-note">
-        Ao trocar, suas sessões nos outros aparelhos são encerradas. Você
-        continua conectado aqui.
-      </p>
-
       <div className="profile-password-actions">
+        {/* Limpa em vez de fechar: o formulário não abre nem fecha mais, e
+            "Cancelar" sem nada para cancelar seria botão que não faz nada. */}
         <button
-          disabled={submitting}
-          onClick={() => { setOpen(false); setValues(empty); setErrors({}); setFormError(null); }}
+          disabled={submitting || !(values.currentPassword || values.newPassword || values.confirmPassword)}
+          onClick={() => { setValues(empty); setErrors({}); setFormError(null); }}
           type="button"
         >
-          Cancelar
+          Limpar
         </button>
         <button className="primary-action" disabled={submitting} type="submit">
           {submitting ? <><LoaderCircle className="button-spinner" aria-hidden /> Salvando…</> : "Salvar nova senha"}

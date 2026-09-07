@@ -321,17 +321,17 @@ kbd {
    por ele, não pela janela. Por isso ele também é renderizado por portal, no
    body. Cobrir tudo combina com o que a ação faz: criar igreja troca a sessão,
    e a barra atrás dela já é da igreja anterior. */
-.org-dialog-layer { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 20px; background: var(--overlay); backdrop-filter: blur(4px); animation: fade-in .2s ease; }
-.org-dialog { width: min(440px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-lg); animation: modal-enter .25s var(--ease-out); }
-.org-dialog-body { display: grid; gap: 14px; padding: 24px 22px; }
-.org-dialog h2 { margin: 0; color: var(--heading); font-size: 1rem; font-weight: 600; }
-.org-dialog p { margin: 0; color: var(--muted); font-size: 0.875rem; line-height: 1.55; }
-.org-dialog label { display: grid; gap: 6px; font-size: 0.8125rem; font-weight: 500; }
-.org-dialog input { min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-size: 0.875rem; }
-.org-dialog input:focus-visible { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-soft); }
-.org-dialog footer { display: flex; justify-content: flex-end; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--border); background: var(--panel-soft); }
-.org-dialog footer button { min-height: 44px; padding: 10px 18px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.84375rem; font-weight: 600; }
-.org-dialog footer button:disabled { cursor: wait; opacity: .65; }
+.form-dialog-layer { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 20px; background: var(--overlay); backdrop-filter: blur(4px); animation: fade-in .2s ease; }
+.form-dialog { width: min(440px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-lg); animation: modal-enter .25s var(--ease-out); }
+.form-dialog-body { display: grid; gap: 14px; padding: 24px 22px; }
+.form-dialog h2 { margin: 0; color: var(--heading); font-size: 1rem; font-weight: 600; }
+.form-dialog p { margin: 0; color: var(--muted); font-size: 0.875rem; line-height: 1.55; }
+.form-dialog label { display: grid; gap: 6px; font-size: 0.8125rem; font-weight: 500; }
+.form-dialog input { min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); font-size: 0.875rem; }
+.form-dialog input:focus-visible { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-soft); }
+.form-dialog footer { display: flex; justify-content: flex-end; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--border); background: var(--panel-soft); }
+.form-dialog footer button { min-height: 44px; padding: 10px 18px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 0.84375rem; font-weight: 600; }
+.form-dialog footer button:disabled { cursor: wait; opacity: .65; }
 .workspace-list svg { width: var(--icon-sm); flex: 0 0 var(--icon-sm); color: var(--primary); }
 
 .workspace-card > .workspace-avatar { display: grid; min-width: 28px; flex: 0 0 28px; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: var(--primary-fill); color: var(--on-primary-fill); font-size: 0.6875rem; font-weight: 700; }
@@ -1135,7 +1135,41 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
    antiga tinha duas colunas por causa do cartao "Preferencias do Sistema";
    agora e uma coluna estreita, para o cartao nao esticar sozinho na largura
    toda. */
-.settings-grid { display: grid; max-width: 720px; margin-inline: 0; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+/* SEM TETO DE LARGURA. A tela vivia numa coluna de 720px dentro de uma área
+   de 1300, e sobravam quase 600px vazios à direita -- o pedido do Lucas de
+   "ocupar o espaço completo" uma camada acima dos cards. A linha usa auto-fit,
+   então ela se ajusta à QUANTIDADE de cartões: com dois eles dividem a largura,
+   com um ele ocupa tudo, e nenhuma trilha vazia sobra pedindo conteúdo. */
+.settings-group { margin-bottom: var(--space-6); }
+.settings-group > header { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.settings-group > header > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
+.settings-group > header > span svg { width: var(--icon-md); }
+.settings-group h3 { margin: 0; color: var(--heading); font-size: 1rem; font-weight: 600; }
+.settings-group > header p { margin: 2px 0 0; color: var(--muted); font-size: 0.8125rem; }
+/* `stretch`, e não `start`: os cartões de uma linha têm a MESMA altura. Igualar
+   só vale porque o conteúdo dos curtos foi redistribuído junto -- esticar um
+   cartão de um botão só produziria um cartão oco, que é pior que desigual. O
+   corpo de cada cartão cresce e distribui as próprias linhas. */
+.settings-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-5); align-items: stretch; }
+.settings-row > * { display: flex; flex-direction: column; }
+/* O CORPO cresce, nunca o botão: `flex: 1` no último filho esticaria a própria
+   ação para 150px de altura. A sobra vai para o corpo, e a ação encosta no pé
+   do cartão como rodapé -- que é onde ela já estaria num cartão desenhado
+   para essa altura. */
+.settings-card > .settings-card-body, .org-panel > .org-view, .org-panel > .org-form { flex: 1; }
+.settings-card-body, .org-view { display: flex; flex-direction: column; gap: var(--space-3); }
+.profile-card > button:last-child, .org-view .profile-secondary-action { margin-top: auto; }
+.settings-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
+.settings-card > header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
+.settings-card > header > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
+.settings-card > header > span svg { width: var(--icon-md); }
+.settings-card h4 { margin: 0; color: var(--heading); font-size: 0.9375rem; font-weight: 600; }
+.settings-card > header p { margin: 3px 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
+.settings-card-body { padding: var(--space-5); }
+.users-panel > header > .primary-action { margin-left: auto; }
+.users-solo { padding: var(--space-4) var(--space-5); margin: 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8125rem; }
+.org-readonly, .users-readonly { display: flex; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); margin: var(--space-4) var(--space-5) var(--space-5); background: var(--panel-soft); color: var(--muted); font-size: 0.8125rem; line-height: 1.5; }
+.org-readonly svg, .users-readonly svg { width: var(--icon-md); flex: 0 0 var(--icon-md); color: var(--warning); }
 .profile-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
 .profile-card { position: relative; display: flex; flex-direction: column; align-items: center; padding: 0 22px 22px; }
 .profile-cover { width: calc(100% + 44px); height: 88px; margin-bottom: -44px; background: linear-gradient(120deg, var(--primary-soft), var(--panel-inset)); }
@@ -1148,6 +1182,18 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .profile-info strong { display: block; margin-top: 6px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--panel-soft); font-size: 0.8125rem; font-weight: 500; overflow-wrap: anywhere; }
 .profile-info strong.profile-info-empty { color: var(--muted); font-style: italic; font-weight: 400; }
 .profile-card > button { margin-top: var(--space-4); border: 0; background: transparent; color: var(--primary); font-size: 0.84375rem; font-weight: 600; }
+
+/* Com a tela ocupando a área inteira, o cartão de perfil ganhou o dobro da
+   largura para a qual foi desenhado: ele era uma coluna estreita, com tudo
+   empilhado. Numa coluna larga, os dois campos cabem lado a lado e o cartão
+   perde uns 100px de altura -- que é o que o aproxima da altura do cartão de
+   senha ao lado, em vez de deixar um vão embaixo dele. */
+@media (min-width: 900px) {
+  .profile-card .profile-info { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 var(--space-4); }
+  .profile-card .profile-info + .profile-info { margin-top: 0; }
+  .profile-card > :is(h3, small, button, .profile-info):not(:first-of-type) { grid-column: auto; }
+  .profile-cover { height: 64px; margin-bottom: -40px; }
+}
 
 /* Troca de senha, dentro do cartao de perfil. O cartao centraliza o conteudo;
    o formulario nao pode herdar isso — rotulo e campo se leem alinhados. */
@@ -1282,7 +1328,8 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
    Usuarios e convites
    -------------------------------------------------------------------------- */
 
-.users-grid { display: grid; max-width: 720px; margin-inline: 0; }
+/* Sem teto de largura, pelo mesmo motivo de .settings-row. */
+.users-grid { display: grid; }
 .users-panel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-xs); }
 .users-panel.is-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-6); color: var(--muted); font-size: 0.875rem; }
 .users-panel.is-loading svg { width: var(--icon-xl); color: var(--primary); }
@@ -1467,7 +1514,6 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
    Perfil editavel e dados da igreja
    -------------------------------------------------------------------------- */
 
-.settings-stack { display: grid; gap: var(--space-5); align-content: start; }
 
 .profile-edit { width: 100%; margin-top: var(--space-4); text-align: left; }
 .profile-edit .mk-field { margin-bottom: var(--space-4); }
@@ -2192,10 +2238,10 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .record-form-actions button { width: 100%; min-height: 48px; }
 
   .delete-dialog-layer { inset: 0; align-items: flex-end; padding: 0; }
-  .org-dialog-layer { align-items: flex-end; padding: 0; }
-  .org-dialog { width: 100%; border-width: 1px 0 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; animation: sheet-enter .26s var(--ease-out); }
-  .org-dialog footer { flex-direction: column-reverse; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
-  .org-dialog footer button { width: 100%; min-height: 48px; justify-content: center; }
+  .form-dialog-layer { align-items: flex-end; padding: 0; }
+  .form-dialog { width: 100%; border-width: 1px 0 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; animation: sheet-enter .26s var(--ease-out); }
+  .form-dialog footer { flex-direction: column-reverse; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .form-dialog footer button { width: 100%; min-height: 48px; justify-content: center; }
   .delete-dialog {
     width: 100%;
     border-width: 1px 0 0;
@@ -2237,7 +2283,7 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
     white-space: nowrap;
   }
 
-  .settings-grid { grid-template-columns: 1fr; max-width: none; }
+  .settings-row { grid-template-columns: 1fr; }
   .users-grid { max-width: none; }
   .users-list li { flex-wrap: wrap; }
   .users-role { margin-left: 54px; }
@@ -2514,6 +2560,11 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    -------------------------------------------------------------------------- */
 
 @media (pointer: coarse), (max-width: 800px) {
+  /* A ação primária tem 40px de piso no desktop, e 40 não passa no dedo. Vale
+     para TODAS as ocorrências: o detector achou uma nova em /usuarios, mas o
+     defeito era da classe, e consertar só aquela deixaria a armadilha armada
+     para o próximo botão. */
+  .primary-action { min-height: 44px; }
   .icon-button, .calendar-title button, .birthday button, .birthday a { width: 44px; height: 44px; }
   /* Sem isto o flex-basis de 34px decide a largura e o `width` acima não vale
      — a mesma armadilha do botão de ações da linha de membro. */

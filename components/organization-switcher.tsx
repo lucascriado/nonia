@@ -168,12 +168,12 @@ function NewOrganizationDialog({ onClose }: { onClose: () => void }) {
   // Portal para o body: o seletor mora DENTRO da barra lateral, que no celular
   // é transformada, e um `position: fixed` ali dentro se mede pela barra em vez
   // da janela -- o diálogo apareceria de lado, ou fora da tela com a barra
-  // fechada. Ver o comentário de .org-dialog-layer em globals.css.
+  // fechada. Ver o comentário de .form-dialog-layer em globals.css.
   return createPortal(
-    <div className="org-dialog-layer" onPointerDown={(event) => !saving && event.currentTarget === event.target && onClose()}>
-      <section aria-labelledby="nova-igreja" aria-modal="true" className="org-dialog" role="dialog">
+    <div className="form-dialog-layer" onPointerDown={(event) => !saving && event.currentTarget === event.target && onClose()}>
+      <section aria-labelledby="nova-igreja" aria-modal="true" className="form-dialog" role="dialog">
         <form onSubmit={submit}>
-          <div className="org-dialog-body">
+          <div className="form-dialog-body">
             <h2 id="nova-igreja">Criar nova igreja</h2>
             <p>A nova igreja começa vazia, no plano Semente, e o papel de proprietário fica com você. Assim que ela for criada o sistema passa a trabalhar nela. A igreja atual continua intacta, e você volta por este mesmo seletor.</p>
             <label>

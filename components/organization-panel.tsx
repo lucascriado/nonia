@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Church, Info, LoaderCircle, Pencil } from "lucide-react";
+import { Church, Info, Lock, LoaderCircle, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { AuthAlert } from "@/components/auth/auth-alert";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthError, apiRequest } from "@/components/auth/session";
-import { usePermission } from "@/components/current-user";
+import { usePermission, useReadOnly } from "@/components/current-user";
 import { maskPhone } from "@/components/masks";
 
 type Organization = {
@@ -36,7 +36,12 @@ function updateOrganization(changes: { name?: string; document?: string | null; 
  * pessoa, não da igreja.
  */
 export function OrganizationPanel() {
-  const canEdit = usePermission("organization.write");
+  // Duas guardas, e são coisas diferentes: papel é quem pode, somente leitura
+  // é quando ninguém pode. Sem a segunda, o botão aparecia para o proprietário
+  // de uma igreja inadimplente, abria o formulário e o PATCH voltava 402.
+  const readOnly = useReadOnly();
+  const podeEditar = usePermission("organization.write");
+  const canEdit = podeEditar && !readOnly;
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState({ name: "", document: "", email: "", phone: "" });
@@ -164,6 +169,14 @@ export function OrganizationPanel() {
             <button className="profile-secondary-action" onClick={startEditing} type="button">
               <Pencil aria-hidden />Editar dados da igreja
             </button>
+          )}
+          {/* Diz por que não dá, em vez de simplesmente não ter botão: quem
+              administra a igreja vem aqui justamente para editar. */}
+          {readOnly && podeEditar && (
+            <p className="org-readonly">
+              <Lock aria-hidden />
+              <span>Os dados da igreja não podem ser alterados enquanto a conta estiver em somente leitura. Regularize a mensalidade para voltar a editar.</span>
+            </p>
           )}
         </div>
       )}
