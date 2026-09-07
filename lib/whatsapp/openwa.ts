@@ -59,15 +59,57 @@ async function chamar<T>(caminho: string, { metodo = "GET", corpo, chave, timeou
 
   const texto = await resposta.text();
   const dados = texto ? safeJson(texto) : null;
-  if (!resposta.ok) {
-    throw new HttpError(
-      resposta.status === 404 ? 404 : 502,
-      mensagemDoOpenWa(dados) ?? `O serviço de WhatsApp recusou a operação (HTTP ${resposta.status}).`,
-      "whatsapp_error",
-      { status: resposta.status },
+  if (!resposta.ok) throw traduzirRecusa(resposta.status, dados);
+  return dados as T;
+}
+
+/**
+ * A RECUSA DO OPENWA VIRA UMA FRASE QUE A IGREJA ENTENDE.
+ *
+ * Dois status dele têm significado próprio, e achatá-los num 502 genérico
+ * mandava a secretária apertar "responder" de novo contra um problema que
+ * repetir não resolve:
+ *
+ *   503  o transporte MORREU. No motor em uso (whatsapp-web.js) é a página do
+ *        Chromium não estar mais falando com o WhatsApp -- e o caso real,
+ *        achado em 07/09/2026, é o WhatsApp Web ter sido aberto em OUTRA
+ *        JANELA, que assume o número e desvincula a nossa. O sintoma é cruel:
+ *        a sessão continua respondendo consulta (o store local está lá) e
+ *        continua marcada como `ready`, mas não recebe nem envia mais nada.
+ *   409  a sessão existe e ainda NÃO está pronta -- iniciando, reconectando,
+ *        ou no meio do recarregamento periódico que o WhatsApp Web faz sozinho.
+ *        Aqui repetir em instantes resolve mesmo, e a mensagem diz isso.
+ *
+ * O texto NÃO promete o conserto. "Reconecte" seria o conselho errado: a
+ * reconexão apaga a sessão no serviço e leva junto todo arquivo de mídia
+ * guardado. Dizer o que aconteceu e que a mensagem não saiu é o que a pessoa
+ * precisa para não mandar quatro vezes.
+ */
+function traduzirRecusa(status: number, dados: unknown): HttpError {
+  if (status === 503) {
+    return new HttpError(
+      503,
+      "A conexão com o WhatsApp caiu: o serviço continua no ar, mas parou de falar com o aparelho -- " +
+        "normalmente porque o WhatsApp Web foi aberto em outra janela e assumiu o número. " +
+        "A mensagem NÃO foi enviada.",
+      "whatsapp_desvinculado",
+      { detalhe: mensagemDoOpenWa(dados) },
     );
   }
-  return dados as T;
+  if (status === 409) {
+    return new HttpError(
+      409,
+      "O WhatsApp desta igreja ainda está se conectando. Espere alguns instantes e tente de novo.",
+      "whatsapp_nao_pronto",
+      { detalhe: mensagemDoOpenWa(dados) },
+    );
+  }
+  return new HttpError(
+    status === 404 ? 404 : 502,
+    mensagemDoOpenWa(dados) ?? `O serviço de WhatsApp recusou a operação (HTTP ${status}).`,
+    "whatsapp_error",
+    { status },
+  );
 }
 
 function safeJson(texto: string): unknown {
@@ -386,11 +428,9 @@ export async function baixarMidia(
       "midia_indisponivel",
     );
   }
-  if (!resposta.ok) {
-    throw new HttpError(502, `O serviço de WhatsApp recusou a mídia (HTTP ${resposta.status}).`, "whatsapp_error", {
-      status: resposta.status,
-    });
-  }
+  // Mesma tradução do resto: uma sessão desvinculada não devolve mídia, e
+  // "recusou a mídia (HTTP 503)" mandaria procurar defeito no arquivo.
+  if (!resposta.ok) throw traduzirRecusa(resposta.status, null);
   const disposicao = resposta.headers.get("content-disposition") ?? "";
   const nome = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposicao)?.[1] ?? null;
   return {

@@ -3,7 +3,7 @@
 //
 // O nome da suíte é o pedido do Lucas: espelhar o WhatsApp, não ler mensagens.
 import pg from "/home/lucas/www/nonia-auth/node_modules/pg/lib/index.js";
-import { iniciarOpenWaFalso, conectarSessao, caixa, enviadas, midias, telefonesPorLid, contatos, chamadas } from "./openwa-falso.mjs";
+import { iniciarOpenWaFalso, conectarSessao, caixa, enviadas, midias, telefonesPorLid, contatos, chamadas, controle } from "./openwa-falso.mjs";
 const BASE = "http://127.0.0.1:3210";
 let pass = 0, fail = 0;
 const ok = (c, l, e = "") => { c ? (pass++, console.log(`  ok    ${l}`)) : (fail++, console.log(`  FALHA ${l} ${e}`)); };
@@ -332,6 +332,46 @@ const tk2 = sec.d.inviteUrl.split("/convite/")[1];
 const cSec = (await call("POST", "/api/auth/invite/accept", { body: { token: tk2, fullName: "Sec", password: "senha1234" } })).c;
 r = await call("POST", `/api/whatsapp/conversas/${idMaria}/encaminhar`, { cookie: cSec, body: { waMessageId: "a1", paraConversaId: idOutra } });
 ok(r.s === 201 || r.s === 429, "a secretaria encaminha (whatsapp.write) -- é ela quem atende", `${r.s} ${r.d?.code}`);
+
+console.log("\n== CONECTADO NAO E RECEBENDO ==");
+r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
+ok(r.d.connected === true, "a sessao lista conversas, entao a tela diz conectado", r.d?.connected);
+ok(typeof r.d.recebimento?.ultimaEm === "string",
+   "e agora vem TAMBEM quando chegou a ultima mensagem de fora", JSON.stringify(r.d.recebimento));
+ok(r.d.recebimento.avisar === false,
+   "com mensagem recente, nao ha silencio a relatar", JSON.stringify(r.d.recebimento));
+// Envelhece a ultima recebida para alem do limiar. O que a igreja ENVIA nao
+// conta: sai desta maquina e continuaria "andando" numa sessao desvinculada.
+await sql.query("UPDATE whatsapp_messages SET sent_at = now() - interval '4 hours' WHERE organization_id = $1 AND NOT from_me", [orgA]);
+r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
+ok(r.d.recebimento.avisar === true && r.d.recebimento.minutosSem >= 180,
+   "passado o limiar, o campo sugere mostrar a frase", JSON.stringify(r.d.recebimento));
+ok(r.d.connected === true,
+   "e `connected` NAO vira false: ler continua funcionando, e mentir para o outro lado seria o mesmo erro", r.d?.connected);
+await sql.query("UPDATE whatsapp_messages SET sent_at = now() WHERE organization_id = $1 AND NOT from_me AND wa_message_id = 'a1'", [orgA]);
+
+console.log("\n== SESSAO DESVINCULADA: enviar falha, e a frase diz o que houve ==");
+controle.desvinculada = true;
+r = await call("POST", `/api/whatsapp/conversas/${idMaria}`, { cookie: A, body: { message: "vai falhar" } });
+ok(r.s === 503 && r.d.code === "whatsapp_desvinculado",
+   "responder devolve 503 com codigo proprio, nao 500 nem 502 generico", `${r.s} ${r.d?.code}`);
+ok(/outra janela/.test(r.d?.error || "") && /NÃO foi enviada/.test(r.d?.error || ""),
+   "e a mensagem diz a causa provavel E que nada saiu -- para ninguem mandar quatro vezes", r.d?.error);
+ok(!/[Rr]econect/.test(r.d?.error || ""),
+   "e NAO manda reconectar: reconectar apaga a midia guardada", r.d?.error);
+r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
+ok(r.d.records.length > 0,
+   "enquanto isso LER continua funcionando -- que e exatamente o que torna o caso traicoeiro", r.d?.records?.length);
+controle.desvinculada = false;
+
+console.log("\n== a contagem de midia para o aviso de desconectar ==");
+r = await call("GET", "/api/whatsapp", { cookie: A });
+ok(typeof r.d.mediaCount === "number" && r.d.mediaCount > 0,
+   "o status da conexao traz quantas mensagens de midia a caixa tem", r.d?.mediaCount);
+const contadas = (await sql.query(
+  `SELECT count(*)::int n FROM whatsapp_messages WHERE organization_id = $1
+     AND type IN ('image','video','audio','voice','sticker','document')`, [orgA])).rows[0].n;
+ok(r.d.mediaCount === contadas, "e o numero bate com a tabela -- nao e chute nem numero chumbado", `${r.d?.mediaCount} vs ${contadas}`);
 
 await sql.end(); servidor.close();
 console.log(`\n=========== ${pass} passaram, ${fail} falharam ===========`);

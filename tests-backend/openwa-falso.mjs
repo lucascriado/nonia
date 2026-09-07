@@ -9,7 +9,17 @@ import { randomUUID } from "node:crypto";
 const sessoes = new Map();   // id -> { id, name, status, phone }
 const chaves = new Map();    // key -> { id, allowedSessions }
 const lotes = new Map();     // batchId -> { sessionId, results }
-export const controle = { falharChatIds: new Set(), statusForcado: null };
+export const controle = {
+  falharChatIds: new Set(),
+  statusForcado: null,
+  // SESSAO DESVINCULADA: o WhatsApp Web foi aberto em outra janela e assumiu o
+  // numero. Achado na conta real em 07/09/2026, e o sintoma e cruel -- a sessao
+  // continua `ready`, continua respondendo LEITURA do armazenamento local dela,
+  // e falha em toda ESCRITA com o 503 de transporte morto. Um stub que so
+  // soubesse "no ar" ou "fora do ar" nao conseguiria contradizer quem confunde
+  // ler com receber.
+  desvinculada: false,
+};
 // Conversas e mensagens que o WhatsApp "empurrou" ao parear.
 export const caixa = { chats: [], mensagens: new Map() };  // chatId -> [msg]
 export const enviadas = [];
@@ -141,6 +151,7 @@ export function iniciarOpenWaFalso(porta) {
     if ((g = m(/^\/sessions\/([^/]+)\/messages\/send-text$/)) && req.method === "POST") {
       const a = autorizar(req, g[1]); if (!a.ok) return responder(a.status, { message: a.message });
       const s2 = sessoes.get(g[1]);
+      if (controle.desvinculada) return responder(503, { message: "Transport died while sending message" });
       if ((controle.statusForcado ?? s2?.status) !== "ready") return responder(400, { message: `Session '${g[1]}' is not active. Start the session first.` });
       const body = await ler(req);
       enviadas.push(body);
