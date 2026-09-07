@@ -278,6 +278,20 @@ function MinistryForm({ mode, ministry, members, onClose, onSubmit }: { mode: "c
     } : emptyMinistry);
   }, [ministry]);
 
+  /**
+   * A equipe mudou e ainda NÃO foi salva.
+   *
+   * A interação mudou e o contrato não: a associação continua indo no mesmo
+   * PUT do ministério. Quem clica em incluir e fecha sem salvar acha que
+   * incluiu -- e a tela tem que dizer isso ANTES, não depois.
+   */
+  const equipeMudou = useMemo(() => {
+    if (!ministry) return false;
+    const salvos = [...ministry.members.map((m) => m.id)].sort();
+    const agora = [...values.memberIds].sort();
+    return salvos.length !== agora.length || salvos.some((id, i) => id !== agora[i]);
+  }, [ministry, values.memberIds]);
+
   function incluirMembro(memberId: string) {
     setValues((current) => current.memberIds.includes(memberId)
       ? current
@@ -332,6 +346,15 @@ function MinistryForm({ mode, ministry, members, onClose, onSubmit }: { mode: "c
               </ul>
             ) : (
               <p className="equipe-vazia">Ninguém neste ministério ainda.</p>
+            )}
+
+            {/* Dito ANTES de fechar, e não depois: a associação vai no mesmo
+                Salvar do ministério, e quem inclui e sai sem salvar acha que
+                incluiu. */}
+            {equipeMudou && !readOnly && (
+              <p className="equipe-pendente" role="status">
+                A equipe mudou e ainda não foi salva. Clique em <strong>Salvar Ministério</strong> para valer.
+              </p>
             )}
 
             {!readOnly && (

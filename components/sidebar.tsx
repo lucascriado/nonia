@@ -64,7 +64,13 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
       <div className="brand">
         <Link className="brand-link" href="/painel" aria-label="Ir para a dashboard" title="Dashboard">
           <span className="brand-icon" aria-hidden><Church /></span>
-          <span className="brand-text"><strong>nonia</strong><small>A sua igreja organizada</small></span>
+          {/* Só o nome, como no cabeçalho do site: lá a marca é o ícone mais
+              "nonia", sem linha de apoio, e era o app que destoava. A frase
+              "A sua igreja organizada" é copy que VENDE o produto e continua
+              inteira onde ela trabalha -- no herói da landing, no título da
+              página e na descrição para busca. Dentro do app ela não vendia
+              nada: repetia em onze telas para quem já comprou. */}
+          <span className="brand-text"><strong>nonia</strong></span>
         </Link>
         <Link className="brand-action" href="/membros" aria-label="Cadastrar novo membro" title="Novo membro">
           <UserPlus />
