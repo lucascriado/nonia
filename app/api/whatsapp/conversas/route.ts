@@ -128,6 +128,10 @@ export async function GET(request: Request) {
       // O bloco que impede o vazio mentiroso: a tela só mostra "não há conversa"
       // com state === "idle" && total === 0.
       sync: await inbox.estadoSync(org),
+      // "Conectado" responde por LER; este campo responde por RECEBER. Uma
+      // sessão desvinculada continua listando conversa e não recebe nada --
+      // ver `estadoRecebimento`.
+      recebimento: await inbox.estadoRecebimento(org),
       // DERIVADO de ter conseguido listar, não da coluna `status` gravada. A
       // coluna é atualizada pelas rotas de conexão; quem entra direto na caixa
       // depois de parear veria o valor velho e a tela diria "desconectado" para

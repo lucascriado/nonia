@@ -465,6 +465,68 @@ export async function resolverNomesDeAutores(conexao: Conexao, conversaId: strin
   return resolvidos;
 }
 
+/**
+ * "CONECTADO" NÃO É "RECEBENDO", e este bloco existe porque a diferença apareceu
+ * na prática.
+ *
+ * O `connected` da caixa é derivado de conseguir LISTAR conversas -- e a troca
+ * foi certa, porque a coluna `status` gravada envelhecia e a tela dizia
+ * "desconectado" para igreja conectada. O erro que sobrou é o simétrico: em
+ * 07/09/2026 o WhatsApp Web foi aberto em outra janela e assumiu o número; a
+ * sessão do serviço ficou DESVINCULADA -- continuou respondendo consulta do
+ * armazenamento local dela e continuou marcada como `ready` --, e ficou 70
+ * minutos sem receber uma única mensagem numa conta com 116 conversas. Listar
+ * funcionava. Receber, não. A tela dizia "conectado".
+ *
+ * O sinal honesto disponível HOJE é comparar a última mensagem RECEBIDA com o
+ * relógio. Só recebida: o que a própria igreja envia sai por esta máquina e
+ * continuaria "andando" numa sessão que não recebe nada.
+ *
+ * SOBRE O LIMIAR, e ele é um contorno, não uma verdade do domínio:
+ *
+ * Três horas é um número ESCOLHIDO, não medido, e está escrito assim para que
+ * ninguém daqui a três meses o defenda como se fosse regra de negócio. O que o
+ * sustenta é a assimetria dos dois erros: avisar cedo demais custa uma frase
+ * que continua VERDADEIRA (uma igreja pequena pode passar a manhã sem mensagem,
+ * e "sem mensagens novas desde 9h" é fato, não acusação), enquanto avisar tarde
+ * demais custa um dia inteiro de caixa parada sem ninguém notar. Por isso o
+ * campo devolve o FATO -- quando foi a última -- e não um veredito de "sessão
+ * com problema", que seria falso justamente na igreja pequena.
+ *
+ * REMOVER QUANDO o OpenWA expuser o `WAState` do whatsapp-web.js. "Aberto em
+ * outra janela" é exatamente `CONFLICT` lá dentro, e o `probeLiveness` de hoje
+ * achata esse valor num booleano -- a página responde, porque não está travada,
+ * está desvinculada. Com o WAState na mão, este limiar sai e vira uma pergunta
+ * direta, com resposta certa em vez de inferida.
+ */
+export const LIMIAR_SILENCIO_MINUTOS = 180;
+
+export type Recebimento = {
+  /** Quando chegou a última mensagem de fora. NULL = nenhuma ainda. */
+  ultimaEm: string | null;
+  minutosSem: number | null;
+  /** Só sugere MOSTRAR a frase. A frase é o fato, nunca "a sessão está quebrada". */
+  avisar: boolean;
+};
+
+export async function estadoRecebimento(organizationId: string): Promise<Recebimento> {
+  const { rows } = await query<{ ultima: string | null; minutos: number | null }>(
+    `SELECT max(sent_at) AS ultima,
+            floor(extract(epoch FROM now() - max(sent_at)) / 60)::int AS minutos
+       FROM whatsapp_messages
+      WHERE organization_id = $1 AND NOT from_me`,
+    [organizationId],
+  );
+  const linha = rows[0];
+  return {
+    ultimaEm: linha?.ultima ?? null,
+    minutosSem: linha?.minutos ?? null,
+    // Sem nenhuma mensagem recebida não há silêncio a relatar: é caixa nova, e
+    // quem responde por ela é o estado de sincronização, não este campo.
+    avisar: linha?.minutos !== null && linha?.minutos !== undefined && linha.minutos >= LIMIAR_SILENCIO_MINUTOS,
+  };
+}
+
 export type EstadoSync = {
   state: "never_synced" | "syncing" | "idle";
   chatsConhecidos: number;
