@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Eye,
   Pencil,
   PartyPopper,
@@ -273,7 +272,7 @@ export default function VisitorsPage() {
             title="Nenhum visitante registrado ainda"
           />
         ) : (
-        <>
+        <div className="visitors-content">
         {/* A aba conta como filtro: em "Pendentes" os outros dois indicadores
             zeram por construção, porque a aba já os tirou da lista. Zero certo
             sem explicação parece defeito; com a frase, é informação. */}
@@ -338,10 +337,16 @@ export default function VisitorsPage() {
           </div>
         </section>
 
+        {/* O botão "Ver Manual de Integração" saiu: ele não tinha ação nenhuma,
+            como o "Sair" da barra lateral. Manual não existe, e prometer um é
+            pior do que não citar. */}
         <section className="visitor-followup">
-          <article className="integration-guide"><h3>Próximos Passos na Integração</h3><p>Lembre-se que o primeiro contato deve ser feito em até 48h após a visita para garantir uma maior taxa de retenção.</p><button><ClipboardList />Ver Manual de Integração</button></article>
+          <article className="integration-guide">
+            <h3>Próximos Passos na Integração</h3>
+            <p>Lembre-se que o primeiro contato deve ser feito em até 48h após a visita para garantir uma maior taxa de retenção.</p>
+          </article>
         </section>
-        </>
+        </div>
         )}
       </main>
       <PersonRecordDialog open={dialogMode !== null} mode={dialogMode ?? "create"} kind="visitor" initialValues={selectedVisitor ? visitorValues(selectedVisitor) : { membershipStage: "Visitou a igreja" }} onClose={() => { setDialogMode(null); setSelectedVisitor(null); }} onSubmit={saveVisitor} />
