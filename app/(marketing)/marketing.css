@@ -374,23 +374,55 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
 [data-motion="on"] .mk-step .mk-step-number { opacity: 0; transition: opacity .45s ease .1s; }
 [data-motion="on"] .mk-step.is-visible .mk-step-number { opacity: 1; }
 
-/* Conector entre os passos, so onde ha proximo e so em tela larga, onde eles
-   ficam lado a lado. */
+/* O CONECTOR E O PERCURSO. Antes cada cartao entrava com 110ms de diferenca e
+   a linha entre eles crescia depois de cada um: lidas juntas, eram tres
+   entradas independentes, nao um caminho. Agora o tempo e encadeado -- o
+   cartao 1 entra, a linha ANDA ate o 2 e termina exatamente quando o 2
+   aparece, e o mesmo do 2 para o 3. O olho segue uma coisa so, do 1 ao 3.
+   `--reveal-delay` e propriedade custom, entao chega ao ::after; nao daria
+   para fazer isso com transition-delay, que nao e herdado.
+   Toca uma vez, quando a secao aparece, e para. Fora de data-motion nada
+   disso existe e as tres linhas ja estao desenhadas. */
 .mk-step { position: relative; }
-@media (min-width: 901px) {
-  .mk-step:not(:last-child)::after {
-    position: absolute;
-    top: 44px;
-    right: -20px;
-    width: 20px;
-    height: 1px;
-    background: var(--border-strong);
-    content: "";
-    transform-origin: left;
-  }
-  [data-motion="on"] .mk-step:not(:last-child)::after { scale: 0 1; transition: scale .4s var(--ease-out) .3s; }
-  [data-motion="on"] .mk-step.is-visible:not(:last-child)::after { scale: 1 1; }
+/* Entrada mais curta que a do resto da pagina (650ms): aqui os cartoes nao
+   entram juntos, eles se REVEZAM. Com 650ms o cartao 1 ainda estava chegando
+   quando o 2 comecava, e tres coisas em movimento ao mesmo tempo nao se leem
+   como um caminho. Com 320ms cada passo termina antes de o proximo comecar, e
+   a linha ocupa o intervalo entre eles: cartao, linha, cartao, linha, cartao. */
+[data-motion="on"] .mk-step { transition-duration: .32s; }
+.mk-step::after {
+  position: absolute;
+  background: var(--mk-step-line, var(--border-strong));
+  content: "";
 }
+.mk-step:last-child::after { content: none; }
+
+@media (min-width: 901px) {
+  .mk-step::after { top: 44px; right: -20px; width: 20px; height: 2px; transform-origin: left; }
+  [data-motion="on"] .mk-step::after {
+    scale: 0 1;
+    transition: scale .14s linear calc(var(--reveal-delay, 0ms) + 320ms);
+  }
+  [data-motion="on"] .mk-step.is-visible::after { scale: 1 1; }
+}
+
+/* Empilhados, o percurso vira vertical: a mesma linha, girada. Sem isso o
+   caminho existiria so no desktop, e a secao se chama "Como funciona" nas
+   duas larguras. Entre 701 e 900 os passos ficam em DUAS colunas, com o
+   terceiro sozinho na segunda linha -- ali nao ha percurso que se desenhe com
+   uma linha reta, e por isso a faixa fica sem conector, como ja era. */
+@media (max-width: 700px) {
+  .mk-step::after { bottom: -20px; left: 42px; width: 2px; height: 20px; transform-origin: top; }
+  [data-motion="on"] .mk-step::after {
+    scale: 1 0;
+    transition: scale .14s linear calc(var(--reveal-delay, 0ms) + 320ms);
+  }
+  [data-motion="on"] .mk-step.is-visible::after { scale: 1 1; }
+}
+
+/* A linha e o caminho, entao ela tem a cor do produto e nao a da borda: em
+   `--border-strong` ela some, e uma linha que nao se ve nao anda de 1 a 3. */
+.mk-steps { --mk-step-line: var(--primary); }
 
 /* Faixa de beneficios: cada item desliza de baixo, escalonado pelo Reveal. */
 [data-motion="on"] .mk-strip-inner span svg { transition: transform .3s var(--ease-out); }
@@ -428,6 +460,21 @@ main.mk-main > * { max-width: none; margin-inline: 0; }
    cor nova. A intencao e separar a secao, nao chamar atencao para o fundo. */
 #recursos { background: linear-gradient(180deg, var(--bg), var(--panel-soft) 45%, var(--bg)); }
 .mk-section-soft { background: var(--panel-soft); border-block: 1px solid var(--border); }
+
+/* VIÚVA É PROBLEMA DE LARGURA, NÃO DE FRASE.
+   O Lucas apontou o "si" sozinho em "Cinco módulos que conversam entre si",
+   mas medindo a página inteira de 360px a 1440px a mesma coisa aparece em
+   nove títulos e parágrafos diferentes, cada um numa largura diferente:
+   "começar", "inteira", "CRM", "tarde", "hoje", "atual?", "usar?". Prender as
+   duas últimas palavras daquela frase com espaço rígido resolveria uma e
+   deixaria as outras oito -- e voltaria a quebrar na próxima vez que alguém
+   mudasse o texto ou o tamanho da fonte.
+   `balance` iguala o comprimento das linhas de um título curto, então não
+   sobra uma linha final de uma palavra só; `pretty` faz o mesmo cuidado no
+   fim de parágrafo. Quem não suporta quebra como quebrava antes, sem piorar
+   nada. */
+.mk-container :is(h1, h2, h3), .mk-hero h1 { text-wrap: balance; }
+.mk-container p, .mk-hero p { text-wrap: pretty; }
 
 .mk-section-head { max-width: 62ch; margin-inline: auto; text-align: center; }
 .mk-section-head-left { margin-inline: 0; text-align: left; }
