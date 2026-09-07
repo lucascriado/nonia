@@ -3294,6 +3294,10 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 /* IMPRESSÃO: só o relatório na folha -- sem menu, sem barra, sem a lista atrás.
    O cabeçalho da tabela se repete a cada página e nenhuma linha quebra no meio. */
 @media print {
+  /* Margem de papel explícita: sem ela, o relatório fica à mercê da margem
+     padrão do navegador, que em alguns ajustes é zero -- e aí o kardex encosta
+     na borda da folha. */
+  @page { margin: 1.5cm; }
   .sidebar, .topbar, .menu-overlay, .billing-notice, .wa-thread-warning, main, [data-sonner-toaster] { display: none !important; }
   .kardex-toolbar { display: none !important; }
   .kardex-layer { position: static !important; inset: auto !important; overflow: visible !important; padding: 0 !important; background: #fff !important; }
