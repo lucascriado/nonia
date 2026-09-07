@@ -34,13 +34,13 @@ const APP_PAGES = [
   "/painel",
   "/membros",
   "/visitantes",
-  "/celulas",
   "/ministerios",
   "/calendario",
   "/financeiro",
   "/atividades",
   "/configuracoes",
   "/usuarios",
+  "/whatsapp",
 ];
 
 /** Páginas que deixam de fazer sentido depois de entrar. */

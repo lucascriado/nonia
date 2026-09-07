@@ -77,7 +77,11 @@ SELECT (SELECT id FROM organizations WHERE slug = 'demo'), * FROM (VALUES
   ('Renata Barbosa', 'renata.b@exemplo.com', '1986-01-19'),
   ('Diego Nunes', 'diego.n@exemplo.com', DATE '1994-08-28')
 ) AS data(full_name, email, birth_date)
-ON CONFLICT (organization_id, lower(email)) DO UPDATE SET full_name = EXCLUDED.full_name;
+-- O WHERE é obrigatório aqui: desde a 014 o índice é PARCIAL, e o Postgres
+-- recusa um ON CONFLICT que não repita a mesma cláusula
+-- ("no unique or exclusion constraint matching the ON CONFLICT specification").
+ON CONFLICT (organization_id, lower(email)) WHERE email IS NOT NULL
+DO UPDATE SET full_name = EXCLUDED.full_name;
 
 -- Sem `is_new`, pelo mesmo motivo: ver o comentario no bloco de visitantes.
 INSERT INTO members (person_id, organization_id, ministry_id, status, baptism_status, admission_date, cell_name)

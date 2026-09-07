@@ -21,6 +21,7 @@ export type Conexao = {
   apiKeyId: string | null;
   status: string;
   phone: string | null;
+  connectedAt: string | null;
 };
 
 type Linha = {
@@ -31,6 +32,7 @@ type Linha = {
   api_key_encrypted: string;
   status: string;
   phone: string | null;
+  connected_at: string | null;
 };
 
 export function whatsappDisponivel(): boolean {
@@ -50,7 +52,7 @@ function exigirConfiguracao() {
 
 export async function carregarConexao(organizationId: string): Promise<Conexao | null> {
   const { rows } = await query<Linha>(
-    `SELECT organization_id, session_id, session_name, api_key_id, api_key_encrypted, status, phone
+    `SELECT organization_id, session_id, session_name, api_key_id, api_key_encrypted, status, phone, connected_at
        FROM organization_whatsapp WHERE organization_id = $1`,
     [organizationId],
   );
@@ -64,6 +66,7 @@ export async function carregarConexao(organizationId: string): Promise<Conexao |
     apiKeyId: linha.api_key_id,
     status: linha.status,
     phone: linha.phone,
+    connectedAt: linha.connected_at,
   };
 }
 

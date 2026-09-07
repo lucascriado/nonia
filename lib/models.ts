@@ -6,7 +6,7 @@ export class Person extends Model<InferAttributes<Person>, InferCreationAttribut
   declare id: CreationOptional<string>;
   declare organizationId: string;
   declare fullName: string;
-  declare email: string;
+  declare email: string | null;
   declare phone: string | null;
   declare birthDate: string | null;
   declare gender: string | null;
@@ -25,7 +25,8 @@ Person.init({
   id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
   organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
   fullName: { type: DataTypes.STRING(160), allowNull: false, field: "full_name" },
-  email: { type: DataTypes.STRING(254), allowNull: false },
+  // Opcional desde a 014; único por organização quando preenchido.
+  email: { type: DataTypes.STRING(254) },
   phone: DataTypes.STRING(30),
   birthDate: { type: DataTypes.DATEONLY, field: "birth_date" },
   gender: DataTypes.STRING(30),
