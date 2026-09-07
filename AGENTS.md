@@ -439,6 +439,11 @@ apareceram.
   lançar o dízimo. Vale para qualquer conjunto de regras — permissão, validação,
   limite, roteamento. **Antes de aprovar a tabela, faça o percurso de uma
   pessoa real dentro dela.**
+- **Quando alguém aponta um caso, meça quantos existem — e conserte a regra, não
+  o caso.** Aconteceu três vezes em 06/09/2026, sempre com o mesmo formato:
+  alguém aponta **um**, a medição acha **N**. Na viúva tipográfica, consertar a
+  palavra apontada resolveria **uma** e deixaria **oito** — o detector achou
+  nove, um por largura, e o resultado virou regra de quebra para o site inteiro.
 - **Prefira uma verificação que roda em tudo a uma inspeção que depende de
   reparar.** A sobreposição do cartão no celular foi achada por um detector
   escrito para o caso — não por olhar tela por tela procurando. Olhar encontra o
@@ -641,6 +646,35 @@ E o terceiro, sobre **como** essas cinco apareceram:
 > invisível no código** — e foi exatamente uma cobrança dessas que produziu o
 > achado mais caro: 1298 MB contra 266 MB.
 
+#### A tela afirma o que ninguém leu
+
+- **Estado vazio depois de uma leitura que falhou.** Com papel de leitura,
+  `/financeiro` dizia "Nenhum lançamento ainda" quando o que houve foi um
+  **403** — a igreja podia ter mil lançamentos. A tela **afirmava sobre o dado
+  da igreja uma coisa que ninguém leu.** As seis listagens passaram a distinguir
+  "não tem registro" de "a leitura falhou". **Estado vazio só depois de uma
+  leitura que deu certo.**
+- **Indicador que não leva o filtro mente ao vivo.** As contagens vinham em
+  requisições separadas, sem o filtro da tela: com `status=Inativo` a lista
+  mostrava 4 e "Total ativos" mostrava 14 da igreja inteira. **Indicador que
+  acompanha uma lista filtrada tem que usar o mesmo filtro** — os três que
+  haviam sido removidos eram a baixa honesta; os que ficaram é que estavam
+  errados.
+- **Permissão precisa ser checada no menu e no botão, não só a somente-leitura.**
+  O menu oferecia Financeiro e Usuários ao papel de leitura, e os botões de
+  criar só olhavam somente-leitura: o usuário via "Novo Membro" e levava 403.
+
+  Os dois primeiros só apareceram porque existia **uma conta com duas igrejas e
+  papéis diferentes**. Conta de teste que reproduz a variedade real paga o
+  próprio custo.
+
+#### Marca gravada na criação, lida como se fosse atual
+
+Booleano ou derivado que é escrito uma vez e nunca revisto, e que uma tela
+depois apresenta como estado de agora: `is_new` prometendo "novos este mês",
+`is_recent` que nada limpava. **Derive da data.** Ao procurar, não pare nos
+booleanos — a doença não é do tipo.
+
 #### Resíduo de decisão antiga sobrevivendo onde ninguém olhou
 
 O gênero mais produtivo de defeito visual que apareceu em 06/09/2026: uma regra
@@ -782,6 +816,11 @@ Duas regras irmãs, e **nenhuma das duas aparece em `typecheck` ou `build`**:
 - Painéis usam borda `--border`, fundo `--panel` e raio de `12px`.
 - Títulos e ações primárias usam `--heading`.
 - Hovers e animações devem ser sutis e respeitar `prefers-reduced-motion`.
+- **Encadeamento não é atraso.** Três cartões entrando com 110 ms de diferença
+  são três entradas simultâneas, não um caminho: **nada começa antes de o
+  anterior terminar**. Meça com `getAnimations()`, não estime.
+- Para encadear, use **propriedade custom**: ela chega ao pseudo-elemento.
+  `transition-delay` não chega — não é herdado.
 - Use Sonner para feedback de sucesso, erro e informação.
 - Em salvar, alterar e excluir, mostre spinner, texto de loading e bloqueie
   cliques duplicados até a resposta do servidor.
