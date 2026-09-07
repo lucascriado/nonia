@@ -15,6 +15,7 @@ export const APP_SCREENS = [
   "/membros",
   "/visitantes",
   "/ministerios",
+  "/whatsapp",
   "/financeiro",
   "/atividades",
   "/calendario",

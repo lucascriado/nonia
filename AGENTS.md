@@ -925,7 +925,7 @@ Duas regras irmãs, e **nenhuma das duas aparece em `typecheck` ou `build`**:
 
 - Dashboard ligada ao banco: indicadores, calendário, atividades, próximos
   eventos e aniversariantes.
-- Membros, visitantes, células e ministérios com busca, filtros, paginação e
+- Membros, visitantes e ministérios com busca, filtros, paginação e
   CRUD. Ministérios têm sessões e registros de presença.
 - Histórico de atividades com busca, período, categorias e paginação.
 - Financeiro (`/financeiro`) com saldo, entradas, saídas, pendências, filtros
