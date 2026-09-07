@@ -17,7 +17,7 @@ import {
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
-import { usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -254,7 +254,7 @@ export default function VisitorsPage() {
         <section className="visitors-heading">
           <div><h2>Gestão de Visitantes</h2><p>Acompanhe e integre novas pessoas à nossa comunidade.</p></div>
           <ExportButton resource="visitors" permission="visitors.read" filters={{ search, tab, invitedBy }} />
-          {canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>}
+          {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>}
         </section>
 
         {failed !== null ? (
@@ -321,8 +321,8 @@ export default function VisitorsPage() {
                     <td data-label="Ações">
                       <div className="member-actions">
                         <button aria-label={`Visualizar ${visitor.name}`} onClick={() => openRecord(visitor, "view")}><Eye /></button>
-                        <button aria-label={`Converter ${visitor.name} em membro`} disabled={convertingId === visitor.id} onClick={() => setConvertTarget(visitor)}><UserCheck /></button><button aria-label={`Editar ${visitor.name}`} onClick={() => openRecord(visitor, "edit")}><Pencil /></button>
-                        <button aria-label={`Excluir ${visitor.name}`} onClick={() => setDeleteTarget(visitor)}><Trash2 /></button>
+                        {canWrite && <><button aria-label={`Converter ${visitor.name} em membro`} disabled={convertingId === visitor.id || readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setConvertTarget(visitor)}><UserCheck /></button><button aria-label={`Editar ${visitor.name}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => openRecord(visitor, "edit")}><Pencil /></button></>}
+                        {canWrite && <button aria-label={`Excluir ${visitor.name}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setDeleteTarget(visitor)}><Trash2 /></button>}
                       </div>
                     </td>
                   </tr>

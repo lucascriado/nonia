@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Droplets, Eye, HeartHandshake, Landmark, Pen
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
-import { usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
 import { ExportButton } from "@/components/export-button";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -232,7 +232,7 @@ export default function MembersPage() {
         <section className="members-heading">
           <div><h2>Gestão de Membros</h2><p>Visualize, filtre e gerencie todos os membros da congregação.</p></div>
           <ExportButton resource="members" permission="members.read" filters={{ search, ministry, status, baptism }} />
-          {canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>}
+          {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>}
         </section>
 
         {failed !== null ? (
@@ -302,7 +302,7 @@ export default function MembersPage() {
                       <td data-label="Status"><span className={`status-tag ${member.status === "Ativo" ? "is-active" : "is-inactive"}`}><i />{member.status}</span></td>
                       <td data-label="Batismo"><span className={`baptism-tag ${member.baptism === "Batizado" ? "is-baptized" : "is-waiting"}`}>{member.baptism}</span></td>
                       <td data-label="Admissão" className="admission-date">{member.date}</td>
-                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${member.name}`} onClick={() => openRecord(member, "view")}><Eye /></button><button aria-label={`Editar ${member.name}`} onClick={() => openRecord(member, "edit")}><Pencil /></button><button aria-label={`Excluir ${member.name}`} onClick={() => setDeleteTarget(member)}><Trash2 /></button></div></td>
+                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${member.name}`} onClick={() => openRecord(member, "view")}><Eye /></button>{canWrite && <><button aria-label={`Editar ${member.name}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => openRecord(member, "edit")}><Pencil /></button><button aria-label={`Excluir ${member.name}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setDeleteTarget(member)}><Trash2 /></button></>}</div></td>
                     </tr>
                   ))}
                   {/* A escolha da frase vem dos FILTROS, não do tamanho do array: desde que a
