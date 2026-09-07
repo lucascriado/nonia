@@ -86,11 +86,31 @@ export function Header({ title }: { title: string }) {
       const alvo = evento.target as HTMLElement | null;
       const digitando =
         Boolean(alvo?.isContentEditable) || ["INPUT", "TEXTAREA", "SELECT"].includes(alvo?.tagName ?? "");
-      // Ctrl+K DENTRO de um campo de texto é "apagar até o fim da linha" no
-      // Unix, e quem está digitando um nome não está procurando uma página.
-      // Cmd+K não tem esse dono, então no Mac vale em qualquer lugar.
-      if (digitando && evento.ctrlKey && !evento.metaKey && alvo !== campo.current) return;
+      // A guarda que engolia Ctrl+K num campo de texto ENCOLHEU para onde ela
+      // realmente protege algo: só o Mac. O raciocínio, medido, é uma assimetria.
+      //
+      // Ctrl+K = "apagar até o fim da linha" é comportamento do Cocoa (e de quem
+      // configurou keymap emacs). No MAC, onde ele existe de verdade, o atalho do
+      // app é Cmd+K, então guardar Ctrl+K não custa nada e preserva o kill-line.
+      // No Linux/Windows esse kill-line NÃO é padrão em campo de navegador -- e é
+      // justamente ali que o atalho anunciado É Ctrl+K. A guarda antiga, valendo
+      // em toda plataforma, matava em SILÊNCIO o atalho anunciado bem onde ele
+      // precisa funcionar: medido, ele abria a busca com o foco no body em todas
+      // as rotas, e era engolido assim que o foco caía num filtro ou num diálogo.
+      // Proteção que só atua onde não há o que proteger; atalho anunciado que não
+      // funciona é pior que atalho inexistente, porque a pessoa culpa a si mesma.
+      //
+      // Por isso: dispara pelo atalho DA PLATAFORMA -- Cmd+K no Mac, Ctrl+K no
+      // resto -- SEM olhar o foco. A guarda passa a valer só para o modificador
+      // que NÃO é o atalho da plataforma, que hoje é apenas o Ctrl no Mac, que
+      // segue com o sistema. Custo aceito: no Linux com keymap emacs, Ctrl+K num
+      // campo do app abre a busca em vez de apagar a linha -- raro, e quem tem
+      // esse keymap sabe o que fez.
+      if (noMac && digitando && evento.ctrlKey && !evento.metaKey && alvo !== campo.current) return;
 
+      // `preventDefault` continua obrigatório para o atalho da plataforma: sem
+      // ele o Firefox leva o Ctrl+K para a barra de busca dele e o nosso campo
+      // pisca e perde o foco.
       evento.preventDefault();
       setFocused(true);
       campo.current?.focus();
@@ -98,7 +118,7 @@ export function Header({ title }: { title: string }) {
     }
     document.addEventListener("keydown", aoTeclar);
     return () => document.removeEventListener("keydown", aoTeclar);
-  }, []);
+  }, [noMac]);
 
   // Fecha o painel do sino ao clicar fora ou apertar Esc, como todo menu da casa.
   useEffect(() => {
