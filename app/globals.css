@@ -3060,3 +3060,27 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .ajuda-indice { position: static; display: flex; overflow-x: auto; gap: 6px; }
   .ajuda-indice a { border: 1px solid var(--border); white-space: nowrap; }
 }
+
+/* ── Equipe do ministério ───────────────────────────────────────────────
+   A busca é o caminho, e não a lista inteira: antes eram 30+ caixas de
+   seleção numa grade rolante dentro de um formulário que não cabia na
+   janela. Paginar não resolveria -- 100 pessoas de 3 em 3 são 34 páginas
+   para achar UMA, e quem monta equipe já sabe o nome. */
+.equipe { display: grid; gap: var(--space-3); }
+.equipe-titulo { color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.equipe-lista { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.equipe-lista li { display: inline-flex; align-items: center; gap: 8px; padding: 5px 6px 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-soft); }
+.equipe-lista strong { color: var(--text); font-size: 0.8125rem; font-weight: 600; }
+.equipe-lista small { color: var(--muted); font-size: 0.6875rem; }
+.equipe-lista button { display: grid; width: 24px; height: 24px; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
+.equipe-lista button:hover { background: var(--danger-soft); color: var(--danger); }
+.equipe-lista button svg { width: 13px; }
+.equipe-vazia { margin: 0; color: var(--muted); font-size: 0.8125rem; }
+.equipe-busca { display: grid; gap: 6px; }
+.equipe-busca .member-filter-search input { min-height: 40px; padding-left: 34px; }
+.equipe-sugestoes { display: grid; gap: 2px; max-height: 210px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.equipe-sugestoes button { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); text-align: left; }
+.equipe-sugestoes button:hover { border-color: var(--primary-border); background: var(--panel-soft); }
+.equipe-sugestoes strong { color: var(--text); font-size: 0.8125rem; font-weight: 600; }
+.equipe-sugestoes small { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+.equipe-nota { color: var(--muted); font-size: 0.6875rem; }
