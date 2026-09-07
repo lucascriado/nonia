@@ -21,7 +21,7 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | Domínio `nonia.app` | **Não responde, e não vai passar a responder.** O DNS foi **dispensado**, não adiado — ver "Mudanças de escopo" |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
-| Integração | **Feita.** `main` em `7b1f085`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
+| Integração | **Feita.** `main` em `4b67d08`, no GitHub, com a Fase 1 e o site público mesclados. `typecheck` limpo e `build` passando contra o `nonia_dev`, com todas as rotas geradas e o Proxy registrado |
 | Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com o schema da Fase 1 aplicado (26 tabelas) e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 ### Escopo atual: execução local (06/09/2026)
@@ -106,14 +106,14 @@ Estrutura da `main` hoje:
 app/
   (marketing)/  site público: page.tsx (/), faq/, entrar/, cadastro/,
                 convite/[token]/, marketing.css, plans.ts
-  (app)/        sistema logado: painel/ atividades/ calendario/ celulas/
-                configuracoes/ financeiro/ membros/ ministerios/ visitantes/
+  (app)/        sistema logado: painel/ atividades/ calendario/ configuracoes/
+                financeiro/ membros/ ministerios/ usuarios/ visitantes/
   api/          route handlers, incluindo api/auth/ e api/users/
   layout.tsx  globals.css  icon.svg
 proxy.ts        desvio de navegação no Edge (era middleware.ts)
 components/     shell, sidebar, header, diálogos, skeletons, marketing/
 lib/            db.ts, models.ts, auth.ts, tenant.ts, passwords.ts, http.ts, …
-database/       migrate.mjs, migrations/ (001–007), seeds/
+database/       migrate.mjs, migrations/ (001–013), seeds/
 ```
 
 Os parênteses são route groups e **não** aparecem na URL.
@@ -302,8 +302,11 @@ por conta própria: banco compartilhado não é território de quem está numa b
 
 ### Estado do MVP — sem bloqueadores (06/09/2026)
 
-**627 testes no backend, 51 no frontend.** A aplicação roda em
-`localhost:3000` com `npm run dev`.
+**Testes versionados: 12 casos, em 3 arquivos de `tests/`** — `geometria` 2,
+`listagem` 6, `sessao` 4. **Não há suíte de backend no repositório**: medido com
+`git ls-files` na `main` e nas duas branches em 06/09/2026. Contagens maiores
+que circularam (627 no backend, 51 no frontend) **não se confirmam no código**.
+A aplicação roda em `localhost:3000` com `npm run dev`.
 
 **O lado do backend está fechado.** O que resta depende de decisão do Lucas: DNS
 para a recuperação de senha, exclusão lógica em membros e visitantes, os
@@ -360,7 +363,7 @@ Oficiais desde 06/09/2026.
 
 | Plano | Preço | Membros | Usuários |
 | --- | --- | --- | --- |
-| **Semente** | grátis | até 100 | 1 administrador |
+| **Semente** | grátis | até 100 | **2** |
 | **Comunidade** | R$ 89/mês | ilimitados | até 10 |
 | **Rede** | sob consulta | ilimitados, várias congregações | ilimitados |
 
@@ -375,10 +378,11 @@ coluna virou anulável na 007 exatamente por isso: sem a distinção, a Rede
 ficaria indistinguível da Semente no banco. `max_users` e `max_members` nulos
 significam ilimitado.
 
-> **Nenhum desses limites é aplicado.** Nada impede o 101º membro no Semente nem
-> o 11º usuário no Comunidade: os tetos estão cadastrados e **nenhuma rota os
-> consulta**. Vender com limite não verificado é aceitável no MVP **desde que
-> ninguém ache que está pronto**.
+> **Os limites são aplicados** desde `154cacc`. Medido em 06/09/2026:
+> `lib/plan-limits.ts` é consultado por **8 rotas** — `members`, `users`,
+> `users/[id]`, `visitors/[id]/convert`, `auth/session` e as três de `billing`.
+> A verificação é `uso >= teto` **na criação**: quem já passou não perde nada, a
+> organização só não cresce.
 
 ## Plano efetivo — derivado na leitura
 
@@ -617,15 +621,15 @@ enganos custam 30% do que ela paga. Está sendo feito.
 E isso agrava o caso abaixo: no Semente há 1 acesso, o dono já o ocupa, e um
 convite pendente jamais caberia.
 
-## No plano Semente ninguém convida ninguém
+## Assentos do Semente — resolvido pela 012
 
-Consequência visível, descoberta percorrendo a jornada: o Semente dá **1
-assento**, e o dono já o ocupa. **No gratuito não há como convidar a
-secretaria.** Durante os 14 dias de avaliação são 5 assentos e dá para montar a
-equipe; quando a avaliação vence, os convites param.
+O Semente dava **1 assento**, e o dono já o ocupava: no gratuito **ninguém
+conseguia convidar a secretaria**. O teto não estava limitando o crescimento,
+estava impedindo o uso.
 
-Isso é a promessa da landing sendo cumprida, não defeito — mas muda o que o
-produto entrega no plano gratuito, e está com o Lucas.
+**A migration 012 subiu para 2**, por decisão do Lucas em 06/09/2026 — o
+gratuito passa a comportar o par que faz o sistema funcionar: quem lidera e quem
+digita. A `description` do plano mudou junto, porque ela vem do banco.
 
 ## Multi-congregação
 
@@ -949,11 +953,9 @@ Datadas para que ninguém as leia como fato consumado.
 
 | Pendência | Desde |
 | --- | --- |
-| **Exportar não tem botão.** A API está pronta (`/api/export/members`, `/visitors`, `/financeiro`), mas nenhuma tela oferece o download — a promessa "quem quiser sair leva o que é seu" ainda depende de chamar a API na mão | 06/09/2026 |
 | **Quando houver cobrança real, cancelar assinatura vencida não pode limpar a dívida.** O ponto exato onde aplicar está marcado no docblock de `requireBillingWriteEvenWhenReadOnly`, em `lib/auth.ts` — a exceção que isenta o cancelar da guarda de somente leitura. Hoje não é explorável porque nenhum dinheiro troca de mãos | 06/09/2026 |
 | **SEGURANÇA — o bypass de contratação não pode ser ligado em ambiente exposto.** Ele concede plano pago sem pagamento. Enquanto existir, precisa de `BILLING_BYPASS` desligada por padrão, **recusa em produção ainda que a variável esteja ligada**, e toda assinatura marcada com `provider = 'bypass'` mais `billing_event`. **Só sai de cena quando existir pagamento real.** *Cópia deliberada do bloco em "Cobrança" — públicos diferentes; as duas mudam juntas.* | 06/09/2026 |
 | **Secretaria pode excluir lançamento financeiro.** A 009 concede `finance.write`, e o modelo não distingue criar de editar e apagar — as três rotas pedem a mesma permissão. Se excluir for demais, o caminho é uma permissão separada. Está com o Lucas | 06/09/2026 |
-| **No plano Semente não há assento para convidar ninguém.** Consequência do teto de 1 usuário; está com o Lucas | 06/09/2026 |
 | **E-mail de convite não envia** enquanto o domínio não estiver verificado no Resend — faltam três registros DNS, e no Cloudflare com proxy desligado. O convite por link funciona | 06/09/2026 |
 | **Exclusão lógica existe só no financeiro** (migration **011**: `deleted_at` e lixeira). Membros e visitantes continuam com exclusão definitiva. O enquadramento que resolveu o caso do financeiro vale para eles: a pergunta não é "quem pode apagar", é **"o que acontece quando se apaga"**. Está com o Lucas | 06/09/2026 |
 | **Não há como revogar convite pendente**, e cada um ocupa um assento para sempre. Está sendo feito | 06/09/2026 |
