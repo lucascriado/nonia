@@ -115,6 +115,26 @@ export function getWhatsappQr() {
   return apiRequest<WhatsappQr>("/api/whatsapp/connect");
 }
 
+/** Teto de ids por chamada de fotos. O excedente o OpenWA ignora em silêncio,
+ *  então o corte é aqui -- ver [[useConversationPhotos]]. */
+export const FOTOS_TETO = 50;
+
+/**
+ * Fotos de perfil por id de chat, em UMA segunda requisição -- nunca junto da
+ * listagem. A lista desenha com iniciais e troca depois; se a foto empurrasse o
+ * layout, a lista daria um pulo com a pessoa já lendo.
+ *
+ * `fotos` é um mapa id -> URL (ou null quando não há foto). As URLs são do
+ * `pps.whatsapp.net` e EXPIRAM: quem renderiza tem que cair para as iniciais no
+ * onError, não só quando vem null. Ver components/whatsapp/wa-avatar.tsx.
+ */
+export function getWhatsappPhotos(ids: string[]) {
+  const busca = new URLSearchParams({ ids: ids.slice(0, FOTOS_TETO).join(",") });
+  return apiRequest<{ fotos: Record<string, string | null>; pedidos: number; teto: number }>(
+    `/api/whatsapp/fotos?${busca.toString()}`,
+  );
+}
+
 export function listBroadcasts(page = 1, pageSize = 10) {
   return apiRequest<{ records: Broadcast[]; total: number; page: number; pageSize: number }>(
     `/api/whatsapp/broadcasts?page=${page}&pageSize=${pageSize}`,

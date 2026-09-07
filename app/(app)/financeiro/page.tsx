@@ -13,6 +13,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  ScrollText,
   Search,
   Trash2,
   Wallet,
@@ -27,6 +28,7 @@ import { ExportButton } from "@/components/export-button";
 import { AnimatedNumber } from "@/components/animated-number";
 import { DeleteRecordDialog } from "@/components/person-record-dialog";
 import { FinancialRecordDialog, FinancialRecordValues } from "@/components/financial-record-dialog";
+import { FinanceKardex } from "@/components/finance-kardex";
 import { toast } from "sonner";
 import { NumberSkeleton, TableSkeleton } from "@/components/skeleton";
 import { visiblePageNumbers } from "@/lib/pagination";
@@ -93,6 +95,7 @@ export default function FinancePage() {
   const [page, setPage] = useState(1);
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | "view" | null>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<FinancialTransaction | null>(null);
+  const [kardexAberto, setKardexAberto] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<FinancialTransaction | null>(null);
 
   /**
@@ -236,6 +239,8 @@ export default function FinancePage() {
             ações FICA -- ela é o que esta seção passa a ser. Ver
             components/header.tsx, que monta título e legenda de `searchItems`. */}
         <section className="resource-heading is-acoes">
+          {/* Kardex: leitura, então vale mesmo em somente leitura, ao lado do exportar. */}
+          <button type="button" className="text-button kardex-abrir" onClick={() => setKardexAberto(true)}><ScrollText aria-hidden />Kardex</button>
           <ExportButton resource="financeiro" permission="finance.read" filters={{ search, type, status, category, attachment }} />
           {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>}
         </section>
@@ -364,6 +369,7 @@ export default function FinancePage() {
       </main>
       <FinancialRecordDialog open={dialogMode !== null} mode={dialogMode ?? "create"} initialValues={selectedTransaction ? transactionValues(selectedTransaction) : undefined} onClose={() => { setDialogMode(null); setSelectedTransaction(null); }} onSubmit={saveTransaction} />
       <DeleteRecordDialog open={deleteTarget !== null} name={deleteTarget?.description ?? ""} kind="financial" onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
+      {kardexAberto && <FinanceKardex onClose={() => setKardexAberto(false)} />}
     </DashboardShell>
   );
 }

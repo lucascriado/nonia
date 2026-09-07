@@ -7,6 +7,7 @@ import { HttpError, LoadFailure } from "@/components/load-failure";
 import { usePermission, useReadOnly } from "@/components/current-user";
 import { ConversationList } from "@/components/whatsapp/conversation-list";
 import { ConversationView } from "@/components/whatsapp/conversation-view";
+import { useConversationPhotos } from "@/components/whatsapp/use-photos";
 import { listConversations, type Conversation, type InboxSync } from "@/components/whatsapp/api";
 
 const PAGINA = 25;
@@ -135,6 +136,11 @@ export function Inbox({ onIrParaConexao }: { onIrParaConexao: () => void }) {
     return <LoadFailure onRetry={() => void atualizar({ silencioso: false, substituir: true })} status={failed} />;
   }
 
+  // Fotos numa segunda requisição, DEPOIS que `conversas` já está em tela com
+  // iniciais. A conversa aberta pega a foto do mesmo mapa.
+  const fotos = useConversationPhotos(conversas);
+  const conversaAberta = selecionada ? conversas.find((c) => c.id === selecionada) : null;
+
   return (
     <div className="wa-inbox-wrap">
       {/* A caixa não finge que existe conversa sem conexão, e o caminho de
@@ -153,6 +159,7 @@ export function Inbox({ onIrParaConexao }: { onIrParaConexao: () => void }) {
         <ConversationList
           connected={connected}
           conversations={conversas}
+          fotos={fotos}
           loading={loading}
           loadingMore={carregandoMais}
           onLoadMore={() => void carregarMais()}
@@ -175,6 +182,7 @@ export function Inbox({ onIrParaConexao }: { onIrParaConexao: () => void }) {
               key={selecionada}
               onBack={() => setSelecionada(null)}
               onChanged={() => void atualizar({ silencioso: true, substituir: false })}
+              photoUrl={conversaAberta ? fotos[conversaAberta.chatId] : null}
               readOnly={readOnly}
             />
           ) : (
