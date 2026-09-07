@@ -340,15 +340,31 @@ ok(typeof r.d.recebimento?.ultimaEm === "string",
    "e agora vem TAMBEM quando chegou a ultima mensagem de fora", JSON.stringify(r.d.recebimento));
 ok(r.d.recebimento.avisar === false,
    "com mensagem recente, nao ha silencio a relatar", JSON.stringify(r.d.recebimento));
-// Envelhece a ultima recebida para alem do limiar. O que a igreja ENVIA nao
-// conta: sai desta maquina e continuaria "andando" numa sessao desvinculada.
-await sql.query("UPDATE whatsapp_messages SET sent_at = now() - interval '4 hours' WHERE organization_id = $1 AND NOT from_me", [orgA]);
+// O CASO QUE PEGOU O CAMPO ERRADO, e ele merece ficar aqui: a tabela de
+// MENSAGENS so avanca quando alguem ABRE uma conversa (avancarSincronizacao
+// empurra tres por leitura). Entao envelhecer as mensagens NAO pode envelhecer
+// o sinal -- se envelhecer, o campo esta medindo a nossa defasagem de
+// sincronizacao em vez do movimento da caixa. Foi assim que ele nasceu errado,
+// e foi um caso real que separou os dois.
+await sql.query("UPDATE whatsapp_messages SET sent_at = now() - interval '4 hours' WHERE organization_id = $1", [orgA]);
+r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
+ok(r.d.recebimento.avisar === false,
+   "mensagem velha com CONVERSA fresca NAO acusa silencio -- a lista e quem tem o frescor",
+   JSON.stringify(r.d.recebimento));
+// Agora sim: caixa sem movimento e o GATEWAY parar de mostrar atividade nova.
+// Envelheco no STUB, e nao no banco, de proposito -- envelhecer no banco seria
+// mentira que a proxima sincronizacao desfaz, e desfazer prova que o sinal vem
+// mesmo de la.
+for (const c of caixa.chats) c.timestamp = agora - 4 * 3600;
+await call("GET", "/api/whatsapp/conversas", { cookie: A });
+// As conversas criadas por encaminhamento nao estao na lista do stub, entao a
+// sincronizacao nao passa por elas.
+await sql.query("UPDATE whatsapp_conversations SET last_message_at = now() - interval '4 hours' WHERE organization_id = $1", [orgA]);
 r = await call("GET", "/api/whatsapp/conversas", { cookie: A });
 ok(r.d.recebimento.avisar === true && r.d.recebimento.minutosSem >= 180,
-   "passado o limiar, o campo sugere mostrar a frase", JSON.stringify(r.d.recebimento));
+   "conversa parada ha mais que o limiar: ai sim o campo sugere mostrar a frase", JSON.stringify(r.d.recebimento));
 ok(r.d.connected === true,
    "e `connected` NAO vira false: ler continua funcionando, e mentir para o outro lado seria o mesmo erro", r.d?.connected);
-await sql.query("UPDATE whatsapp_messages SET sent_at = now() WHERE organization_id = $1 AND NOT from_me AND wa_message_id = 'a1'", [orgA]);
 
 console.log("\n== SESSAO DESVINCULADA: enviar falha, e a frase diz o que houve ==");
 controle.desvinculada = true;
