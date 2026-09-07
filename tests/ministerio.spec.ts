@@ -62,6 +62,38 @@ test.describe("equipe do ministério", () => {
     expect(achou, "a busca devolveu gente demais para escolher de relance").toBeLessThanOrEqual(6);
   });
 
+  /**
+   * A interação mudou e o contrato não: a associação continua indo no mesmo
+   * PUT do ministério. Quem inclui alguém e fecha sem salvar acha que incluiu,
+   * então a tela diz isso ANTES -- e o aviso some quando a mudança é desfeita,
+   * senão vira ruído que ninguém lê.
+   */
+  test("incluir alguém avisa que só vale depois de salvar", async ({ page }) => {
+    const cartao = page.locator(".resource-card").first();
+    test.skip(!(await cartao.count()), "não há ministério neste banco");
+    const editar = cartao.locator("button", { hasText: "Editar" }).first();
+    test.skip(!(await editar.count()), "sem permissão de edição nesta conta");
+    await editar.click();
+    await page.waitForTimeout(1200);
+
+    const aviso = page.locator(".equipe-pendente");
+    await expect(aviso).toHaveCount(0);
+
+    await page.locator(".equipe-busca input").fill("ana");
+    await page.waitForTimeout(500);
+    const sugestao = page.locator(".equipe-sugestoes button").first();
+    test.skip(!(await sugestao.count()), "nenhum membro 'ana' para incluir neste banco");
+    await sugestao.click();
+
+    await expect(aviso).toBeVisible();
+    await expect(aviso).toContainText("Salvar");
+
+    // Desfazer devolve ao estado salvo, e o aviso some com ele.
+    await page.locator(".equipe-lista button").first().click();
+    await expect(aviso).toHaveCount(0);
+    // Sai sem salvar: esta suíte não grava.
+  });
+
   /** A lupa não pode ser desenhada sobre a primeira letra. */
   test("a lupa da busca não fica sobre o texto", async ({ page }) => {
     const cartao = page.locator(".resource-card").first();

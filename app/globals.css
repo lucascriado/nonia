@@ -3084,3 +3084,8 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 .equipe-sugestoes strong { color: var(--text); font-size: 0.8125rem; font-weight: 600; }
 .equipe-sugestoes small { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
 .equipe-nota { color: var(--muted); font-size: 0.6875rem; }
+
+/* Mudança de equipe ainda não salva. Aviso, não alarme: nada quebrou, só
+   ainda não valeu. */
+.equipe-pendente { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px var(--space-3); border-left: 3px solid var(--warning); border-radius: var(--radius-xs); background: var(--panel-soft); color: var(--muted); font-size: 0.78125rem; line-height: 1.5; }
+.equipe-pendente strong { color: var(--text); }
