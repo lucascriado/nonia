@@ -256,8 +256,10 @@ export default function VisitorsPage() {
   return (
     <DashboardShell title="Visitantes">
       <main className="visitors-main">
-        <section className="visitors-heading">
-          <div><h2>Gestão de Visitantes</h2><p>Acompanhe e integre novas pessoas à nossa comunidade.</p></div>
+        {/* Sem título aqui: ele vive na BARRA DO TOPO, e só lá. A faixa de
+            ações FICA -- ela é o que esta seção passa a ser. Ver
+            components/header.tsx, que monta título e legenda de `searchItems`. */}
+        <section className="visitors-heading is-acoes">
           <ExportButton resource="visitors" permission="visitors.read" filters={{ search, tab, invitedBy }} />
           {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action visitor-action" onClick={() => { setSelectedVisitor(null); setDialogMode("create"); }}><UserPlus />Novo Visitante</button>}
         </section>

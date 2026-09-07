@@ -66,11 +66,10 @@ export default function WhatsappPage() {
   return (
     <DashboardShell title="WhatsApp">
       <main className="whatsapp-main">
+        {/* Sem título aqui: ele vive na BARRA DO TOPO, e só lá. A faixa de
+            ações FICA -- ela é o que esta seção passa a ser. Ver
+            components/header.tsx, que monta título e legenda de `searchItems`. */}
         <section className="resource-heading">
-          <div>
-            <h2>WhatsApp</h2>
-            <p>As conversas do número da igreja, e o envio de mensagens para quem já está cadastrado.</p>
-          </div>
           <nav aria-label="Seções do WhatsApp" className="wa-tabs">
             <button aria-current={aba === "conversas" || undefined} className={aba === "conversas" ? "active" : ""} onClick={() => setAba("conversas")} type="button">Conversas</button>
             {canBroadcast && (

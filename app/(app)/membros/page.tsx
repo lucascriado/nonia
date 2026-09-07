@@ -235,8 +235,10 @@ export default function MembersPage() {
   return (
     <DashboardShell title="Membros">
       <main className="members-main">
-        <section className="members-heading">
-          <div><h2>Gestão de Membros</h2><p>Visualize, filtre e gerencie todos os membros da congregação.</p></div>
+        {/* Sem título aqui: ele vive na BARRA DO TOPO, e só lá. A faixa de
+            ações FICA -- ela é o que esta seção passa a ser. Ver
+            components/header.tsx, que monta título e legenda de `searchItems`. */}
+        <section className="members-heading is-acoes">
           <ExportButton resource="members" permission="members.read" filters={{ search, ministry, status, baptism }} />
           {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => { setSelectedMember(null); setDialogMode("create"); }}><Plus />Novo Membro</button>}
         </section>

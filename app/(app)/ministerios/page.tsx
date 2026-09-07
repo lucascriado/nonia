@@ -145,11 +145,10 @@ export default function MinistriesPage() {
   return (
     <DashboardShell title="Gestão de Ministérios">
       <main className="ministries-main">
-        <section className="resource-heading">
-          <div>
-            <h2>Gestão de Ministérios</h2>
-            <p>Organize equipes, voluntários e chamadas das escolas bíblicas.</p>
-          </div>
+        {/* Sem título aqui: ele vive na BARRA DO TOPO, e só lá. A faixa de
+            ações FICA -- ela é o que esta seção passa a ser. Ver
+            components/header.tsx, que monta título e legenda de `searchItems`. */}
+        <section className="resource-heading is-acoes">
           {!mode && canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => openForm("create")}><Plus />Novo Ministério</button>}
         </section>
 

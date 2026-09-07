@@ -49,7 +49,8 @@ export default function ActivitiesPage() {
   return (
     <DashboardShell title="Atividades">
       <main className="activities-main">
-        <section className="activities-heading"><h2>Atividades Recentes</h2><p>Tudo o que mudou na igreja: quem alterou, o que alterou e quando.</p></section>
+        {/* Esta seção era só título e legenda, e os dois já estão na barra
+            do topo. Sem ações para preservar, ela sai inteira. */}
         {failed !== null ? (
           <LoadFailure onRetry={() => setReloadToken((value) => value + 1)} status={failed} />
         ) : firstRun ? (
