@@ -1,3 +1,14 @@
+/**
+ * O conteúdo das dúvidas, em UM lugar só.
+ *
+ * Ele é lido por duas telas: a /faq pública, do site, e a /ajuda de dentro do
+ * app. Duas cópias divergiriam, e aí a igreja teria duas verdades sobre o
+ * próprio produto -- é o mesmo motivo pelo qual a listagem e a exportação
+ * passaram a tirar o filtro do mesmo lugar.
+ *
+ * Mora em `lib/` e não dentro de uma das duas telas exatamente porque não é de
+ * nenhuma delas.
+ */
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,

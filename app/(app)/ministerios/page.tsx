@@ -229,16 +229,41 @@ function MinistryForm({ mode, ministry, members, onClose, onSubmit }: { mode: "c
   const [memberSearch, setMemberSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const readOnly = mode === "view";
-  const filteredMembers = useMemo(() => {
+  /**
+   * Quem JÁ está no ministério, na ordem em que se lê um nome.
+   *
+   * Antes esta lista não existia: as pessoas do ministério eram as caixas
+   * marcadas no meio de todas as outras, e para saber quem estava dentro era
+   * preciso percorrer trinta linhas procurando o que estava marcado.
+   */
+  const equipe = useMemo(
+    () => values.memberIds
+      .map((id) => members.find((m) => m.id === id))
+      .filter((m): m is MemberOption => Boolean(m))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    [members, values.memberIds],
+  );
+
+  /**
+   * A BUSCA é o caminho para achar alguém, e não a lista inteira.
+   *
+   * Antes eram trinta e poucas caixas de seleção numa grade rolante, dentro de
+   * um formulário que já não cabia na janela -- medi 911px numa tela de 900. E
+   * a alternativa de paginar não resolve: com 100 pessoas em blocos de três
+   * são 34 páginas para achar UMA. Paginação serve para folhear, e ninguém
+   * folheia para montar equipe -- quem monta já sabe o nome.
+   *
+   * Por isso nada aparece com a busca vazia: sugestão sem pergunta é a parede
+   * de caixas com outra roupa.
+   */
+  const sugestoes = useMemo(() => {
     const term = memberSearch.trim().toLocaleLowerCase("pt-BR");
+    if (term.length < 2) return [];
     return members
-      .filter((member) => !term || `${member.name} ${member.email}`.toLocaleLowerCase("pt-BR").includes(term))
-      .sort((a, b) => {
-        const aSelected = values.memberIds.includes(a.id);
-        const bSelected = values.memberIds.includes(b.id);
-        if (aSelected !== bSelected) return aSelected ? -1 : 1;
-        return a.name.localeCompare(b.name, "pt-BR");
-      });
+      .filter((member) => !values.memberIds.includes(member.id))
+      .filter((member) => `${member.name} ${member.email}`.toLocaleLowerCase("pt-BR").includes(term))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+      .slice(0, 6);
   }, [memberSearch, members, values.memberIds]);
 
   useEffect(() => {
@@ -253,11 +278,15 @@ function MinistryForm({ mode, ministry, members, onClose, onSubmit }: { mode: "c
     } : emptyMinistry);
   }, [ministry]);
 
-  function toggleMember(memberId: string) {
-    setValues((current) => ({
-      ...current,
-      memberIds: current.memberIds.includes(memberId) ? current.memberIds.filter((id) => id !== memberId) : [...current.memberIds, memberId],
-    }));
+  function incluirMembro(memberId: string) {
+    setValues((current) => current.memberIds.includes(memberId)
+      ? current
+      : { ...current, memberIds: [...current.memberIds, memberId] });
+    setMemberSearch("");
+  }
+
+  function tirarMembro(memberId: string) {
+    setValues((current) => ({ ...current, memberIds: current.memberIds.filter((id) => id !== memberId) }));
   }
 
   async function submit(event: FormEvent) {
@@ -279,23 +308,72 @@ function MinistryForm({ mode, ministry, members, onClose, onSubmit }: { mode: "c
         <label><span>Líder</span><select disabled={readOnly} value={values.leaderId} onChange={(event) => setValues((current) => ({ ...current, leaderId: event.target.value }))}><option value="">Sem líder definido</option>{members.map((member) => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label>
         <label><span>Cor</span><select disabled={readOnly} value={values.color} onChange={(event) => setValues((current) => ({ ...current, color: event.target.value as MinistryFormValues["color"] }))}><option value="purple">Roxo</option><option value="blue">Azul</option><option value="green">Verde</option><option value="gray">Cinza</option></select></label>
         <label className="wide form-section-field"><span>Descrição</span><textarea readOnly={readOnly} value={values.description} onChange={(event) => setValues((current) => ({ ...current, description: event.target.value }))} /></label>
-        <div className="member-picker wide">
-          <span>Membros do ministério</span>
-          <small className="member-picker-help">Marque abaixo as pessoas que fazem parte deste ministério.</small>
-          <label className="member-filter-search member-picker-filter"><Search /><input value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Filtrar membros..." /></label>
-          <div>{filteredMembers.map((member) => {
-            const selected = values.memberIds.includes(member.id);
-            return (
-              <label className={selected ? "selected" : undefined} key={member.id}>
-                <input type="checkbox" disabled={readOnly} checked={selected} onChange={() => toggleMember(member.id)} />
-                <strong>{member.name}</strong>
-                <small>{member.email}</small>
-                <small className="member-picker-meta">{selected ? "Vinculado neste ministério" : member.ministry && member.ministry !== "Nenhum" ? `Atual: ${member.ministry}` : "Sem ministério"}</small>
-              </label>
-            );
-          })}</div>
-          {!filteredMembers.length && <small className="member-picker-empty">Nenhum membro encontrado.</small>}
-        </div>
+        {/* CRIAR MINISTÉRIO NÃO EXIGE ESCOLHER GENTE. No cadastro o bloco de
+            equipe nem aparece: o ministério nasce com nome, líder, cor e
+            descrição, e as pessoas entram depois, aqui mesmo, quando ele já
+            existe. Isso é metade do que derrubou os 911px que não cabiam. */}
+        {mode !== "create" && (
+          <div className="equipe wide">
+            <span className="equipe-titulo">Membros do ministério</span>
+
+            {equipe.length > 0 ? (
+              <ul className="equipe-lista">
+                {equipe.map((membro) => (
+                  <li key={membro.id}>
+                    <strong>{membro.name}</strong>
+                    <small>{membro.email}</small>
+                    {!readOnly && (
+                      <button aria-label={`Tirar ${membro.name} do ministério`} onClick={() => tirarMembro(membro.id)} type="button">
+                        <X aria-hidden />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="equipe-vazia">Ninguém neste ministério ainda.</p>
+            )}
+
+            {!readOnly && (
+              <div className="equipe-busca">
+                <label className="member-filter-search">
+                  <Search aria-hidden />
+                  <input
+                    onChange={(event) => setMemberSearch(event.target.value)}
+                    placeholder="Buscar quem já está cadastrado…"
+                    value={memberSearch}
+                  />
+                </label>
+                {/* Nada aparece com a busca vazia: lista inteira sem pergunta é
+                    a parede de caixas de antes com outra roupa. */}
+                {memberSearch.trim().length >= 2 && (
+                  sugestoes.length ? (
+                    <ul className="equipe-sugestoes">
+                      {sugestoes.map((membro) => (
+                        <li key={membro.id}>
+                          <button onClick={() => incluirMembro(membro.id)} type="button">
+                            <strong>{membro.name}</strong>
+                            <small>{membro.ministry && membro.ministry !== "Nenhum" ? `Hoje em ${membro.ministry}` : "Sem ministério"}</small>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="equipe-vazia">Ninguém com esse nome fora deste ministério.</p>
+                  )
+                )}
+                {/* O lugar de chamar quem AINDA NÃO existe no cadastro fica
+                    marcado e vazio de propósito: o convite que o produto tem
+                    cria USUÁRIO e ocupa assento do plano, e voluntário de
+                    ministério não precisa de login. Enquanto não se decidir se
+                    é dar acesso ou só avisar a pessoa, qualquer comportamento
+                    aqui tem chance de ser o errado -- e o errado gasta assento
+                    pago por voluntário. */}
+                <small className="equipe-nota">Só aparece quem já está no cadastro de membros.</small>
+              </div>
+            )}
+          </div>
+        )}
       </fieldset>
       {!readOnly && <footer><button type="button" onClick={onClose} disabled={saving}>Cancelar</button><button className="primary-action" disabled={saving}>{saving ? <LoaderCircle className="button-spinner" /> : <Plus />}{saving ? "Salvando..." : "Salvar Ministério"}</button></footer>}
     </form>

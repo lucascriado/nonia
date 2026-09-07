@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Reveal } from "@/components/marketing/reveal";
-import { faqTopics } from "./faq-data";
+import { faqTopics } from "@/lib/faq-topics";
 
 export function FaqSections() {
   const activeId = useActiveTopic();

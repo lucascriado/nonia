@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
+  BookOpen,
   CalendarDays,
   History,
   LayoutDashboard,
@@ -31,6 +32,7 @@ const searchItems = [
   { title: "Financeiro", description: "Entradas, saídas, comprovantes e saldo disponível", href: "/financeiro", icon: Wallet, keywords: "financeiro dizimo oferta despesa saldo lancamento comprovante" },
   { title: "Usuários", description: "Quem tem acesso ao painel e com qual papel", href: "/usuarios", icon: ShieldCheck, keywords: "usuarios acesso papel permissao convite equipe secretaria lider" },
   { title: "Configurações", description: "Sua conta, os dados da igreja e o plano", href: "/configuracoes", icon: Settings, keywords: "configuracoes perfil conta usuario" },
+  { title: "Documentação", description: "Como cada parte do nonia funciona, recurso por recurso", href: "/ajuda", icon: BookOpen, keywords: "ajuda documentacao duvidas suporte manual como funciona faq" },
 ];
 
 // Algumas páginas passam um título mais longo ("Gestão de Ministérios"), então a
