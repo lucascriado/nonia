@@ -1885,6 +1885,28 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .record-save { display: flex; align-items: center; gap: 8px; background: var(--primary-fill); color: var(--on-primary-fill); box-shadow: var(--shadow-xs); transition: background .2s ease, transform .25s var(--ease-out); }
 .record-save:hover { background: var(--primary-strong); transform: translateY(-1px); }
 .record-save svg { width: var(--icon-md); }
+/* Trilha das duas etapas do cadastro. Ela não é enfeite: sem ver que existe um
+   passo 2 opcional, "Salvar agora" parece um atalho suspeito em vez do caminho
+   normal. */
+/* `grid-column: 1 / -1`: o formulário é uma grade de duas colunas (foto e
+   campos), e sem isto a trilha caía numa coluna só, com o passo 2 despencando
+   para baixo do passo 1. */
+.record-steps { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); padding: 0; margin: 0; list-style: none; }
+.record-steps li { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.record-steps b { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: var(--neutral-soft); color: var(--muted); font-size: 0.6875rem; }
+.record-steps li.is-current { color: var(--heading); }
+.record-steps li.is-current b { background: var(--primary-fill); color: var(--on-primary-fill); }
+.record-steps li.is-done b { background: var(--primary-soft); color: var(--heading); }
+.record-steps em { color: var(--muted); font-size: 0.75rem; font-style: normal; font-weight: 400; }
+
+.record-form-fields.is-step-one { grid-column: 1 / -1; display: block; padding: 0; }
+.record-step-note { grid-column: 1 / -1; max-width: 62ch; margin: var(--space-4) 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.6; }
+/* "Salvar agora" tem o mesmo peso visual do avançar: pular é o caminho normal,
+   não a saída de emergência. */
+.record-skip { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; padding: 0 var(--space-5); border: 1px solid var(--primary-border); border-radius: var(--radius-sm); background: transparent; color: var(--heading); font-size: 0.875rem; font-weight: 600; }
+.record-skip:hover:not(:disabled) { background: var(--primary-soft); }
+.record-skip svg { width: var(--icon-sm); }
+
 .record-form-actions button:disabled, .record-dialog-top button:disabled, .record-photo-card button:disabled, .delete-dialog footer button:disabled { cursor: wait; opacity: .65; transform: none; }
 .button-spinner { animation: button-spin .75s linear infinite; }
 
@@ -2717,6 +2739,7 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 .wa-recipients strong { color: var(--text); font-weight: 600; }
 .wa-recipients small { color: var(--muted); }
 
+.wa-history-note { margin: 0; color: var(--muted); font-size: 0.75rem; }
 .wa-history { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .wa-history button { display: flex; width: 100%; min-height: 44px; align-items: center; gap: var(--space-3); padding: var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; }
 .wa-history button:hover { background: var(--panel-soft); }
