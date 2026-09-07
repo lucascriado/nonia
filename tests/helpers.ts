@@ -9,6 +9,19 @@ import type { Page } from "@playwright/test";
  */
 export const DEMO = { email: "demo@nonia.app", password: "demo1234" };
 
+/**
+ * A conta que a suíte usa. Continua sendo a `demo@nonia.app` do `nonia_dev`
+ * por padrão -- ninguém precisa configurar nada.
+ *
+ * As variáveis existem porque nem todo estado se testa no banco compartilhado:
+ * a caixa de entrada precisa de conversa, e conversa não se semeia lá. Quem
+ * roda contra um banco próprio aponta a conta dele por aqui.
+ */
+export const CONTA = {
+  email: process.env.NONIA_LOGIN ?? DEMO.email,
+  password: process.env.NONIA_SENHA ?? DEMO.password,
+};
+
 /** Telas do app protegidas por sessão. */
 export const APP_SCREENS = [
   "/painel",
@@ -26,7 +39,7 @@ export const APP_SCREENS = [
 export const PUBLIC_SCREENS = ["/", "/faq", "/precos", "/entrar", "/cadastro"];
 
 export async function login(page: Page) {
-  const response = await page.request.post("/api/auth/login", { data: DEMO });
+  const response = await page.request.post("/api/auth/login", { data: CONTA });
   if (!response.ok()) throw new Error(`login falhou: ${response.status()}`);
 }
 

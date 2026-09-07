@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { DEMO } from "./helpers";
+import { CONTA } from "./helpers";
 
 /**
  * O vazio que primeiro finge estar cheio.
@@ -17,11 +17,6 @@ import { DEMO } from "./helpers";
  * varredura de dez telas concluiu "nenhuma mente sem dado" e estava certa para
  * o que mediu. Aqui a medição é QUADRO A QUADRO.
  */
-const CONTA = {
-  email: process.env.NONIA_LOGIN ?? DEMO.email,
-  password: process.env.NONIA_SENHA ?? DEMO.password,
-};
-
 /** As listagens que têm cartão de "ainda não há nada", com o indicador de cada. */
 const LISTAGENS = [
   { rota: "/membros", indicadores: ".member-stats" },

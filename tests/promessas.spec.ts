@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { DEMO } from "./helpers";
+import { CONTA } from "./helpers";
 
 /**
  * "A tela afirma o que ninguém leu" -- e a irmã dela, a tela que ANUNCIA o
@@ -10,11 +10,6 @@ import { DEMO } from "./helpers";
  * arquivo é a casa dos testes dessa família -- elemento que promete
  * comportamento tem de ter comportamento por trás.
  */
-const CONTA = {
-  email: process.env.NONIA_LOGIN ?? DEMO.email,
-  password: process.env.NONIA_SENHA ?? DEMO.password,
-};
-
 test.describe("o que a interface anuncia, ela faz", () => {
   test.beforeEach(async ({ page }) => {
     const resposta = await page.request.post("/api/auth/login", { data: CONTA });

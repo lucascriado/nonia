@@ -1,17 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CloudOff, Send, Users } from "lucide-react";
+import { ArrowLeft, CloudOff, CornerUpLeft, Forward, Paperclip, Send, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { AuthError } from "@/components/auth/session";
 import { READ_ONLY_REASON } from "@/components/current-user";
 import { HttpError, LoadFailure } from "@/components/load-failure";
 import { ActivitySkeleton } from "@/components/skeleton";
 import { foraDoCadastro, formatarTelefone, nomeDe } from "@/components/whatsapp/conversation-list";
+import { ForwardDialog } from "@/components/whatsapp/forward-dialog";
+import { MessageMedia } from "@/components/whatsapp/message-media";
 import {
+  LIMITE_ARQUIVO,
+  LIMITE_LEGENDA,
   LIMITE_MENSAGEM,
   getConversation,
   replyToConversation,
+  sendMedia,
   type ConversationDetail,
   type Message,
 } from "@/components/whatsapp/api";
@@ -48,6 +53,12 @@ export function ConversationView({
   const [deep, setDeep] = useState(false);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
+  /** A mensagem que a resposta vai CITAR, quando houver. */
+  const [citando, setCitando] = useState<Message | null>(null);
+  /** A mensagem que o diálogo de encaminhar está segurando. */
+  const [encaminhando, setEncaminhando] = useState<Message | null>(null);
+  const arquivo = useRef<HTMLInputElement | null>(null);
+  const campo = useRef<HTMLTextAreaElement | null>(null);
   const fim = useRef<HTMLDivElement | null>(null);
   const emVoo = useRef(false);
   // Se já há histórico na tela, uma leitura de fundo que falha NÃO pode
@@ -94,6 +105,7 @@ export function ConversationView({
     setDetail(null);
     setDeep(false);
     setTexto("");
+    setCitando(null);
     setLoading(true);
   }, [id]);
 
@@ -128,8 +140,10 @@ export function ConversationView({
     if (!mensagem || enviando) return;
     setEnviando(true);
     try {
-      const { waMessageId } = await replyToConversation(id, mensagem);
+      const citada = citando;
+      const { waMessageId } = await replyToConversation(id, mensagem, citada?.waMessageId);
       setTexto("");
+      setCitando(null);
       // Acrescenta a mensagem que o servidor ACABOU de gravar. Não é otimismo:
       // só chega aqui depois do 201. Balão que aparece antes da confirmação e
       // some depois é a mesma família do vazio que mente.
@@ -144,11 +158,14 @@ export function ConversationView({
                   waMessageId,
                   fromMe: true,
                   author: null,
+                  authorName: null,
                   type: "text",
                   body: mensagem,
-                  hasMedia: false,
                   sentAt: new Date().toISOString(),
                   preview: mensagem,
+                  hasMedia: false,
+                  media: null,
+                  quoted: citada ? { waMessageId: citada.waMessageId, preview: citada.preview } : null,
                 } satisfies Message,
               ],
             }
@@ -159,6 +176,38 @@ export function ConversationView({
       // O servidor manda a frase em pt-BR, inclusive a do teto de 30 por
       // minuto. Repetir aqui seria manter duas versões da mesma regra.
       toast.error(error instanceof AuthError ? error.message : "Não foi possível enviar a mensagem.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function enviarArquivo(escolhido: File) {
+    if (escolhido.size > LIMITE_ARQUIVO) {
+      // Recusa ANTES de subir: mandar 40 MB para receber 413 gasta o tempo da
+      // pessoa e a banda dela para chegar na mesma resposta.
+      toast.error(`O arquivo tem ${(escolhido.size / 1024 / 1024).toFixed(1)} MB e o limite é 16 MB.`);
+      return;
+    }
+    const legenda = texto.trim();
+    if (legenda.length > LIMITE_LEGENDA) {
+      toast.error(`A legenda passa de ${LIMITE_LEGENDA} caracteres, que é o limite.`);
+      return;
+    }
+    setEnviando(true);
+    try {
+      await sendMedia(id, escolhido, {
+        caption: legenda || undefined,
+        quotedWaMessageId: citando?.waMessageId,
+      });
+      setTexto("");
+      setCitando(null);
+      // Sem balão otimista aqui: o tipo e a prévia quem calcula é o servidor, e
+      // adivinhá-los seria a tela afirmando o que ainda não leu. A releitura
+      // traz a mensagem já montada.
+      await carregar(deep, true);
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof AuthError ? error.message : "Não foi possível enviar o arquivo.");
     } finally {
       setEnviando(false);
     }
@@ -247,13 +296,40 @@ export function ConversationView({
               <li key={mensagem.id}>
                 {virouODia && <p className="wa-day">{rotuloDoDia(mensagem.sentAt)}</p>}
                 <div className={`wa-bubble${mensagem.fromMe ? " is-mine" : ""}`}>
-                  {grupo && !mensagem.fromMe && mensagem.author && (
-                    <span className="wa-bubble-author">{autorDe(mensagem.author)}</span>
+                  {grupo && !mensagem.fromMe && (mensagem.authorName || mensagem.author) && (
+                    <span className="wa-bubble-author">{mensagem.authorName ?? autorDe(mensagem.author!)}</span>
                   )}
-                  {/* Texto mostra o corpo inteiro; mídia mostra o marcador que o
-                      servidor calculou. A tela não tem tabela de tipos. */}
-                  <p>{mensagem.type === "text" ? (mensagem.body ?? mensagem.preview) : mensagem.preview}</p>
+
+                  {/* A citada. O `preview` já vem pronto do servidor, inclusive
+                      o "[mensagem fora do trecho carregado]" de quando ela está
+                      acima do que foi trazido -- some melhor que um vazio. */}
+                  {mensagem.quoted && (
+                    <p className="wa-bubble-citada">{mensagem.quoted.preview}</p>
+                  )}
+
+                  {mensagem.hasMedia ? (
+                    <MessageMedia mensagem={mensagem} />
+                  ) : (
+                    /* Texto mostra o corpo inteiro; o resto mostra o marcador
+                       que o servidor calculou. A tela não tem tabela de tipos. */
+                    <p>{mensagem.type === "text" ? (mensagem.body ?? mensagem.preview) : mensagem.preview}</p>
+                  )}
+
                   <time dateTime={mensagem.sentAt}>{hora(mensagem.sentAt)}</time>
+
+                  {/* Citar e encaminhar são ESCRITA: sem a permissão, nem
+                      aparecem. No dedo ficam sempre visíveis, porque passar o
+                      mouse não existe -- ver a camada de toque no globals.css. */}
+                  {canWrite && !readOnly && (
+                    <span className="wa-bubble-acoes">
+                      <button onClick={() => { setCitando(mensagem); campo.current?.focus(); }} type="button">
+                        <CornerUpLeft aria-hidden />Responder
+                      </button>
+                      <button onClick={() => setEncaminhando(mensagem)} type="button">
+                        <Forward aria-hidden />Encaminhar
+                      </button>
+                    </span>
+                  )}
                 </div>
               </li>
             );
@@ -266,7 +342,34 @@ export function ConversationView({
         <p className="wa-thread-blocked">{impedimento}</p>
       ) : (
         <form className="wa-composer" onSubmit={enviar}>
+          {/* O que vai ser citado, à vista antes de mandar. Sem esta barra a
+              citação some da tela e a pessoa não sabe que está citando. */}
+          {citando && (
+            <p className="wa-composer-citada">
+              <span>{citando.preview}</span>
+              <button aria-label="Não citar" onClick={() => setCitando(null)} type="button"><X aria-hidden /></button>
+            </p>
+          )}
+          {/* O tipo sai do mimetype NO SERVIDOR, então a tela não pergunta se é
+              foto ou documento -- perguntar seria inventar uma decisão que não
+              é dela. Só o teto é conferido aqui, para não subir 16 MiB à toa. */}
+          <input
+            className="wa-arquivo"
+            onChange={(evento) => { const f = evento.target.files?.[0]; evento.target.value = ""; if (f) void enviarArquivo(f); }}
+            ref={arquivo}
+            type="file"
+          />
+          <button
+            aria-label="Enviar arquivo"
+            className="wa-anexar"
+            disabled={enviando}
+            onClick={() => arquivo.current?.click()}
+            type="button"
+          >
+            <Paperclip aria-hidden />
+          </button>
           <textarea
+            ref={campo}
             onChange={(event) => setTexto(event.target.value)}
             onKeyDown={(event) => {
               // Enter envia, Shift+Enter quebra a linha: é o que a mão já sabe
@@ -291,6 +394,15 @@ export function ConversationView({
             </small>
           )}
         </form>
+      )}
+
+      {encaminhando && (
+        <ForwardDialog
+          mensagem={encaminhando}
+          onClose={() => setEncaminhando(null)}
+          onEncaminhada={onChanged}
+          origemId={id}
+        />
       )}
     </div>
   );

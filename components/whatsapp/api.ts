@@ -1,6 +1,6 @@
 "use client";
 
-import { apiRequest } from "@/components/auth/session";
+import { AuthError, apiRequest } from "@/components/auth/session";
 
 /**
  * Fronteira única com as rotas de WhatsApp, no mesmo molde de
@@ -219,17 +219,49 @@ export type ConversationPage = {
   connected: boolean;
 };
 
+export type MediaKind = "image" | "video" | "audio" | "voice" | "document" | "sticker";
+
+export type MessageMedia = {
+  /**
+   * O endereço para baixar os bytes. USE COMO VEIO -- montar à mão duplicaria
+   * uma regra que já mora no servidor.
+   *
+   * Responde 404 com frequência, e isso NÃO é erro: o gateway só guarda os
+   * bytes do que viu ao vivo, então foto anterior ao pareamento responde 404
+   * para sempre. É estado, e a tela mostra o marcador de texto no lugar.
+   */
+  url: string;
+  /** Nulos no recebido: só se conhecem baixando. Preenchidos no que a igreja enviou. */
+  mimetype: string | null;
+  filename: string | null;
+  kind: MediaKind;
+};
+
+/** A mensagem citada. `preview` já vem pronto do servidor. */
+export type QuotedMessage = { waMessageId: string; preview: string };
+
+/**
+ * São ESTES doze campos, sempre. O backend tem teste que falha se aparecer um
+ * décimo terceiro, então nada de ler campo que não esteja aqui.
+ */
 export type Message = {
+  /** Do BANCO. Não serve para citar, encaminhar nem baixar mídia. */
   id: string;
+  /** Do WhatsApp. É ele que vai nas três rotas acima. */
   waMessageId: string;
   fromMe: boolean;
+  /** Só em grupo: quem falou. Fora de grupo é null. */
   author: string | null;
+  authorName: string | null;
   type: string;
   body: string | null;
-  hasMedia: boolean;
   sentAt: string;
   /** Mídia vira marcador de texto — "[foto]" —, nunca ícone e nunca cor. */
   preview: string;
+  /** DERIVADO DO TIPO: true mesmo quando os bytes não vieram. */
+  hasMedia: boolean;
+  media: MessageMedia | null;
+  quoted: QuotedMessage | null;
 };
 
 export type ConversationDetail = Conversation & {
@@ -266,13 +298,77 @@ export function getConversation(id: string, deep = false) {
   return apiRequest<ConversationDetail>(`/api/whatsapp/conversas/${id}${deep ? "?deep=true" : ""}`);
 }
 
-/** Responder. 429 `whatsapp_too_fast` é teto de sanidade, não bloqueio da conta. */
-export function replyToConversation(id: string, message: string) {
+/**
+ * Responder, e opcionalmente CITANDO.
+ *
+ * 429 `whatsapp_too_fast` é teto de sanidade, não bloqueio da conta.
+ * 404 `quoted_not_found` quando a citada não é desta conversa.
+ */
+export function replyToConversation(id: string, message: string, quotedWaMessageId?: string) {
   return apiRequest<{ ok: true; waMessageId: string }>(`/api/whatsapp/conversas/${id}`, {
     method: "POST",
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(quotedWaMessageId ? { message, quotedWaMessageId } : { message }),
   });
 }
+
+/**
+ * Encaminhar UMA mensagem para UM destino.
+ *
+ * Um destino por chamada, e é decisão do backend: vários destinos é envio em
+ * massa, que tem teto de 500, intervalo de 3s e permissão própria. A tela não
+ * pode transformar encaminhar em disparo por acumular cliques.
+ *
+ * `conversationId` na resposta é a conversa de DESTINO, que pode ter acabado de
+ * ser criada — é por ela que a tela abre a conversa depois.
+ */
+export function forwardMessage(id: string, waMessageId: string, paraConversaId: string) {
+  return apiRequest<{ ok: true; waMessageId: string; conversationId: string }>(
+    `/api/whatsapp/conversas/${id}/encaminhar`,
+    { method: "POST", body: JSON.stringify({ waMessageId, paraConversaId }) },
+  );
+}
+
+/**
+ * Enviar arquivo. Vai em `multipart/form-data`, então NÃO passa pelo
+ * `apiRequest` — ele carimba `Content-Type: application/json`, e carimbar isso
+ * num multipart apaga o `boundary` e o servidor devolve `invalid_form`.
+ *
+ * O tipo sai do mimetype do arquivo no servidor, não de um campo da tela.
+ */
+export async function sendMedia(
+  id: string,
+  arquivo: File,
+  extras: { caption?: string; quotedWaMessageId?: string; voz?: boolean } = {},
+) {
+  const corpo = new FormData();
+  corpo.set("file", arquivo);
+  if (extras.caption?.trim()) corpo.set("caption", extras.caption.trim());
+  if (extras.quotedWaMessageId) corpo.set("quotedWaMessageId", extras.quotedWaMessageId);
+  if (extras.voz) corpo.set("voz", "true");
+
+  const resposta = await fetch(`/api/whatsapp/conversas/${id}/midia`, {
+    method: "POST",
+    body: corpo,
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  const dados = (await resposta.json().catch(() => null)) as
+    | { ok?: true; waMessageId?: string; type?: string; error?: string; code?: string }
+    | null;
+  if (!resposta.ok) {
+    throw new AuthError(
+      dados?.error ?? "Não foi possível enviar o arquivo.",
+      dados?.code ?? "unexpected",
+      resposta.status,
+    );
+  }
+  return dados as { ok: true; waMessageId: string; type: string };
+}
+
+/** O teto do servidor, em bytes: 16 MiB. A tela recusa antes de subir. */
+export const LIMITE_ARQUIVO = 16 * 1024 * 1024;
+/** O teto da legenda, do servidor. */
+export const LIMITE_LEGENDA = 1024;
 
 /** Vincula a conversa a uma pessoa do cadastro; `null` desvincula. */
 export function linkConversation(id: string, personId: string | null) {
