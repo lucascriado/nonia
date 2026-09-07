@@ -128,12 +128,77 @@ export function previewBroadcast(input: { audience: BroadcastAudience; filters: 
   });
 }
 
-export function createBroadcast(input: { audience: BroadcastAudience; message: string; filters: BroadcastFilters }) {
+/**
+ * `incluir` é OPCIONAL no contrato e OBRIGATÓRIO no nosso uso.
+ *
+ * Sem ele, o que a pessoa conferiu na tela e o que sai são duas resoluções em
+ * momentos diferentes: um cadastro criado entre uma coisa e outra faz a prévia
+ * dizer 5 e o envio ir para 6. Com a lista de nomes à vista isso vira "conferi
+ * cinco e mandou para seis", que é pior que o escuro de antes.
+ */
+export function createBroadcast(input: {
+  audience: BroadcastAudience;
+  message: string;
+  filters: BroadcastFilters;
+  incluir?: string[];
+}) {
   return apiRequest<BroadcastPreview & { id: string }>("/api/whatsapp/broadcasts", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
+
+/** Por que uma pessoa do filtro não vai receber. `null` = vai receber. */
+export type MotivoDeFora = null | "sem_telefone" | "telefone_invalido" | "numero_repetido";
+
+export type BroadcastTarget = {
+  personId: string;
+  name: string;
+  phone: string | null;
+  recebe: boolean;
+  motivo: MotivoDeFora;
+};
+
+/**
+ * Quem entra no envio, com NOME.
+ *
+ * O `resumo` é byte a byte o mesmo objeto da prévia -- há teste no backend
+ * comparando os dois serializados. Por isso a tela usa ESTA rota como fonte
+ * única: pedir o resumo de um lado e a lista de outro seriam duas resoluções
+ * em instantes diferentes, e elas podem discordar.
+ *
+ * NÃO existe motivo "acima do teto", e é de propósito: a resolução busca 501
+ * linhas só para saber que há mais, então não se sabe QUEM ficou de fora. Quem
+ * diz isso é `resumo.acimaDoTeto`, e é faixa na tela, não linha da lista.
+ */
+export function listBroadcastRecipients(input: {
+  audience: BroadcastAudience;
+  filters: BroadcastFilters;
+  page?: number;
+  pageSize?: number;
+}) {
+  const q = new URLSearchParams({ audience: input.audience });
+  for (const [chave, valor] of Object.entries(input.filters)) if (valor) q.set(chave, valor);
+  q.set("page", String(input.page ?? 1));
+  q.set("pageSize", String(input.pageSize ?? 50));
+  return apiRequest<{
+    records: BroadcastTarget[];
+    total: number;
+    page: number;
+    pageSize: number;
+    resumo: BroadcastPreview;
+  }>(`/api/whatsapp/broadcasts/destinatarios?${q}`);
+}
+
+/** O rótulo de cada motivo, num lugar só. */
+export const MOTIVO_TEXTO: Record<Exclude<MotivoDeFora, null>, string> = {
+  sem_telefone: "Sem telefone na ficha",
+  telefone_invalido: "Telefone não parece válido",
+  // Casal que divide o aparelho é comum em igreja. Sem isto, o mesmo telefone
+  // recebia a mesma mensagem duas vezes com 3s de intervalo -- o padrão de robô
+  // que o resto do desenho passa o tempo todo evitando.
+  numero_repetido: "Mesmo telefone de outra pessoa da lista",
+};
 
 /**
  * Acompanhar. A LEITURA É O QUE EMPURRA O ENVIO: cada chamada reconcilia o
