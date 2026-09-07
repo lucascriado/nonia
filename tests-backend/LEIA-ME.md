@@ -9,7 +9,7 @@ não existe.
 
     bash tests-backend/subir.sh      # banco virgem + servidor, e PROVA que os dois são o mesmo banco
     node tests-backend/e2e.mjs       # uma suíte
-    # 818 casos em 26 suítes contra banco novo
+    # 853 casos em 27 suítes contra banco novo
 
 **Apague o `.next` antes de uma rodada que valha como prova.** Em 07/09/2026 um
 `.next` velho fez a `smoke` falhar 12 casos com um diff que não tinha nada a ver
@@ -42,6 +42,7 @@ tempo, não por decisão.
 | --- | --- |
 | `smoke`, `rede`, `caixa`, `whatsapp`, `espelho` | **isolamento entre igrejas** — a garantia mais forte do produto |
 | `espelho` | encaminhar, citar, mídia nos dois sentidos, e o `@lid` sem o qual ninguém tem nome na caixa |
+| `destinatarios` | quem exatamente recebe um disparo — e as duas coisas que só aparecem com nomes na tela: casal que divide telefone recebendo duas vezes, e o alvo sendo recalculado entre ver e enviar |
 | `e2e`, `senha`, `perfil` | sessão, papéis e permissões |
 | `whatsapp` | o laço do envio em massa: falha parcial, não reenviar, teto |
 | `limites`, `avaliacao`, `somenteleitura`, `transicoes`, `impasse` | plano, carência e somente leitura |
