@@ -36,6 +36,11 @@ export async function GET(request: Request) {
     try {
       await inbox.sincronizarConversas(conexao);
       await inbox.avancarSincronizacao(conexao);
+      // Sem isto a caixa inteira aparece como "não identificado": esta conta
+      // devolve TODAS as conversas como @lid, e @lid não carrega telefone.
+      // Avança por leitura e com teto, como o resto -- é uma requisição ao
+      // WhatsApp por conversa.
+      await inbox.resolverTelefonesPendentes(conexao);
     } catch {
       respondendo = false;
     }

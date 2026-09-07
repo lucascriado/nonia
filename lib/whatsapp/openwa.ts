@@ -91,7 +91,14 @@ function mensagemDoOpenWa(dados: unknown): string | null {
 
 function chaveAdmin(): string {
   const valor = process.env.OPENWA_ADMIN_KEY;
-  if (!valor) throw new HttpError(503, "A integração com o WhatsApp não está configurada neste ambiente.", "whatsapp_not_configured");
+  if (!valor) {
+    throw new HttpError(
+      503,
+      "A integração com o WhatsApp não está configurada neste ambiente: falta OPENWA_ADMIN_KEY.",
+      "whatsapp_not_configured",
+      { faltando: ["OPENWA_ADMIN_KEY"] },
+    );
+  }
   return valor;
 }
 
@@ -224,8 +231,19 @@ export type MensagemLida = {
   type: string;
   timestamp: number;
   fromMe: boolean;
+  /** Em GRUPO, `from` é o grupo -- `author` é o único jeito de saber quem falou. */
   author?: string;
+  isGroup?: boolean;
+  /**
+   * Nome de quem falou, vindo do `notifyName` do payload cru. É síncrono (não
+   * custa consulta de contato) e é o que faz um grupo não virar um monte de
+   * balão sem dono.
+   */
+  contact?: { name?: string; pushName?: string };
+  /** Presente só com `includeMedia=true`, que NÃO pedimos. Ver `lerHistorico`. */
   media?: { mimetype: string };
+  /** A mensagem que ESTA cita. O OpenWA já resolve o texto dela para nós. */
+  quotedMessage?: { id: string; body?: string };
 };
 
 /**
@@ -254,12 +272,152 @@ export const lerHistorico = (sessionId: string, chave: string, chatId: string, l
     { chave, timeoutMs: 45000 },
   );
 
-export const enviarTexto = (sessionId: string, chave: string, chatId: string, text: string) =>
-  chamar<{ id?: string; messageId?: string }>(`/api/sessions/${sessionId}/messages/send-text`, {
+export type MensagemEnviada = { id?: string; messageId?: string };
+
+/**
+ * `quotedMessageId` opcional em vez de uma rota `/reply` separada.
+ *
+ * O OpenWA tem as duas: `send-text` aceita `quotedMessageId` e existe um
+ * `/messages/reply` dedicado. Responder citando é a MESMA operação de enviar
+ * com um campo a mais -- dois caminhos aqui dentro dariam dois lugares para o
+ * teto de resposta, a gravação e a atividade divergirem.
+ */
+export const enviarTexto = (
+  sessionId: string,
+  chave: string,
+  chatId: string,
+  text: string,
+  quotedMessageId?: string | null,
+) =>
+  chamar<MensagemEnviada>(`/api/sessions/${sessionId}/messages/send-text`, {
     metodo: "POST",
     chave,
-    corpo: { chatId, text },
+    corpo: { chatId, text, ...(quotedMessageId ? { quotedMessageId } : {}) },
   });
+
+/**
+ * ENCAMINHAR. Os três nomes vieram do `ForwardMessageDto`, não de suposição:
+ * `fromChatId`, `toChatId`, `messageId` -- e o de origem é obrigatório porque o
+ * WhatsApp precisa achar a mensagem no chat em que ela está.
+ */
+export const encaminhar = (
+  sessionId: string,
+  chave: string,
+  fromChatId: string,
+  toChatId: string,
+  messageId: string,
+) =>
+  chamar<MensagemEnviada>(`/api/sessions/${sessionId}/messages/forward`, {
+    metodo: "POST",
+    chave,
+    corpo: { fromChatId, toChatId, messageId },
+    timeoutMs: 30000,
+  });
+
+/** As quatro rotas de mídia do OpenWA, e o `ptt` que separa nota de voz de arquivo de áudio. */
+export type TipoDeMidia = "image" | "video" | "audio" | "document";
+
+export function enviarMidia(
+  sessionId: string,
+  chave: string,
+  tipo: TipoDeMidia,
+  corpo: {
+    chatId: string;
+    base64: string;
+    mimetype: string;
+    filename?: string;
+    caption?: string;
+    quotedMessageId?: string | null;
+    ptt?: boolean;
+  },
+) {
+  const { quotedMessageId, ...resto } = corpo;
+  return chamar<MensagemEnviada>(`/api/sessions/${sessionId}/messages/send-${tipo}`, {
+    metodo: "POST",
+    chave,
+    corpo: { ...resto, ...(quotedMessageId ? { quotedMessageId } : {}) },
+    // Mídia sobe mais devagar que texto: 20 s derrubaria um vídeo de 10 MB no
+    // meio do caminho e o remetente veria erro de uma mensagem que foi enviada.
+    timeoutMs: 60000,
+  });
+}
+
+export type MidiaBaixada = { bytes: ArrayBuffer; mimetype: string; filename: string | null };
+
+/**
+ * Baixa os BYTES de uma mídia recebida.
+ *
+ * Fora do `chamar` de propósito: aquele desserializa JSON, e aqui a resposta é
+ * binária. E a assimetria com o 404 é intencional -- 404 aqui é caso NORMAL, não
+ * defeito: o gateway só guarda os bytes do que viu ao vivo, então mídia de
+ * conversa anterior ao pareamento simplesmente não existe do lado de lá. Quem
+ * chama transforma isso em "[foto] indisponível", não em erro.
+ */
+export async function baixarMidia(
+  sessionId: string,
+  chave: string,
+  chatId: string,
+  messageId: string,
+): Promise<MidiaBaixada> {
+  const controller = new AbortController();
+  const relogio = setTimeout(() => controller.abort(), 60000);
+  let resposta: Response;
+  try {
+    resposta = await fetch(
+      `${BASE()}/api/sessions/${sessionId}/messages/${encodeURIComponent(chatId)}/${encodeURIComponent(messageId)}/media`,
+      { headers: { "x-api-key": chave }, signal: controller.signal, cache: "no-store" },
+    );
+  } catch (erro) {
+    throw new HttpError(
+      503,
+      "O serviço de WhatsApp não respondeu. Ele roda separado do nonia; se acabou de reiniciar, tente de novo em instantes.",
+      "whatsapp_unavailable",
+      { causa: erro instanceof Error ? erro.name : "desconhecida" },
+    );
+  } finally {
+    clearTimeout(relogio);
+  }
+
+  if (resposta.status === 404) {
+    throw new HttpError(
+      404,
+      "Esta mídia não está mais ao alcance. O WhatsApp guarda o arquivo no aparelho, e o histórico " +
+        "trazido no pareamento vem só com o texto.",
+      "midia_indisponivel",
+    );
+  }
+  if (!resposta.ok) {
+    throw new HttpError(502, `O serviço de WhatsApp recusou a mídia (HTTP ${resposta.status}).`, "whatsapp_error", {
+      status: resposta.status,
+    });
+  }
+  const disposicao = resposta.headers.get("content-disposition") ?? "";
+  const nome = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposicao)?.[1] ?? null;
+  return {
+    bytes: await resposta.arrayBuffer(),
+    mimetype: resposta.headers.get("content-type") ?? "application/octet-stream",
+    filename: nome ? decodeURIComponent(nome) : null,
+  };
+}
+
+/**
+ * Resolve um `@lid` para telefone.
+ *
+ * O WhatsApp passou a identificar gente por `@lid` em vez do número, e a conta
+ * real com que isto foi medido devolve `@lid` em TODAS as conversas. Sem esta
+ * chamada, `telefoneDoChat` não acha número nenhum, nenhuma conversa casa com o
+ * cadastro e a caixa inteira aparece como "não identificado".
+ *
+ * "Best-effort" é palavra do próprio OpenWA: `phone: null` não afirma que a
+ * pessoa não tem número, só que ele ainda não aprendeu o mapa. Por isso a falha
+ * aqui nunca derruba a sincronização -- ela deixa a conversa sem telefone, que é
+ * o estado que já existia.
+ */
+export const resolverTelefone = (sessionId: string, chave: string, contactId: string) =>
+  chamar<{ contactId: string; phone: string | null }>(
+    `/api/sessions/${sessionId}/contacts/${encodeURIComponent(contactId)}/phone`,
+    { chave },
+  );
 
 export const marcarLida = (sessionId: string, chave: string, chatId: string) =>
   chamar<unknown>(`/api/sessions/${sessionId}/chats/read`, { metodo: "POST", chave, corpo: { chatId } });

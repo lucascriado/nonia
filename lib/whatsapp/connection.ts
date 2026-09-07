@@ -1,7 +1,7 @@
 import { query } from "@/lib/db";
 import { HttpError, conflict, notFound } from "@/lib/http";
 import * as openwa from "./openwa";
-import { cifrar, decifrar, whatsappSecretConfigurado } from "./secrets";
+import { NOME_DO_SEGREDO, cifrar, decifrar, whatsappSecretConfigurado } from "./secrets";
 
 /**
  * A conexão de UMA igreja com o WhatsApp.
@@ -39,15 +39,30 @@ export function whatsappDisponivel(): boolean {
   return openwa.openwaConfigurado() && whatsappSecretConfigurado();
 }
 
-/** Recusa cedo e com o motivo certo, em vez de deixar estourar lá na frente. */
+/**
+ * Recusa cedo e DIZENDO QUAL VARIÁVEL FALTA.
+ *
+ * A mensagem antiga era "não está configurada" e pronto -- as três variáveis
+ * davam o mesmo 503. Custou tempo de verdade em 06/09/2026: com `OPENWA_URL` e
+ * `OPENWA_ADMIN_KEY` no lugar e só a `WHATSAPP_KEY_SECRET` faltando, a resposta
+ * não distinguia nada e a procura começou pelo lugar errado.
+ *
+ * O nome da variável não é segredo -- o valor é. Dizer qual falta é a diferença
+ * entre um minuto e meia hora, e não conta nada a quem não deveria saber:
+ * `OPENWA_URL` tem padrão e por isso não entra na lista.
+ */
 function exigirConfiguracao() {
-  if (!whatsappDisponivel()) {
-    throw new HttpError(
-      503,
-      "A integração com o WhatsApp não está configurada neste ambiente.",
-      "whatsapp_not_configured",
-    );
-  }
+  const faltando = [
+    ...(openwa.openwaConfigurado() ? [] : ["OPENWA_ADMIN_KEY"]),
+    ...(whatsappSecretConfigurado() ? [] : [`${NOME_DO_SEGREDO} (mínimo 16 caracteres)`]),
+  ];
+  if (faltando.length === 0) return;
+  throw new HttpError(
+    503,
+    `A integração com o WhatsApp não está configurada neste ambiente: falta ${faltando.join(" e ")}.`,
+    "whatsapp_not_configured",
+    { faltando },
+  );
 }
 
 export async function carregarConexao(organizationId: string): Promise<Conexao | null> {

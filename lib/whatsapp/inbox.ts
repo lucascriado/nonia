@@ -1,4 +1,5 @@
-import { query } from "@/lib/db";
+import { db, query } from "@/lib/db";
+import { addActivity } from "@/lib/activities";
 import { HttpError, badRequest } from "@/lib/http";
 import * as openwa from "./openwa";
 import { Conexao } from "./connection";
@@ -46,6 +47,40 @@ const MARCADOR: Record<string, string> = {
   unknown: "[mensagem não suportada]",
 };
 
+/**
+ * QUAIS TIPOS CARREGAM ARQUIVO, e por que isto é uma função e não uma coluna.
+ *
+ * A 015 tinha `whatsapp_messages.has_media`, gravada na sincronização a partir
+ * do campo `media` do OpenWA -- que só vem com `includeMedia=true`, que nós não
+ * pedimos de propósito. Resultado: gravava FALSE para toda mensagem, inclusive
+ * as que têm foto, e quem lesse depois acreditaria. Quarta marca do mesmo tipo
+ * de `is_new` e `is_recent`, e essa foi minha.
+ *
+ * **TER MÍDIA NUNCA PODE SER DEDUZIDO DA PRESENÇA DOS BYTES**, e o número que
+ * fecha o assunto veio da medida do container: o inline do OpenWA para de vir
+ * acima de **1 MB** (`WEBHOOK_MEDIA_INLINE_MAX_BYTES`), e praticamente toda foto
+ * de celular passa disso. Quem olhasse os bytes concluiria "mensagem sem mídia"
+ * para quase toda foto real -- **em silêncio**, que é a mesma família do `qr`
+ * que era `qrCode`: o código concorda com o defeito em vez de contradizê-lo.
+ *
+ * Ter mídia é propriedade do TIPO, e o tipo vem em toda mensagem, com bytes ou
+ * sem. Derivar acerta também as linhas gravadas antes -- que é o que um DEFAULT
+ * corrigido não daria.
+ */
+const TIPOS_COM_MIDIA: Record<string, "image" | "video" | "audio" | "voice" | "document" | "sticker"> = {
+  image: "image",
+  video: "video",
+  audio: "audio",
+  voice: "voice",
+  ptt: "voice",
+  document: "document",
+  sticker: "sticker",
+};
+
+export function midiaDoTipo(tipo: string) {
+  return TIPOS_COM_MIDIA[tipo] ?? null;
+}
+
 export function previa(tipo: string, corpo: string | null | undefined): string {
   const texto = (corpo ?? "").trim();
   if (tipo === "text") return texto.slice(0, 300);
@@ -59,6 +94,69 @@ export function telefoneDoChat(chatId: string): string | null {
   const [numero, dominio] = chatId.split("@");
   if (dominio !== "c.us" || !/^\d{10,15}$/.test(numero)) return null;
   return numero;
+}
+
+/**
+ * O TELEFONE DE UM `@lid`, resolvido pelo OpenWA.
+ *
+ * Medido contra a conta real em 07/09/2026: TODAS as conversas dela chegam como
+ * `@lid` (o id de privacidade que o WhatsApp adotou), nenhuma como `@c.us`.
+ * Como `telefoneDoChat` só entende `@c.us`, sem isto nenhuma conversa tem
+ * telefone, nenhuma casa com o cadastro, e a caixa inteira aparece como "não
+ * identificado" -- a tela não mostraria o nome de ninguém.
+ *
+ * SOB DEMANDA, COM TETO E COM MEMÓRIA -- as três coisas, e a terceira é a que
+ * quase faltou. Resolver um contato é uma requisição ao WhatsApp POR CONVERSA:
+ *
+ *  - **sob demanda**: só as que ainda não têm telefone, mais recentes primeiro,
+ *    algumas por leitura. É o mesmo "quem avança é quem olha" do resto do
+ *    projeto, que não tem tarefa agendada;
+ *  - **com teto**: mil conversas não viram mil requisições numa abertura;
+ *  - **com memória**: `phone_lookup_at` marca que já TENTAMOS. Sem essa marca,
+ *    a conversa que o motor nunca vai mapear seria consultada de novo a cada
+ *    abertura da caixa, para sempre -- o teto por passada esconderia o custo
+ *    em vez de eliminá-lo, e ele cresceria com o número de conversas
+ *    irresolvíveis. Tenta de novo depois de um dia, porque o próprio OpenWA
+ *    chama isso de "best-effort": `phone: null` não afirma que a pessoa não tem
+ *    número, só que ele ainda não aprendeu o mapa.
+ *
+ * Falha aqui não derruba nada: deixa a conversa sem telefone, que é exatamente
+ * o estado em que ela já estava.
+ */
+export const REPETIR_BUSCA_APOS = "1 day";
+
+export async function resolverTelefonesPendentes(conexao: Conexao, quantas = 25) {
+  const { rows } = await query<{ id: string; chat_id: string }>(
+    `SELECT id, chat_id FROM whatsapp_conversations
+      WHERE organization_id = $1 AND phone IS NULL AND kind <> 'group'
+        AND (phone_lookup_at IS NULL OR phone_lookup_at < now() - interval '${REPETIR_BUSCA_APOS}')
+      ORDER BY last_message_at DESC NULLS LAST
+      LIMIT ${quantas}`,
+    [conexao.organizationId],
+  );
+  let resolvidos = 0;
+  for (const c of rows) {
+    // A tentativa é marcada ANTES da chamada, e de propósito: se ela estourar,
+    // a marca já está gravada e a conversa não volta na próxima leitura. Marcar
+    // depois faria justamente o laço que esta coluna existe para impedir.
+    await query(`UPDATE whatsapp_conversations SET phone_lookup_at = now() WHERE id = $1`, [c.id]);
+    try {
+      const { phone } = await openwa.resolverTelefone(conexao.sessionId, conexao.apiKey, c.chat_id);
+      if (!phone) continue;
+      const pessoa = await acharPessoa(conexao.organizationId, phone);
+      await query(
+        `UPDATE whatsapp_conversations
+            SET phone = $2, person_id = COALESCE(person_id, $3), updated_at = now()
+          WHERE id = $1`,
+        [c.id, phone, pessoa],
+      );
+      resolvidos += 1;
+    } catch {
+      // Segue para a próxima: uma que o motor ainda não mapeou não pode impedir
+      // as outras de serem resolvidas.
+    }
+  }
+  return resolvidos;
 }
 
 /**
@@ -85,6 +183,27 @@ async function acharPessoa(organizationId: string, telefone: string | null): Pro
   );
   return rows.length === 1 ? rows[0].id : null;
 }
+
+/**
+ * GRUPO: DEFENDIDO NO CÓDIGO, NUNCA EXERCITADO CONTRA UM GRUPO DE VERDADE.
+ *
+ * Isto está escrito para não ser lido como "funciona". Em 07/09/2026 medi
+ * contra a conta real pareada: `/chats` devolveu 5 conversas, **zero** com
+ * `@g.us`, e `/groups` devolveu `[]`. Não havia o que medir, então não afirmo.
+ *
+ * O que o código faz por conta disso, e por quê:
+ *
+ *  - `kind` sai de `isGroup` do OpenWA, não de adivinhação sobre o sufixo do id;
+ *  - em grupo, `from` é o GRUPO -- quem falou está em `author`, e o nome em
+ *    `author_name`. Sem isso a conversa vira um monte de balão sem dono;
+ *  - `resolverTelefonesPendentes` PULA grupo: grupo não tem telefone, e pedir a
+ *    resolução de um seria uma chamada de rede garantidamente inútil por
+ *    conversa;
+ *  - vincular a pessoa do cadastro não se aplica a grupo, pelo mesmo motivo.
+ *
+ * Quando existir um grupo real na conta, medir de novo -- e o primeiro lugar a
+ * olhar é se `author` vem preenchido, porque é dele que depende tudo aqui.
+ */
 
 /** Traz a LISTA de conversas. Uma requisição, e é ela que cumpre "carregou meus chats". */
 export async function sincronizarConversas(conexao: Conexao) {
@@ -148,12 +267,21 @@ export async function sincronizarMensagens(
   for (const m of mensagens) {
     await query(
       `INSERT INTO whatsapp_messages
-         (conversation_id, organization_id, wa_message_id, from_me, author, type, body, has_media, sent_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, to_timestamp($9))
+         (conversation_id, organization_id, wa_message_id, from_me, author, author_name,
+          type, body, quoted_wa_message_id, sent_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10))
        -- Reler o mesmo trecho não duplica: o par (igreja, id da mensagem) é único.
-       ON CONFLICT (organization_id, wa_message_id) DO NOTHING`,
+       -- Mas o que MUDA depois da primeira leitura precisa entrar: uma mensagem
+       -- apagada volta com o tipo 'revoked', e manter o texto antigo seria
+       -- mostrar o que o outro lado apagou.
+       ON CONFLICT (organization_id, wa_message_id) DO UPDATE SET
+         type = EXCLUDED.type,
+         body = CASE WHEN EXCLUDED.type = 'revoked' THEN NULL ELSE COALESCE(EXCLUDED.body, whatsapp_messages.body) END,
+         author_name = COALESCE(EXCLUDED.author_name, whatsapp_messages.author_name),
+         quoted_wa_message_id = COALESCE(EXCLUDED.quoted_wa_message_id, whatsapp_messages.quoted_wa_message_id)`,
       [conversaId, conexao.organizationId, m.id, Boolean(m.fromMe), m.author ?? null,
-       m.type ?? "text", m.body ?? null, Boolean(m.media), m.timestamp || 0],
+       m.contact?.name ?? m.contact?.pushName ?? null,
+       m.type ?? "text", m.body ?? null, m.quotedMessage?.id ?? null, m.timestamp || 0],
     );
     ultimo = m.id;
   }
@@ -201,11 +329,33 @@ export type EstadoSync = {
  * qualquer outro caso ela mostra progresso COM DENOMINADOR -- "34 de 210" --,
  * porque sem denominador progresso é só uma ampulheta.
  *
- * O `syncing` logo depois de parear é HEURÍSTICA, e está dito em vez de
- * escondido: o OpenWA não emite sinal de "histórico terminou de chegar"
- * (procurei; não existe), então enquanto a lista ainda está vazia pouco depois
- * de conectar, o certo é dizer "trazendo" e não "não tem". Some no dia em que
- * houver esse sinal do lado de lá.
+ * POR QUE ISTO É HEURÍSTICA, escrito aqui para ninguém procurar de novo.
+ *
+ * `syncing` é deduzido de "há conversa conhecida ainda não sincronizada", e não
+ * de um aviso do outro lado. Procurei o aviso; ele não existe para nós, e por
+ * três motivos que se somam:
+ *
+ * 1. O motor é o **whatsapp-web.js** (`ENGINE_TYPE` indefinido, e o padrão é
+ *    ele). O adaptador dele NÃO TEM `onHistoryMessages`: o WhatsApp Web não
+ *    empurra histórico ao vincular um aparelho, ele responde a `fetchMessages`
+ *    conversa por conversa. Não há um "acabou" porque não há um começo.
+ * 2. O único motor que emite algo assim é o **Baileys**, com
+ *    `messaging-history.set` -- e trocar de motor por causa disto foi decidido
+ *    que não. Fica registrado para ninguém "descobrir" o evento no código do
+ *    OpenWA e concluir que dá para usar: dá, no outro motor.
+ * 3. Ainda que existisse, seria evento de DISPARO ÚNICO. O nonia lê por
+ *    requisição, sem processo vivo escutando: um evento que passa enquanto
+ *    ninguém olha não vira resposta de API. O que serviria é um CARIMBO
+ *    CONSULTÁVEL -- uma data que o OpenWA guarde e que a gente possa perguntar
+ *    depois --, e é isso que a condição de reabertura pede.
+ *
+ * **Reabrir quando** o OpenWA expuser um carimbo consultável de fim de
+ * sincronização. Evento novo, sozinho, não basta.
+ *
+ * Enquanto isso a heurística FICA, porque o erro dela é para o lado seguro:
+ * dizer "trazendo" para uma caixa que já acabou custa uma tela de progresso a
+ * mais; dizer "não há conversa" para uma que está chegando faz a igreja achar
+ * que o pareamento não funcionou.
  */
 export async function estadoSync(organizationId: string): Promise<EstadoSync> {
   const { rows } = await query<{
@@ -261,6 +411,90 @@ export async function assertPodeResponder(organizationId: string) {
       { limit: TETO_RESPOSTAS_POR_MINUTO },
     );
   }
+}
+
+/**
+ * GRAVA O QUE A IGREJA MANDOU, num lugar só.
+ *
+ * Responder, encaminhar e mandar mídia são três rotas e a mesma consequência:
+ * uma linha em `whatsapp_messages`, a conversa subindo para o topo com prévia
+ * nova, o não-lido zerado e a atividade registrada. Três cópias disso
+ * divergiriam no primeiro dia em que alguém mexesse em uma -- e a divergência
+ * apareceria como "encaminhei e a conversa não subiu na lista", que ninguém
+ * liga a um `UPDATE` esquecido.
+ *
+ * A prévia é calculada pela MESMA função que calcula a das recebidas, senão a
+ * lista mostraria linha vazia para a foto que a própria igreja enviou.
+ */
+export async function registrarEnviada(
+  actor: Parameters<typeof addActivity>[1],
+  conversa: { id: string; organizationId: string; nome: string | null },
+  mensagem: {
+    waMessageId: string;
+    type: string;
+    body?: string | null;
+    quotedWaMessageId?: string | null;
+    mediaMimetype?: string | null;
+    mediaFilename?: string | null;
+  },
+  acao: string,
+) {
+  const resumo = previa(mensagem.type, mensagem.body);
+  await db.transaction(async (transaction) => {
+    await db.query(
+      `INSERT INTO whatsapp_messages
+         (conversation_id, organization_id, wa_message_id, from_me, type, body,
+          quoted_wa_message_id, media_mimetype, media_filename, sent_at)
+       VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8, now())
+       ON CONFLICT (organization_id, wa_message_id) DO NOTHING`,
+      {
+        bind: [conversa.id, conversa.organizationId, mensagem.waMessageId, mensagem.type,
+               mensagem.body ?? null, mensagem.quotedWaMessageId ?? null,
+               mensagem.mediaMimetype ?? null, mensagem.mediaFilename ?? null],
+        transaction,
+      },
+    );
+    await db.query(
+      `UPDATE whatsapp_conversations
+          SET last_message_at = now(), last_message_preview = $2, unread_count = 0, updated_at = now()
+        WHERE id = $1`,
+      { bind: [conversa.id, resumo], transaction },
+    );
+    await addActivity(transaction, actor, "whatsapp", acao, conversa.nome);
+  });
+}
+
+/**
+ * A mensagem citada precisa ser DESTA conversa, e a checagem é de segurança,
+ * não de arrumação.
+ *
+ * O balão que o WhatsApp entrega mostra o texto da citada dentro dele. Aceitar
+ * um id qualquer faria a igreja mandar para fora, sem perceber, um trecho de
+ * outra conversa -- e, com um id de outra organização, de outra igreja. É o
+ * mesmo cuidado de `assertBelongsToOrganization`, aplicado a um id que não é
+ * nosso: filtramos por (conversa, organização) e não pelo id sozinho.
+ *
+ * 404 e não 403 pelo mesmo motivo do resto do projeto: confirmar que o id
+ * existe já contaria algo sobre a outra igreja.
+ */
+export async function exigirCitadaDaConversa(
+  conversaId: string,
+  organizationId: string,
+  waMessageId: unknown,
+): Promise<string | null> {
+  if (waMessageId === undefined || waMessageId === null || waMessageId === "") return null;
+  if (typeof waMessageId !== "string") {
+    throw badRequest("A mensagem citada precisa ser identificada por texto.", "quoted_invalid");
+  }
+  const { rows } = await query<{ wa_message_id: string }>(
+    `SELECT wa_message_id FROM whatsapp_messages
+      WHERE organization_id = $1 AND conversation_id = $2 AND wa_message_id = $3`,
+    [organizationId, conversaId, waMessageId],
+  );
+  if (!rows[0]) {
+    throw new HttpError(404, "A mensagem citada não é desta conversa.", "quoted_not_found");
+  }
+  return rows[0].wa_message_id;
 }
 
 export function exigirTexto(texto: unknown): string {

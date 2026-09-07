@@ -9,7 +9,22 @@ não existe.
 
     bash tests-backend/subir.sh      # banco virgem + servidor, e PROVA que os dois são o mesmo banco
     node tests-backend/e2e.mjs       # uma suíte
-    # 770 casos em 25 suítes contra banco novo
+    # 818 casos em 26 suítes contra banco novo
+
+**Apague o `.next` antes de uma rodada que valha como prova.** Em 07/09/2026 um
+`.next` velho fez a `smoke` falhar 12 casos com um diff que não tinha nada a ver
+— e falhar do mesmo jeito com o diff guardado, o que mascarou a causa como "não
+é meu código" em vez de "não é código nenhum". Com `rm -rf .next` a mesma suíte
+passa 30 de 30.
+
+Seis arquivos NÃO seguem a chamada acima, e não é falha deles:
+
+| Arquivo | Como se roda | O que é |
+| --- | --- | --- |
+| `fks.mjs`, `verify.mjs` | `node ... <connection string>` | inspeção: imprimem o estado do schema, não contam casos |
+| `backstop.mjs`, `reapply.mjs` | `node ... <connection string>` | `reapply` só reaplica a 004 e a 005, e **falha desde a 008**, que renomeou `max_people` |
+| `demo.mjs` | servidor na porta **3212** | não é a porta do `subir.sh` |
+| `transicoes.mjs` | importa um shim de um scratchpad de sessão | o caminho morreu com a sessão que o criou |
 
 ## O que ainda NÃO está portátil, para quem for pegar
 
@@ -25,7 +40,8 @@ tempo, não por decisão.
 
 | Suíte | O que morre se quebrar |
 | --- | --- |
-| `smoke`, `rede`, `caixa`, `whatsapp` | **isolamento entre igrejas** — a garantia mais forte do produto |
+| `smoke`, `rede`, `caixa`, `whatsapp`, `espelho` | **isolamento entre igrejas** — a garantia mais forte do produto |
+| `espelho` | encaminhar, citar, mídia nos dois sentidos, e o `@lid` sem o qual ninguém tem nome na caixa |
 | `e2e`, `senha`, `perfil` | sessão, papéis e permissões |
 | `whatsapp` | o laço do envio em massa: falha parcial, não reenviar, teto |
 | `limites`, `avaliacao`, `somenteleitura`, `transicoes`, `impasse` | plano, carência e somente leitura |
@@ -35,3 +51,13 @@ tempo, não por decisão.
 `openwa-falso.mjs` não é suíte: é um OpenWA de mentira que **modela o
 `allowedSessions`**. Sem ele o teste da segunda camada de isolamento seria o
 autor concordando consigo mesmo.
+
+Ele tem uma regra que vale mais que as outras: **o stub tem que ser capaz de
+contradizer quem o escreveu.** Duas vezes ele quase não foi —
+
+- inventou `key` e `qr` onde o OpenWA tem `apiKey` e `qrCode`, e a suíte passou
+  concordando com o erro até o primeiro pareamento de verdade;
+- devolvia `media` no histórico **sem ninguém ter pedido `includeMedia`**. Um
+  `hasMedia` deduzido da presença dos bytes teria passado aqui e nascido falso
+  no ar — e falso justamente para toda foto acima de 1 MB, que é quase toda foto
+  de celular. Hoje ele tira o campo, e por isso `hasMedia` sai do **tipo**.
