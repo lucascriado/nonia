@@ -45,7 +45,7 @@ export async function GET(request: Request) {
         gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
         address, neighborhood, city, state, notes, visit_date AS date,
         avatar_url IS NOT NULL AS "hasPhoto",
-        invited_by AS "invitedBy", membership_stage AS "membershipStage", is_recent AS recent
+        invited_by AS "invitedBy", membership_stage AS "membershipStage"
       FROM visitor_directory
       WHERE ${where}
       ORDER BY visit_date DESC, full_name
@@ -77,7 +77,6 @@ export async function POST(request: Request) {
         invitedBy: payload.invitedBy || "Espontâneo",
         followUpStatus: visitorStatus(payload.membershipStage),
         membershipStage: membershipStage(payload.membershipStage),
-        isRecent: true,
       }, { transaction });
       await addActivity(transaction, auth, "visitors", "registrou uma nova visita de", payload.name);
       return person.id;

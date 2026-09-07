@@ -79,29 +79,30 @@ SELECT (SELECT id FROM organizations WHERE slug = 'demo'), * FROM (VALUES
 ) AS data(full_name, email, birth_date)
 ON CONFLICT (organization_id, lower(email)) DO UPDATE SET full_name = EXCLUDED.full_name;
 
-INSERT INTO members (person_id, organization_id, ministry_id, status, baptism_status, admission_date, is_new, cell_name)
-SELECT p.id, p.organization_id, mi.id, data.status, data.baptism_status, data.admission_date, data.is_new, data.cell_name
+-- Sem `is_new`, pelo mesmo motivo: ver o comentario no bloco de visitantes.
+INSERT INTO members (person_id, organization_id, ministry_id, status, baptism_status, admission_date, cell_name)
+SELECT p.id, p.organization_id, mi.id, data.status, data.baptism_status, data.admission_date, data.cell_name
 FROM (
   VALUES
-    ('ana.clara@exemplo.com', 'Louvor', 'active', 'baptized', DATE '2021-05-15', false, 'Célula Esperança'),
-    ('marcos.santos@exemplo.com', 'Missões', 'active', 'baptized', DATE '2020-01-10', false, 'Célula Graça'),
-    ('julia.p@exemplo.com', NULL, 'inactive', 'waiting', DATE '2023-08-22', false, 'Sem célula'),
-    ('mendes.r@exemplo.com', 'Acolhimento', 'active', 'baptized', DATE '2019-04-05', false, 'Célula Família'),
-    ('bia.lima@exemplo.com', 'Infantil', 'active', 'baptized', DATE '2022-02-18', true, 'Célula Esperança'),
-    ('gabriel.s@exemplo.com', 'Louvor', 'active', 'waiting', DATE '2024-03-03', true, 'Célula Jovens'),
-    ('carla.m@exemplo.com', 'Missões', 'active', 'baptized', DATE '2018-09-11', false, 'Célula Graça'),
-    ('paulo.h@exemplo.com', 'Acolhimento', 'inactive', 'baptized', DATE '2017-06-29', false, 'Célula Família'),
-    ('larissa.f@exemplo.com', 'Infantil', 'active', 'waiting', DATE '2024-05-07', true, 'Célula Jovens'),
-    ('daniel.r@exemplo.com', 'Louvor', 'active', 'baptized', DATE '2020-11-14', false, 'Célula Esperança'),
-    ('mariana.t@exemplo.com', NULL, 'active', 'waiting', DATE '2024-04-23', true, 'Sem célula'),
-    ('felipe.c@exemplo.com', 'Missões', 'inactive', 'baptized', DATE '2016-07-17', false, 'Célula Graça'),
-    ('eduarda.s@exemplo.com', 'Acolhimento', 'active', 'baptized', DATE '2021-10-09', false, 'Célula Família'),
-    ('rafael.a@exemplo.com', 'Louvor', 'active', 'waiting', DATE '2024-05-28', true, 'Célula Jovens'),
-    ('natalia.c@exemplo.com', 'Infantil', 'active', 'baptized', DATE '2019-12-12', false, 'Célula Esperança'),
-    ('vinicius.c@exemplo.com', NULL, 'inactive', 'waiting', DATE '2023-01-06', false, 'Sem célula'),
-    ('isabela.s@exemplo.com', 'Missões', 'active', 'baptized', DATE '2022-08-19', false, 'Célula Graça'),
-    ('henrique.o@exemplo.com', 'Acolhimento', 'active', 'waiting', DATE '2024-05-02', true, 'Célula Família')
-) AS data(email, ministry, status, baptism_status, admission_date, is_new, cell_name)
+    ('ana.clara@exemplo.com', 'Louvor', 'active', 'baptized', DATE '2021-05-15', 'Célula Esperança'),
+    ('marcos.santos@exemplo.com', 'Missões', 'active', 'baptized', DATE '2020-01-10', 'Célula Graça'),
+    ('julia.p@exemplo.com', NULL, 'inactive', 'waiting', DATE '2023-08-22', 'Sem célula'),
+    ('mendes.r@exemplo.com', 'Acolhimento', 'active', 'baptized', DATE '2019-04-05', 'Célula Família'),
+    ('bia.lima@exemplo.com', 'Infantil', 'active', 'baptized', DATE '2022-02-18', 'Célula Esperança'),
+    ('gabriel.s@exemplo.com', 'Louvor', 'active', 'waiting', DATE '2024-03-03', 'Célula Jovens'),
+    ('carla.m@exemplo.com', 'Missões', 'active', 'baptized', DATE '2018-09-11', 'Célula Graça'),
+    ('paulo.h@exemplo.com', 'Acolhimento', 'inactive', 'baptized', DATE '2017-06-29', 'Célula Família'),
+    ('larissa.f@exemplo.com', 'Infantil', 'active', 'waiting', DATE '2024-05-07', 'Célula Jovens'),
+    ('daniel.r@exemplo.com', 'Louvor', 'active', 'baptized', DATE '2020-11-14', 'Célula Esperança'),
+    ('mariana.t@exemplo.com', NULL, 'active', 'waiting', DATE '2024-04-23', 'Sem célula'),
+    ('felipe.c@exemplo.com', 'Missões', 'inactive', 'baptized', DATE '2016-07-17', 'Célula Graça'),
+    ('eduarda.s@exemplo.com', 'Acolhimento', 'active', 'baptized', DATE '2021-10-09', 'Célula Família'),
+    ('rafael.a@exemplo.com', 'Louvor', 'active', 'waiting', DATE '2024-05-28', 'Célula Jovens'),
+    ('natalia.c@exemplo.com', 'Infantil', 'active', 'baptized', DATE '2019-12-12', 'Célula Esperança'),
+    ('vinicius.c@exemplo.com', NULL, 'inactive', 'waiting', DATE '2023-01-06', 'Sem célula'),
+    ('isabela.s@exemplo.com', 'Missões', 'active', 'baptized', DATE '2022-08-19', 'Célula Graça'),
+    ('henrique.o@exemplo.com', 'Acolhimento', 'active', 'waiting', DATE '2024-05-02', 'Célula Família')
+) AS data(email, ministry, status, baptism_status, admission_date, cell_name)
 JOIN people p ON lower(p.email) = lower(data.email) AND p.organization_id = (SELECT id FROM organizations WHERE slug = 'demo')
 LEFT JOIN ministries mi ON mi.name = data.ministry AND mi.organization_id = p.organization_id
 ON CONFLICT (person_id) DO UPDATE SET
@@ -109,33 +110,35 @@ ON CONFLICT (person_id) DO UPDATE SET
   status = EXCLUDED.status,
   baptism_status = EXCLUDED.baptism_status,
   admission_date = EXCLUDED.admission_date,
-  is_new = EXCLUDED.is_new,
   cell_name = EXCLUDED.cell_name;
 
-INSERT INTO visitors (person_id, organization_id, visit_date, invited_by, follow_up_status, membership_stage, is_recent)
-SELECT p.id, p.organization_id, data.visit_date, data.invited_by, data.follow_up_status, data.membership_stage, data.is_recent
+-- Sem `is_recent`: a coluna nao e mais lida nem gravada, e era o dado de
+-- demonstracao que escondia o defeito -- a aba "Recentes" parecia certa aqui
+-- porque a semente marcava 4 de 12 com data coerente. A data da visita
+-- continua sendo o fato, e e dela que a aba deriva (DIAS_VISITA_RECENTE).
+INSERT INTO visitors (person_id, organization_id, visit_date, invited_by, follow_up_status, membership_stage)
+SELECT p.id, p.organization_id, data.visit_date, data.invited_by, data.follow_up_status, data.membership_stage
 FROM (
   VALUES
-    ('ricardo.lima@exemplo.com', CURRENT_DATE - 3, 'Pr. Anderson', 'waiting_contact', 'visited', true),
-    ('mari.souza@exemplo.com', CURRENT_DATE - 6, 'Espontâneo', 'following_up', 'contacted', true),
-    ('fborges@exemplo.com', CURRENT_DATE - 13, 'Lucas Santos', 'integrated', 'member', true),
-    ('clara.p@exemplo.com', CURRENT_DATE - 3, 'Marta Oliveira', 'waiting_contact', 'visited', true),
-    ('andre.m@exemplo.com', CURRENT_DATE - 20, 'Paulo Henrique', 'following_up', 'home_visit', false),
-    ('leticia.c@exemplo.com', CURRENT_DATE - 27, 'Ana Clara', 'integrated', 'member', false),
-    ('joao.v@exemplo.com', CURRENT_DATE - 34, 'Espontâneo', 'waiting_contact', 'visited', false),
-    ('bianca.s@exemplo.com', CURRENT_DATE - 41, 'Marcos Santos', 'following_up', 'contacted', false),
-    ('gustavo.m@exemplo.com', CURRENT_DATE - 48, 'Ricardo Mendes', 'integrated', 'baptism', false),
-    ('taina.a@exemplo.com', CURRENT_DATE - 55, 'Marta Oliveira', 'waiting_contact', 'visited', false),
-    ('renata.b@exemplo.com', CURRENT_DATE - 62, 'Pr. Anderson', 'following_up', 'contacted', false),
-    ('diego.n@exemplo.com', CURRENT_DATE - 69, 'Espontâneo', 'integrated', 'member', false)
-) AS data(email, visit_date, invited_by, follow_up_status, membership_stage, is_recent)
+    ('ricardo.lima@exemplo.com', CURRENT_DATE - 3, 'Pr. Anderson', 'waiting_contact', 'visited'),
+    ('mari.souza@exemplo.com', CURRENT_DATE - 6, 'Espontâneo', 'following_up', 'contacted'),
+    ('fborges@exemplo.com', CURRENT_DATE - 13, 'Lucas Santos', 'integrated', 'member'),
+    ('clara.p@exemplo.com', CURRENT_DATE - 3, 'Marta Oliveira', 'waiting_contact', 'visited'),
+    ('andre.m@exemplo.com', CURRENT_DATE - 20, 'Paulo Henrique', 'following_up', 'home_visit'),
+    ('leticia.c@exemplo.com', CURRENT_DATE - 27, 'Ana Clara', 'integrated', 'member'),
+    ('joao.v@exemplo.com', CURRENT_DATE - 34, 'Espontâneo', 'waiting_contact', 'visited'),
+    ('bianca.s@exemplo.com', CURRENT_DATE - 41, 'Marcos Santos', 'following_up', 'contacted'),
+    ('gustavo.m@exemplo.com', CURRENT_DATE - 48, 'Ricardo Mendes', 'integrated', 'baptism'),
+    ('taina.a@exemplo.com', CURRENT_DATE - 55, 'Marta Oliveira', 'waiting_contact', 'visited'),
+    ('renata.b@exemplo.com', CURRENT_DATE - 62, 'Pr. Anderson', 'following_up', 'contacted'),
+    ('diego.n@exemplo.com', CURRENT_DATE - 69, 'Espontâneo', 'integrated', 'member')
+) AS data(email, visit_date, invited_by, follow_up_status, membership_stage)
 JOIN people p ON lower(p.email) = lower(data.email) AND p.organization_id = (SELECT id FROM organizations WHERE slug = 'demo')
 ON CONFLICT (person_id) DO UPDATE SET
   visit_date = EXCLUDED.visit_date,
   invited_by = EXCLUDED.invited_by,
   follow_up_status = EXCLUDED.follow_up_status,
-  membership_stage = EXCLUDED.membership_stage,
-  is_recent = EXCLUDED.is_recent;
+  membership_stage = EXCLUDED.membership_stage;
 
 INSERT INTO cells (organization_id, name, meeting_day, meeting_time, color)
 SELECT DISTINCT organization_id, cell_name, 'Domingo', '19:30'::time, 'purple'

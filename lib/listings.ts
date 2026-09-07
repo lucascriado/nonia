@@ -52,14 +52,33 @@ export function filtrosDeMembros(params: URLSearchParams, organizationId: string
   return f;
 }
 
+/**
+ * A janela da aba "Recentes", em dias.
+ *
+ * Duas semanas, que é a fronteira que o próprio dado de demonstração já
+ * usava: a semente marcou como recente até 13 dias e como não recente a
+ * partir de 20. São também dois domingos — quem visitou teve duas
+ * oportunidades de voltar antes de sair da aba.
+ *
+ * Não é o mês corrente: no dia 1º a aba zeraria, e uma igreja que recebeu 20
+ * visitantes no dia 31 abriria a tela sem nenhum. Trocaria um número errado
+ * por outro, só que com data marcada.
+ */
+export const DIAS_VISITA_RECENTE = 14;
+
 export function filtrosDeVisitantes(params: URLSearchParams, organizationId: string): Filtro {
   const f: Filtro = { where: ["organization_id = $1"], valores: [organizationId] };
   const busca = params.get("search")?.trim();
   condicao(f, busca ? `%${busca}%` : null, (n) => `concat_ws(' ', full_name, email, invited_by) ILIKE $${n}`);
-  // As abas da tela: "Recentes" é a marca is_recent, e qualquer outra que não
+  // As abas da tela: "Recentes" é a data da visita, e qualquer outra que não
   // seja "Todos" é a primeira visita.
+  //
+  // A aba NÃO usa a marca `is_recent`, ainda que a coluna exista e o nome
+  // convide: ela nasce true e nada nunca a limpa, então todo visitante
+  // cadastrado pelo app seria "recente" para sempre e a aba viraria uma
+  // segunda "Todos" com o uso. Mesma doença do `is_new` nos indicadores.
   const aba = params.get("tab");
-  if (aba === "Recentes") f.where.push("is_recent");
+  if (aba === "Recentes") f.where.push(`visit_date >= CURRENT_DATE - interval '${DIAS_VISITA_RECENTE} days'`);
   else if (aba && aba !== "Todos" && aba !== "all") f.where.push("membership_stage = 'visited'");
   const convidou = params.get("invitedBy");
   condicao(f, convidou && convidou !== "all" ? convidou : null, (n) => `invited_by = $${n}`);
