@@ -20,7 +20,7 @@ import {
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
-import { usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { ExportButton } from "@/components/export-button";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -229,7 +229,7 @@ export default function FinancePage() {
         <section className="resource-heading">
           <div><h2>Gestão Financeira</h2><p>Acompanhe entradas, saídas, pendências e comprovantes das movimentações.</p></div>
           <ExportButton resource="financeiro" permission="finance.read" filters={{ search, type, status, category, attachment }} />
-          {canWrite && <button disabled={readOnly} title={readOnly ? "A conta está em somente leitura por mensalidade em aberto. Regularize para voltar a cadastrar." : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>}
+          {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>}
         </section>
 
         {!firstRun && (
@@ -327,7 +327,7 @@ export default function FinancePage() {
                           ? <span className="finance-attachment-link" title={item.attachmentName ? `Comprovante: ${item.attachmentName}` : "Tem comprovante"} aria-label={`${item.description} tem comprovante anexado`}><Paperclip /></span>
                           : <span className="finance-attachment-none" aria-label="Sem comprovante"><FileX /></span>}
                       </td>
-                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${item.description}`} onClick={() => openRecord(item, "view")}><Eye /></button><button aria-label={`Editar ${item.description}`} onClick={() => openRecord(item, "edit")}><Pencil /></button><button aria-label={`Excluir ${item.description}`} onClick={() => setDeleteTarget(item)}><Trash2 /></button></div></td>
+                      <td data-label="Ações"><div className="member-actions"><button aria-label={`Visualizar ${item.description}`} onClick={() => openRecord(item, "view")}><Eye /></button>{canWrite && <><button aria-label={`Editar ${item.description}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => openRecord(item, "edit")}><Pencil /></button><button aria-label={`Excluir ${item.description}`} disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setDeleteTarget(item)}><Trash2 /></button></>}</div></td>
                     </tr>
                   ))}
                   {/* A escolha da frase vem dos FILTROS, não do tamanho do array: desde que a
