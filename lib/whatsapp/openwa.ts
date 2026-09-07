@@ -190,3 +190,69 @@ export const INTERVALO_MS = 3000;
 export const JITTER_MEDIO_MS = 1000;
 /** Teto do OpenWA por lote (`ArrayMaxSize(100)`). Acima disso, o nonia encadeia. */
 export const LOTE_MAX = 100;
+
+// --- caixa de entrada ------------------------------------------------------
+
+export type ConversaLida = {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  kind: string;
+  unreadCount: number;
+  /** Unix em SEGUNDOS, não milissegundos. */
+  timestamp: number;
+  lastMessage?: string;
+  archived: boolean;
+  pinned: boolean;
+};
+
+export const listarConversas = (sessionId: string, chave: string, limit = 1000, offset = 0) =>
+  chamar<ConversaLida[]>(`/api/sessions/${sessionId}/chats?limit=${limit}&offset=${offset}`, { chave, timeoutMs: 45000 });
+
+export type MensagemLida = {
+  id: string;
+  chatId: string;
+  from: string;
+  body: string;
+  type: string;
+  timestamp: number;
+  fromMe: boolean;
+  author?: string;
+  media?: { mimetype: string };
+};
+
+/**
+ * Histórico de uma conversa, LIDO DO WHATSAPP e não da tabela do OpenWA.
+ *
+ * A distinção é o que faz a caixa não nascer vazia. A rota /messages?after=
+ * lê a tabela local do OpenWA, e o motor em uso -- whatsapp-web.js, o padrão
+ * quando ENGINE_TYPE não está definido -- NÃO semeia histórico ao parear: não
+ * existe `onHistoryMessages` no adaptador dele. Só o Baileys empurra
+ * `messaging-history.set`. Com o motor em uso, a tabela local só tem o que
+ * chegou depois de o gateway subir, então ler de lá mostraria a lista de
+ * conversas certa e TODAS AS CONVERSAS VAZIAS.
+ *
+ * Esta rota, por outro lado, "reads messages directly from the WhatsApp client
+ * for the given chat, bypassing the local DB".
+ *
+ * `includeMedia` fica fora: o padrão é não embutir, e é o que queremos --
+ * pedir mídia traria base64 por mensagem, o erro dos 43 MB numa escala maior.
+ */
+export const TETO_HISTORICO = 100;
+
+export const lerHistorico = (sessionId: string, chave: string, chatId: string, limit = TETO_HISTORICO, deep = false) =>
+  chamar<MensagemLida[]>(
+    `/api/sessions/${sessionId}/messages/${encodeURIComponent(chatId)}/history?limit=${limit}` +
+      (deep ? "&deep=true" : ""),
+    { chave, timeoutMs: 45000 },
+  );
+
+export const enviarTexto = (sessionId: string, chave: string, chatId: string, text: string) =>
+  chamar<{ id?: string; messageId?: string }>(`/api/sessions/${sessionId}/messages/send-text`, {
+    metodo: "POST",
+    chave,
+    corpo: { chatId, text },
+  });
+
+export const marcarLida = (sessionId: string, chave: string, chatId: string) =>
+  chamar<unknown>(`/api/sessions/${sessionId}/chats/read`, { metodo: "POST", chave, corpo: { chatId } });
