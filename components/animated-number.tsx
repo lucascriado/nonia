@@ -28,9 +28,17 @@ export function AnimatedNumber({
     const start = performance.now();
 
     function animate(now: number) {
-      const progress = Math.min((now - start) / duration, 1);
+      // O piso em 0 não é paranoia: o carimbo que o requestAnimationFrame
+      // entrega é o do INÍCIO do quadro, e ele pode ser anterior ao
+      // `performance.now()` lido aqui em cima. Aí `progress` fica negativo,
+      // `eased` junto, e o primeiro quadro pinta um número NEGATIVO -- medido
+      // como "-0" nos indicadores de /membros. Em /financeiro isso seria um
+      // saldo negativo piscando na tela.
+      const progress = Math.min(Math.max((now - start) / duration, 0), 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(Math.round(value * eased * factor) / factor);
+      // O `+ 0` normaliza o zero negativo: `(-0).toLocaleString("pt-BR")` é
+      // "-0", e menos zero não é um número que exista para quem lê.
+      setDisplayValue(Math.round(value * eased * factor) / factor + 0);
 
       if (progress < 1) frameRef.current = requestAnimationFrame(animate);
     }

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Baby, BookOpenCheck, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, Music, Plus, Puzzle, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { FirstLoad } from "@/components/first-load";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
 import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
@@ -90,6 +91,11 @@ export default function MinistriesPage() {
   const activeFilters = [leader !== "all", search.trim() !== ""].filter(Boolean).length;
 
   const firstRun = !loading && failed === null && !mode && ministries.length === 0 && activeFilters === 0;
+  /* O terceiro estado: ainda NÃO SABEMOS se há registro.
+     Sem ele, `firstRun` é falso enquanto carrega e o ramo de baixo desenha a
+     tela cheia -- indicadores rotulados, filtros e abas -- que some quando a
+     resposta chega vazia. Ver components/first-load.tsx. */
+  const aguardando = loading && failed === null && !ministries.length && activeFilters === 0;
 
   function clearFilters() {
     setSearch("");
@@ -153,7 +159,9 @@ export default function MinistriesPage() {
           <>
             {failed !== null ? (
               <LoadFailure onRetry={() => void loadData()} status={failed} />
-            ) : firstRun ? (
+            ) : aguardando ? (
+          <FirstLoad label="Carregando os ministérios" />
+        ) : firstRun ? (
               <FirstRun
                 action={
                   readOnly ? undefined : (

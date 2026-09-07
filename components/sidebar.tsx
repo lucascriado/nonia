@@ -3,7 +3,6 @@
 import {
   CalendarDays,
   ChevronLeft,
-  ChevronsUpDown,
   Church,
   History,
   LayoutDashboard,
@@ -107,10 +106,15 @@ export function Sidebar({ sidebarRef }: { sidebarRef?: Ref<HTMLElement> }) {
           <SignOutButton />
         </nav>
 
+        {/* SEM a seta dupla. Seta para cima e para baixo em chip de usuário
+            quer dizer "trocar de conta" em qualquer produto, e aqui isto é um
+            link para uma página -- não há menu, não há segunda conta para
+            escolher. O Lucas leu exatamente isso: achou que dava para ter mais
+            de um usuário porque a seta prometia. Quem tem menu de verdade é o
+            seletor de igreja, e lá a seta continua. */}
         <Link className="sidebar-user" href="/configuracoes" title="Sua conta">
           <Avatar name={user.name} photoUrl={user.avatarUrl} size={30} />
           <span><strong>{user.name}</strong><small>{user.role}</small></span>
-          <ChevronsUpDown aria-hidden />
         </Link>
       </div>
     </aside>

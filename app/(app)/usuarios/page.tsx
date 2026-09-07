@@ -7,13 +7,12 @@ export default function UsersPage() {
   return (
     <DashboardShell title="Usuários">
       <main className="settings-main">
-        <section className="resource-heading settings-heading">
-          <div>
-            <h2>Usuários</h2>
-            <p>Quem tem acesso ao painel da igreja e com qual papel.</p>
-          </div>
-        </section>
-
+        {/* O título desta tela vive na BARRA DO TOPO, e só lá. Aqui havia um
+            segundo <h2> dizendo a mesma coisa com palavras um pouco
+            diferentes -- que é pior que repetir igual, porque a diferença faz
+            procurar um sentido que não existe. Decisão do Lucas: fica o de
+            cima. Ver components/header.tsx, que monta título e legenda a
+            partir de `searchItems`. */}
         <UsersPanel />
       </main>
     </DashboardShell>

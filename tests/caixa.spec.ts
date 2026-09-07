@@ -1,19 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { DEMO, horizontalOverflow, smallTouchTargets, textOverText, waitForSettled } from "./helpers";
-
-/**
- * A conta usada aqui pode ser trocada por ambiente.
- *
- * O resto da suíte entra com a `demo@nonia.app` do `nonia_dev`, e continua
- * assim por padrão. Mas a caixa de entrada só tem o que medir onde existe
- * conversa, e conversa não se semeia no banco compartilhado -- então quem roda
- * contra um banco próprio aponta a conta dele por aqui, sem tocar no helper que
- * é de todo mundo.
- */
-const CONTA = {
-  email: process.env.NONIA_LOGIN ?? DEMO.email,
-  password: process.env.NONIA_SENHA ?? DEMO.password,
-};
+import { CONTA, horizontalOverflow, smallTouchTargets, textOverText, waitForSettled } from "./helpers";
 
 async function entrar(page: import("@playwright/test").Page) {
   const resposta = await page.request.post("/api/auth/login", { data: CONTA });
@@ -132,6 +118,90 @@ test.describe("caixa de entrada do WhatsApp", () => {
     expect(lista && conversa, "as duas colunas estão visíveis ao mesmo tempo em 390px").toBe(false);
 
     expect(await horizontalOverflow(page)).toBeNull();
+  });
+
+  /**
+   * Mídia que o gateway não guarda é ESTADO, não erro.
+   *
+   * O 404 aqui é o caso normal e vai acontecer muito: o OpenWA só guarda os
+   * bytes do que viu ao vivo, então toda foto anterior ao pareamento responde
+   * 404 para sempre. Cara de erro para algo que nunca vai funcionar ensina a
+   * pessoa a ignorar avisos -- então cai no marcador de texto do servidor.
+   */
+  test("mídia que o WhatsApp não entrega vira marcador, não erro", async ({ page }) => {
+    await page.goto("/whatsapp");
+    await waitForSettled(page);
+    const conversas = page.locator(".wa-conversation");
+    test.skip(!(await conversas.count()), "não há conversa neste banco");
+
+    // Procura, entre as conversas, alguma com mídia sem bytes.
+    let achou = false;
+    for (let i = 0; i < Math.min(await conversas.count(), 6); i += 1) {
+      await conversas.nth(i).click();
+      await waitForSettled(page);
+      if (await page.locator(".wa-media-ausente").count()) { achou = true; break; }
+    }
+    test.skip(!achou, "nenhuma conversa deste banco tem mídia sem bytes guardados");
+
+    const ausente = page.locator(".wa-media-ausente").first();
+    // O marcador entre colchetes, e NENHUM ícone: a regra do Lucas é literal.
+    await expect(ausente.locator("strong")).toContainText("[");
+    expect(await ausente.locator("svg").count(), "marcador virou ícone").toBe(0);
+    await expect(ausente.locator("small")).toContainText("anterior à conexão");
+  });
+
+  /** A citada aparece dentro do balão, com a prévia que o servidor calculou. */
+  test("mensagem citada aparece acima do texto", async ({ page }) => {
+    await page.goto("/whatsapp");
+    await waitForSettled(page);
+    const conversas = page.locator(".wa-conversation");
+    test.skip(!(await conversas.count()), "não há conversa neste banco");
+
+    let achou = false;
+    for (let i = 0; i < Math.min(await conversas.count(), 6); i += 1) {
+      await conversas.nth(i).click();
+      await waitForSettled(page);
+      if (await page.locator(".wa-bubble-citada").count()) { achou = true; break; }
+    }
+    test.skip(!achou, "nenhuma conversa deste banco tem mensagem citada");
+
+    const citada = page.locator(".wa-bubble-citada").first();
+    await expect(citada).not.toBeEmpty();
+    // A citada mora DENTRO do balão: solta, ela viraria uma mensagem a mais.
+    expect(await citada.evaluate((e) => Boolean(e.closest(".wa-bubble")))).toBe(true);
+  });
+
+  /**
+   * O diálogo de encaminhar ABRE e é conferido, mas NADA é encaminhado: o
+   * clique num destino sai da máquina, e mensagem em nome da igreja para o
+   * número de alguém não se desfaz.
+   */
+  test("encaminhar oferece um destino por vez e não a própria conversa", async ({ page }) => {
+    await page.goto("/whatsapp");
+    await waitForSettled(page);
+    const conversas = page.locator(".wa-conversation");
+    test.skip((await conversas.count()) < 2, "precisa de duas conversas para haver destino");
+
+    const totalConversas = await conversas.count();
+    await conversas.first().click();
+    await waitForSettled(page);
+
+    const encaminhar = page.locator(".wa-bubble-acoes button", { hasText: "Encaminhar" }).first();
+    test.skip(!(await encaminhar.count()), "sem permissão de escrita nesta conta");
+    await encaminhar.click();
+
+    const dialogo = page.locator(".wa-forward");
+    await expect(dialogo).toBeVisible();
+    // A conversa aberta não é destino: encaminhar para onde a mensagem já está
+    // não é encaminhar, é reenviar.
+    const alvos = await dialogo.locator(".wa-forward-alvos button").count();
+    expect(alvos, "a própria conversa apareceu como destino").toBeLessThanOrEqual(totalConversas - 1);
+    // Sem caixinha de seleção: acumular destinos viraria disparo sem o teto, o
+    // intervalo e a permissão que o disparo tem.
+    expect(await dialogo.locator("input[type=checkbox]").count()).toBe(0);
+
+    await page.keyboard.press("Escape");
+    await expect(dialogo).toHaveCount(0);
   });
 
   /**

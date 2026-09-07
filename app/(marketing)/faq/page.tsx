@@ -43,12 +43,19 @@ export default function FaqPage() {
               Escreva para a gente. Respondemos em português, por gente que
               conhece a rotina de uma secretaria de igreja.
             </p>
+            {/* O botão de maior destaque faz o que o texto acima acabou de
+                prometer. Aqui a frase é "escreva para a gente", e o primário
+                era "criar conta da igreja": quem lia a promessa de atendimento
+                e clicava no que puxa o olho caía no cadastro. Captar cadastro
+                com a intenção de quem foi pedir ajuda é usar a intenção da
+                pessoa para outra coisa -- o cadastro continua ali, um passo
+                atrás, para quem realmente quiser. */}
             <div className="mk-cta-actions">
-              <Link className="mk-button mk-button-primary mk-button-lg" href={signupHref()}>
-                Criar conta da igreja <ArrowRight aria-hidden />
+              <Link className="mk-button mk-button-primary mk-button-lg" href={marketingRoutes.contact}>
+                Falar com a gente <ArrowRight aria-hidden />
               </Link>
-              <Link className="mk-button mk-button-quiet mk-button-lg" href={marketingRoutes.contact}>
-                Falar com a gente
+              <Link className="mk-button mk-button-quiet mk-button-lg" href={signupHref()}>
+                Criar conta da igreja
               </Link>
             </div>
           </Reveal>
