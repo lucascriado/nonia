@@ -45,6 +45,29 @@ export async function filterOwnedMemberIds(
   return rows.map((row) => row.personId);
 }
 
+/**
+ * Filtra ids de PESSOA mantendo só os que são da organização.
+ *
+ * Irmã de `filterOwnedMemberIds`, e a diferença importa: aquela consulta
+ * `members`, ou seja só quem TEM ficha de membro. Esta consulta `people`, que é
+ * quem a pessoa é. Usada pelos responsáveis do evento, que apontam para
+ * `people` justamente para não sumirem do histórico quando alguém deixa de ser
+ * membro -- filtrar por `members` ali reintroduziria, na validação, a
+ * dependência que a modelagem tirou.
+ */
+export async function filterOwnedPersonIds(
+  ids: string[],
+  organizationId: string,
+  transaction?: Transaction,
+): Promise<string[]> {
+  if (!ids.length) return [];
+  const rows = await db.query<{ id: string }>(
+    `SELECT id FROM people WHERE organization_id = $1 AND id = ANY($2::uuid[])`,
+    { bind: [organizationId, ids], transaction, type: QueryTypes.SELECT },
+  );
+  return rows.map((row) => row.id);
+}
+
 /** Traduz "0 linhas afetadas" em 404, para não confundir com sucesso. */
 export function assertAffected(affected: number, message = "Registro não encontrado.") {
   if (!affected) throw notFound(message);
