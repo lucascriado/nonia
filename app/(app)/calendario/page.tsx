@@ -50,6 +50,14 @@ export default function CalendarPage() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CalendarEvent | null>(null);
   const [creating, setCreating] = useState(false);
+  /** A data que o "Novo Evento" abre já preenchida. "" = aberto pelo botão, sem
+   *  dia escolhido -- aí o formulário cai no hojeNoFuso. Ver EventFormModal. */
+  const [createDate, setCreateDate] = useState("");
+
+  function openCreate(date: string) {
+    setCreateDate(date);
+    setCreating(true);
+  }
   const [enabledColors, setEnabledColors] = useState<Record<CalendarEvent["color"], boolean>>({ purple: true, green: true, blue: true });
 
   async function loadEvents() {
@@ -177,7 +185,7 @@ export default function CalendarPage() {
                   <button className={calendarView === "week" ? "active" : undefined} onClick={() => setCalendarView("week")}>Semana</button>
                   <button className={calendarView === "day" ? "active" : undefined} onClick={() => setCalendarView("day")}>Dia</button>
                 </div>
-                {canWrite && <button className="primary-action calendar-new-event" disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => setCreating(true)}><Plus />Novo Evento</button>}
+                {canWrite && <button className="primary-action calendar-new-event" disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} onClick={() => openCreate("")}><Plus />Novo Evento</button>}
               </div>
             </header>
 
@@ -189,7 +197,7 @@ export default function CalendarPage() {
                     {/* No celular a célula tem ~45px e nenhum título cabe nela:
                         o dia vira o alvo de toque, com pontos indicando que há
                         evento, e a agenda do dia mostra os títulos por extenso. */}
-                    <button className="calendar-day-select" onClick={() => selectDay(day.date)}>
+                    <button className="calendar-day-select" onClick={() => { selectDay(day.date); if (canWrite && !readOnly) openCreate(dataDoDia(day.date)); }}>
                       <span className="calendar-day-number">{day.number}</span>
                       <span className="calendar-day-dots" aria-hidden>
                         {day.events.slice(0, 3).map((event) => <i className={event.color} key={event.id} />)}
@@ -265,7 +273,7 @@ export default function CalendarPage() {
         </section>
       </main>
       {selectedEvent && <EventDetailsModal canDelete={canWrite && !readOnly} event={selectedEvent} onClose={closeEvent} onDelete={() => setDeleteTarget(selectedEvent)} />}
-      {creating && <EventFormModal onClose={() => setCreating(false)} onSubmit={createEvent} />}
+      {creating && <EventFormModal initialDate={createDate} onClose={() => setCreating(false)} onSubmit={createEvent} />}
       <DeleteRecordDialog open={deleteTarget !== null} name={deleteTarget?.title ?? ""} kind="event" onClose={() => setDeleteTarget(null)} onConfirm={confirmDeleteEvent} />
     </DashboardShell>
   );
@@ -301,7 +309,7 @@ function EventDetailsModal({ canDelete, event, onClose, onDelete }: { canDelete:
   );
 }
 
-function EventFormModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (values: EventFormValues) => Promise<boolean> }) {
+function EventFormModal({ initialDate, onClose, onSubmit }: { initialDate: string; onClose: () => void; onSubmit: (values: EventFormValues) => Promise<boolean> }) {
   /**
    * A DATA SUGERIDA SAI DO FUSO DA IGREJA, não de `toISOString()`.
    *
@@ -310,12 +318,12 @@ function EventFormModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
    * calendário o erro é pior que no financeiro, porque a data É o conteúdo --
    * ninguém confere a data de um evento contra outra fonte.
    *
-   * Quando a tela passar a abrir este formulário a partir de um DIA CLICADO,
-   * a data do dia clicado entra aqui como valor inicial e vence esta sugestão.
-   * O `hojeNoFuso` continua sendo o caso "abriu pelo botão, sem dia escolhido".
+   * Agora a tela ABRE a partir de um DIA CLICADO: a data dele chega em
+   * `initialDate` e vence esta sugestão. O `hojeNoFuso` fica para o caso "abriu
+   * pelo botão, sem dia escolhido" (`initialDate` vazio).
    */
   const { organization } = useSession();
-  const [values, setValues] = useState<EventFormValues>(() => ({ ...emptyForm, date: hojeNoFuso(organization?.timezone) }));
+  const [values, setValues] = useState<EventFormValues>(() => ({ ...emptyForm, date: initialDate || hojeNoFuso(organization?.timezone) }));
   const [submitting, setSubmitting] = useState(false);
 
   async function submit(event: FormEvent) {
@@ -353,6 +361,20 @@ function EventFormModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: 
 
 function sameDay(left: Date, right: Date) {
   return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
+}
+
+/**
+ * A data de uma célula do calendário como 'YYYY-MM-DD', dos componentes LOCAIS
+ * -- que é como a grade a construiu (`new Date(ano, mês, dia)`). NÃO é
+ * `toISOString()`: aquele converte para UTC e, das 21h à meia-noite em Brasília,
+ * devolveria o dia seguinte -- o mesmo defeito que o fuso da igreja consertou no
+ * "hoje". E NÃO é cálculo de "hoje" nem de fuso: a célula JÁ É um dia específico,
+ * e isto só o serializa sem deslocar. O fuso mora em lib/datas.ts.
+ */
+function dataDoDia(date: Date) {
+  const mes = String(date.getMonth() + 1).padStart(2, "0");
+  const dia = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${mes}-${dia}`;
 }
 
 function startOfToday() {

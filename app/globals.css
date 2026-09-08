@@ -3330,3 +3330,45 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
   .kardex-tabela tr, .kardex-pendente, .kardex-saldo-anterior { break-inside: avoid; }
   .kardex-cabecalho { break-after: avoid; }
 }
+
+/* --------------------------------------------------------------------------
+   PAR DE BOTÕES — acessibilidade (reclamação: secundárias pouco visíveis)
+   A ação primária já é fundo SÓLIDO (.primary-action). A secundária era só
+   borda ou só texto -- em Configurações (equipe e "A Igreja") isso ficava quase
+   invisível para quem enxerga mal. Aqui a secundária ganha FUNDO SUAVE, o par
+   inteiro do app, não só uma tela. Não toca no .primary-action nem no layout de
+   borda a borda do financeiro (o Cancelar segue secundário, só muda a cor).
+
+   Contraste do texto MEDIDO nos dois temas (WCAG AA pede 4.5:1):
+   - secundária: var(--text) sobre var(--neutral-soft) = 12.9:1 claro, 12.0:1 escuro
+   - primária (inalterada): var(--on-primary-fill) sobre var(--primary-fill)
+     = 7.5:1 claro, 5.0:1 escuro
+   -------------------------------------------------------------------------- */
+button.profile-secondary-action,
+.record-cancel,
+.resource-dialog footer > button:first-child,
+.form-dialog footer button:first-child,
+.delete-dialog footer button:first-child,
+.reset-password-card > footer button:first-child,
+.wa-actions button:not(.primary-action),
+.wa-connected-disconnect,
+.wizard-acoes button:not(.primary-action),
+.kardex-toolbar > button:not(.primary-action):not(.kardex-fechar) {
+  border: 1px solid var(--border-strong);
+  background: var(--neutral-soft);
+  color: var(--text);
+}
+button.profile-secondary-action:hover,
+.record-cancel:hover:not(:disabled),
+.resource-dialog footer > button:first-child:hover,
+.form-dialog footer button:first-child:hover:not(:disabled),
+.delete-dialog footer button:first-child:hover:not(:disabled),
+.reset-password-card > footer button:first-child:hover:not(:disabled),
+.wa-actions button:not(.primary-action):hover:not(:disabled),
+.wa-connected-disconnect:hover:not(:disabled),
+.wizard-acoes button:not(.primary-action):hover,
+.kardex-toolbar > button:not(.primary-action):not(.kardex-fechar):hover:not(:disabled) {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--heading);
+}
