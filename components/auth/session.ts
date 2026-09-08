@@ -16,7 +16,12 @@ export type SessionUser = {
   personId: string | null;
 };
 
-export type SessionOrganization = { id: string; name: string; slug: string };
+/**
+ * `timezone` é o fuso da igreja (`organizations.timezone`), e ele existe aqui
+ * por uma razão só: "hoje" nunca pode ser calculado com o relógio do
+ * navegador nem com UTC. Ver `lib/datas.ts`.
+ */
+export type SessionOrganization = { id: string; name: string; slug: string; timezone: string };
 
 /**
  * Uma igreja da pessoa, como vem do GET /api/organizations. É o mesmo conjunto

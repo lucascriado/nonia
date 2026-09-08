@@ -1,0 +1,53 @@
+-- O default de `transaction_date` sai. A aplicação passa a ser a única fonte
+-- de "hoje".
+--
+-- POR QUE REMOVER, E NÃO CONSERTAR O DEFAULT
+--
+-- `transaction_date date NOT NULL DEFAULT CURRENT_DATE` (migration 003) segue o
+-- fuso da SESSÃO do Postgres. No container ela é UTC, então das 21h à
+-- meia-noite em Brasília o default grava AMANHÃ -- e no dia 30 ou 31 isso
+-- desloca o lançamento de MÊS, movendo o fechamento da tesouraria.
+--
+-- A saída óbvia seria trocar CURRENT_DATE por um default que soubesse o fuso.
+-- ELA NÃO EXISTE, e a razão é do PostgreSQL, não de gosto: a expressão de
+-- DEFAULT de uma coluna NÃO PODE referenciar outra coluna da mesma linha.
+-- Para acertar, o default teria que ler `organization_id` da linha que está
+-- nascendo e buscar `organizations.timezone` -- e ele não tem acesso a isso.
+-- Um trigger BEFORE INSERT conseguiria; e seria uma segunda regra de negócio
+-- escondida no banco, discordando da que está em lib/datas.ts no dia em que
+-- uma das duas mudasse.
+--
+-- Ou seja: o banco NÃO TEM COMO calcular o "hoje" certo desta coluna. Qualquer
+-- default que ele tenha é, por construção, uma segunda opinião errada. Depois
+-- que a aplicação virou a fonte da verdade (fuso da igreja, em lib/datas.ts),
+-- manter o default não é rede de segurança: é a rede pegando quem cai e
+-- gravando o dia errado em silêncio.
+--
+-- O QUE MUDA NA PRÁTICA. A coluna continua NOT NULL. Um INSERT que omita a
+-- data deixa de gravar o dia errado e passa a FALHAR, alto, com violação de
+-- NOT NULL. Trocar erro silencioso por erro barulhento é o ponto.
+--
+-- QUEM OMITE A DATA HOJE: ninguém. Verificado antes de escrever --
+-- `financeAttributes` sempre manda `transactionDate`, `validateFinancePayload`
+-- recusa payload sem data, existe um único `FinancialTransaction.create` no
+-- projeto (app/api/financeiro/route.ts), e o seed de demonstração passa
+-- `transaction_date` explicitamente em todas as linhas. Não há caminho vivo
+-- que dependa deste default.
+--
+-- NÃO TOCA EM LINHA JÁ GRAVADA. DROP DEFAULT muda o que acontece no PRÓXIMO
+-- insert que omitir a coluna, e nada mais: nenhum valor existente é lido,
+-- reescrito ou recalculado. O histórico gravado errado nas noites anteriores
+-- continua como está -- corrigi-lo seria mudar dado contábil já lançado, e
+-- isso é decisão do Lucas, não efeito colateral de migration.
+--
+-- OS OUTROS TRÊS DEFAULTS CURRENT_DATE DO SCHEMA CONTINUAM DE PÉ e têm a mesma
+-- doença: `members.admission_date`, `visitors.visit_date` e
+-- `cell_members.joined_at` (migration 001). NÃO foram tocados aqui de
+-- propósito -- o escopo desta rodada é a data do lançamento financeiro, e
+-- mexer nos outros exigiria conferir, um a um, quem depende deles hoje. Fica
+-- registrado para não parecerem esquecidos.
+
+ALTER TABLE financial_transactions ALTER COLUMN transaction_date DROP DEFAULT;
+
+COMMENT ON COLUMN financial_transactions.transaction_date IS
+  'O dia do FATO, informado pela aplicacao. SEM default: o banco nao tem como saber o fuso da igreja (DEFAULT nao le outra coluna da linha), entao qualquer default aqui seria uma segunda opiniao errada. Omitir a coluna agora FALHA por NOT NULL, em vez de gravar o dia errado em silencio.';

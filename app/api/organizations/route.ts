@@ -45,7 +45,7 @@ export async function GET() {
     const auth = await requireSession();
 
     const rows = await db.query(
-      `SELECT o.id, o.name, o.slug, r.slug AS "roleSlug", r.name AS "roleName",
+      `SELECT o.id, o.name, o.slug, o.timezone, r.slug AS "roleSlug", r.name AS "roleName",
               om.is_default AS "isDefault", om.joined_at AS "joinedAt"
        FROM organization_members om
        JOIN organizations o ON o.id = om.organization_id

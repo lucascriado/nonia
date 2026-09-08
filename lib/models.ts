@@ -161,7 +161,13 @@ FinancialTransaction.init({
   counterparty: DataTypes.STRING(160),
   amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
   status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "paid" },
-  transactionDate: { type: DataTypes.DATEONLY, allowNull: false, field: "transaction_date", defaultValue: () => new Date().toISOString().slice(0, 10) },
+  // SEM defaultValue, de propósito. Ele era new Date().toISOString().slice(0,10)
+  // -- a data em UTC --, e nunca chegou a rodar: a única criação de lançamento
+  // passa por `financeAttributes`, que sempre manda `transactionDate`, e a
+  // validação recusa payload sem data. Era um "hoje" errado esperando a
+  // primeira chamada que esquecesse o campo. O Model não tem como acertar
+  // aqui: ele não sabe de qual igreja é a linha, e o fuso é da igreja.
+  transactionDate: { type: DataTypes.DATEONLY, allowNull: false, field: "transaction_date" },
   paymentMethod: { type: DataTypes.STRING(40), field: "payment_method" },
   attachmentUrl: { type: DataTypes.TEXT, field: "attachment_url" },
   attachmentName: { type: DataTypes.STRING(160), field: "attachment_name" },
