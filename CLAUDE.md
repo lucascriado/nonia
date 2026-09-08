@@ -19,12 +19,12 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | --- | --- |
 | Produção | **Existe desde 07/09/2026:** **https://nonia.lucascriado.com**, `running:healthy`. É **subdomínio de `lucascriado.com`**, e não `nonia.app` — ver "Produção" |
 | Aplicação no Coolify | **Existe de novo**, criada em 07/09/2026 no projeto `nonia.app`. **Não é a de 06/09/2026** — aquela foi excluída e continua morta. Uuid, container e destino vivem em `/home/lucas/claude.md`, não aqui: o repositório é público |
-| Base `postgres` do servidor | **É a base de PRODUÇÃO desde 07/09/2026**, com as migrations **001–021**. **Deixou de ser vazia no mesmo dia:** o **seed de demonstração** foi levado para lá por decisão do Lucas. **Não há igreja real** — ver "Produção". O baseline vazio (`~/backups/nonia-2026-09-06.sql`) virou **histórico**, não é mais o estado |
+| Base `postgres` do servidor | **É a base de PRODUÇÃO desde 07/09/2026**, com as migrations **001–023**. **Deixou de ser vazia no mesmo dia:** o **seed de demonstração** foi levado para lá por decisão do Lucas. **Não há igreja real** — ver "Produção". O baseline vazio (`~/backups/nonia-2026-09-06.sql`) virou **histórico**, não é mais o estado |
 | Domínio `nonia.app` | **Continua não respondendo**, e nada aponta para ele. Isso **não** significa "não há produção": ela mora em `nonia.lucascriado.com`. O nome `nonia.app` sobrevive como nome do **projeto** no Coolify, o que engana quem lê rápido |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
 | Integração | **Feita em 06/09/2026**, `main` em `4b67d08`: Fase 1 e site público mesclados, `typecheck` limpo e `build` passando contra o `nonia_dev`. Depois disso a `main` seguiu andando — o que entrou hoje está em "O que entrou em 07/09/2026" |
-| Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com as migrations **001–021** aplicadas e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
+| Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com as migrations **001–023** aplicadas e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 > **O mesmo cluster hospeda a produção e os bancos de desenvolvimento**, e a
 > aplicação de produção entra nele como **superusuário** — escolha do Lucas em
@@ -49,7 +49,13 @@ uma viraria migration em produção sem ninguém decidir.
 > Ela subiu vazia em 07/09/2026 e **deixou de ser vazia no mesmo dia**: o **seed
 > de demonstração** foi levado para produção por decisão do Lucas. Não há igreja
 > real, não há usuário real, e **nada do que existe foi exercitado por alguém de
-> verdade**. Todo "medido", "verificado" e "percorrido" deste arquivo se refere
+> verdade**.
+>
+> **Produção passou a ser validada com sessão real**, e não só por `health`:
+> login **200**, painel com as quatro seções desenhando dado, e `/api/members`,
+> `/api/visitors?aba=recentes` e `/api/events` em **200**. Isso prova que o
+> sistema **responde logado** em produção — não prova nada sobre uso real,
+> porque o dado do outro lado é o seed. Todo "medido", "verificado" e "percorrido" deste arquivo se refere
 > ao **`nonia_dev`** e ao **`nonia_front`**, salvo onde estiver escrito o
 > contrário. Deploy que sobe não é funcionalidade exercitada, e chamar uma coisa
 > da outra é o mesmo erro do `build` passando: artefato não é evidência de
@@ -153,7 +159,7 @@ components/     shell, sidebar, header, diálogos, skeletons, marketing/
 lib/            db.ts, models.ts, auth.ts, tenant.ts, passwords.ts, http.ts,
                 datas.ts ("hoje" no fuso da igreja), finance-kardex.ts,
                 whatsapp/, …
-database/       migrate.mjs, migrations/ (001–021), seeds/
+database/       migrate.mjs, migrations/ (001–023), seeds/
 ```
 
 Os parênteses são route groups e **não** aparecem na URL.
@@ -209,6 +215,8 @@ primeira.
 | **Bypass de contratação no lugar do gateway** | A igreja clica e a assinatura vale na hora, sem pagamento real. Atalho de desenvolvimento, **não é produto**, e nasce com guarda-corpo obrigatório. Ver "Cobrança" | 06/09/2026 |
 | **Mercado Pago: API de Pagamentos, não recorrência** | `POST /v1/payments`, Checkout Transparente. **Decisão suspensa**, não revogada: vale para quando o pagamento real entrar. **Retomar quando** houver hospedagem com URL pública. Ver "Cobrança" | 06/09/2026 |
 | **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
+| **`cell_members.joined_at` FICA com o `DEFAULT CURRENT_DATE`** | Das três colunas com o mesmo defeito, esta não foi consertada **por decisão, não por cansaço**: ela é **escrita pelo default e nunca lida por ninguém** — varredura em `app`, `lib`, `components`, `database` e os CSV. É **órfã invisível**, e a regra do projeto já resolvia o caso: **órfã que promete sai, órfã invisível fica**. Mesmo critério da `timezone` e das marcas `is_new`/`is_recent`. **Reabrir se** alguém passar a ler a coluna — aí ela promete | 07/09/2026 |
+| **Responsáveis do evento apontam para `people`, não para `members`** | E foi **provado, não deduzido**: apagaram a ficha de membro de uma pessoa e os vínculos sobreviveram. Ficha de membro pode ser apagada **sem a pessoa sumir**; apontando para `members`, quem deixasse de ser membro **sumiria do evento do ano passado**, reescrevendo o passado. A tela **oferece membros no seletor** — isso é **filtro de quem aparece**, não o que se grava; confundir os dois é o erro | 07/09/2026 |
 | **A data do lançamento sai do fuso da IGREJA** | Decisão do Lucas em 07/09/2026, fechando a pendência do UTC: o "hoje" do sistema vem de `organizations.timezone`, e **não** de uma constante `America/Sao_Paulo`. Fixar a constante teria consertado Brasília e mantido o defeito para qualquer igreja em outro fuso — e o produto é vendido para "várias congregações". `lib/datas.ts` é o único lugar que faz essa conta. Ver "A data do lançamento" | 07/09/2026 |
 | **Formas de pagamento múltiplas: escopo pequeno, de propósito** | A 021 atende **lançamento novo** e mais nada. Kardex, CSV de exportação e listagem do financeiro **não foram tocados** — é decisão, não omissão, e é ela que explica a coluna `payment_method` guardar `'Dividido'`. Ver "Formas de pagamento" | 07/09/2026 |
 | **Ctrl+K dispara pelo atalho DA PLATAFORMA** | Cmd+K no Mac, Ctrl+K no resto, **sem olhar o foco**. A guarda anterior protegia o *kill-line* do Cocoa em **toda** plataforma — e no Linux/Windows, onde esse kill-line **não é padrão**, ela matava em silêncio justamente o atalho que a interface anuncia no `<kbd>`. Proteção que só atuava onde não havia o que proteger, contra um atalho anunciado que não funcionava: **atalho anunciado e morto é pior que atalho inexistente, porque a pessoa culpa a si mesma.** Hoje a guarda vale só para o modificador que **não** é o da plataforma — na prática, o Ctrl no Mac. **Custo aceito e escrito:** no Linux com keymap emacs, Ctrl+K num campo abre a busca em vez de apagar a linha | 07/09/2026 |
@@ -391,9 +399,9 @@ exercitado por usuário de verdade em produção**: lá existe o seed de
 demonstração e nenhuma igreja real. Subiu no deploy; não foi usado por
 ninguém.
 
-### Migrations 018 a 021
+### Migrations 018 a 023
 
-**As quatro estão aplicadas nos três bancos** — `nonia_dev`, `nonia_front` e
+**As seis estão aplicadas nos três bancos** — `nonia_dev`, `nonia_front` e
 **produção**.
 
 - **018** — `whatsapp_contacts.avatar_url` e `avatar_checked_at`.
@@ -405,6 +413,9 @@ ninguém.
 - **020** — remove o `DEFAULT` de `financial_transactions.transaction_date`. Ver
   "A data do lançamento".
 - **021** — formas de pagamento múltiplas. Ver "Formas de pagamento".
+- **022** — responsáveis do evento. Ver "Responsáveis do evento".
+- **023** — remove o `DEFAULT` de `members.admission_date` e
+  `visitors.visit_date`. Ver "Os três defaults".
 
 ### Rotas novas
 
@@ -577,6 +588,146 @@ quando a regra **não tem outra casa**, e o lugar errado quando já tem.
   busca de eventos, é **feature nova, não conserto** — e a promessa deixou de
   existir enquanto isso.
 
+### O `nextSunday` era PIOR do que a pendência dizia
+
+A pendência descrevia "à noite pode calcular o domingo errado". Medindo, eram
+**dois defeitos empilhados em direções diferentes, que não se cancelavam**:
+
+| Passo | O que ele fazia de errado |
+| --- | --- |
+| `getDay()` / `setDate()` | contavam no fuso da **MÁQUINA** de quem digita |
+| `toISOString()` | devolvia a data em **UTC** |
+
+> **Por isso ele errava MESMO EM BRASÍLIA**, onde o fuso da máquina é o certo.
+> Não era defeito que só aparecia longe — e essa era a leitura que a pendência
+> induzia. Dois erros em direções diferentes não se anulam; se sobrepõem.
+
+**O pior caso não é o que estava escrito.** Num **domingo às 22h**, a função
+chamada "próximo domingo" devolvia uma **SEGUNDA-FEIRA**. Quem abrisse a chamada
+no fim do culto criaria a de segunda, e **o domingo — o dia em que a reunião
+aconteceu — ficaria sem registro**.
+
+**5 de 7 cenários erravam.** O novo `proximoDomingo` foi varrido contra **800
+instantes ao longo de um ano** e cai sempre num domingo dentro dos próximos 7
+dias.
+
+**O primo de LEITURA também era pior que "menor gravidade".** O `?date=` padrão
+da chamada do ministério, das 21h à meia-noite, abria a chamada de **amanhã** e
+mostrava **lista vazia num dia em que a reunião tinha acabado**. Quem olha
+conclui que ninguém fez a chamada e **REFAZ** — o defeito de leitura vira dado
+duplicado pela mão de quem confiou na tela.
+
+#### A regra que o `lib/datas.ts` passou a ter, e que parece contradição
+
+As funções de data usam **acessores UTC por dentro**, num arquivo que existe
+para fugir de UTC.
+
+> **É o contrário do que parece.** `'YYYY-MM-DD'` não tem hora, então ler e
+> escrever pelos acessores UTC é justamente o que **impede a conta de passar por
+> fuso nenhum**. Era **misturar os dois** — `new Date("2026-09-06")` seguido de
+> `getDay()` — que fazia o `nextSunday` errar: interpreta como meia-noite UTC e
+> devolve o dia da semana no fuso da máquina.
+>
+> **O fuso entra UMA vez, em `hojeNoFuso`.** Dali em diante a conta é sobre um
+> dia do calendário, e dia do calendário não tem fuso.
+
+### Os três defaults `CURRENT_DATE` — e por que a resposta foi o OPOSTO da 020
+
+Na 020 a pergunta **"existe caminho de `INSERT` que OMITE a coluna?"** deu
+**não**, e por isso o `DROP DEFAULT` foi seguro. Aqui deu **sim nas três**.
+
+> **Essa pergunta é o método, não uma curiosidade daquele dia.** É ela que
+> decide se um `DROP DEFAULT` é limpeza ou se derruba gravação em produção.
+> Faça-a antes, sempre, e a resposta muda o que a migration pode fazer.
+
+- **`members.admission_date` e `visitors.visit_date`** — consertadas, em **duas
+  etapas** (abaixo). A `visit_date` era a mais afetada: visitante é cadastrado
+  logo depois do culto de domingo à noite, dentro da janela em que o
+  `CURRENT_DATE` em UTC já virou o dia.
+- **`cell_members.joined_at`** — **fica com o default**, por decisão: é escrita
+  pelo default e **nunca lida por ninguém**. Ver a tabela de decisões.
+
+#### A regra das DUAS ETAPAS — código num deploy, migration em OUTRO
+
+**Isto quase derrubou produção, e vale para toda migration futura que aperte uma
+coluna.**
+
+1. **Primeiro o código** passa a mandar a data — deployado e confirmado em
+   produção;
+2. **Só depois** a migration remove o default — em **outro** deploy.
+
+> **Por que não pode ser o mesmo deploy.** O `Dockerfile` roda
+> `migrate && server`: a migration cai **antes** de o container novo ficar
+> saudável, e quem atende durante a subida é o container **VELHO**, com o código
+> que ainda omite a coluna. Um cadastro nessa janela levaria **23502** — e seria
+> um erro em produção causado pela ordem, não pelo conteúdo.
+
+> **É irmão do que este arquivo já registra sobre a 006** — "validação de
+> aplicação primeiro, migration no mesmo lote" —, **mas é mais forte**. Lá o
+> requisito era ordem de **commits**; aqui é ordem de **DEPLOYS**. A diferença
+> aparece só em produção, e só durante os segundos da subida.
+
+### Responsáveis do evento — migration 022
+
+O vínculo aponta para **`people`** (ver a tabela de decisões).
+
+**`CASCADE` nas duas pontas, e a razão é de FORMA, não de gosto:**
+
+| | |
+| --- | --- |
+| **006, `SET NULL` com lista** | a coluna é **atributo** de uma linha que continua existindo — apagar o líder não apaga o ministério |
+| **022, `CASCADE`** | a **linha É o vínculo**. "Este evento tem um responsável que é ninguém" **não é estado do mundo, é lixo**. E `person_id` é parte da **PK**, logo `NOT NULL`: `SET NULL` ali nem seria possível |
+
+**O backstop de tenant aqui é mais forte que duas verificações.** As duas FKs
+compostas usam o **mesmo `organization_id` da linha do vínculo** — não são duas
+conferências que alguém pode esquecer de casar. Precisou de
+**`UNIQUE (id, organization_id)`** em `events`, mesmo desenho da 006 e da 021.
+
+**`GET /api/events` devolve `responsibles` junto com o evento, de propósito:** o
+calendário desenha um mês inteiro, e uma requisição por evento seria exatamente
+a doença que a rota de foto do WhatsApp existe para evitar.
+
+### Migration 023 e os SETE usos de LEITURA
+
+**Consertar só a escrita teria fechado metade do problema.** Sete consultas
+ainda contavam em UTC: o painel (visitantes do mês, aniversariantes do mês, a
+lista deles e os próximos eventos), o "novos este mês" de `members`, e a janela
+de 14 dias da aba **Recentes**.
+
+**Efeito visível:** nas últimas horas do dia 30 ou 31, **o painel trocava de
+mês**.
+
+**Preservado de propósito, para ninguém "corrigir" depois:** a janela de
+Recentes continua **14 dias** — mês corrente faria a aba **zerar no dia 1º** —, e
+"novos este mês" continua sendo **admissão no mês corrente**, e **não** a marca
+`is_new`, que já foi aposentada por dizer outra coisa.
+
+#### Duas armadilhas que valem por si
+
+**a. `data::date AT TIME ZONE zona` NÃO dá a meia-noite naquele fuso.** O
+Postgres casta a data para `timestamptz` **pelo fuso da SESSÃO** e só então
+converte — devolvendo **três horas antes**. O painel passaria a mostrar como
+"próximo" um evento de **ontem à noite**: um defeito **mais sutil que o
+original**, e que teria passado por conserto. A forma correta é
+**`(data::date)::timestamp AT TIME ZONE zona`**.
+
+**b. O array de bind era COMPARTILHADO pelas quatro consultas do painel**, e
+funcionava enquanto todas usavam só `$1`. No instante em que uma passou a usar
+`$2` e `$3`, as outras três dariam **500** — e **nem `typecheck` nem `build`
+veem**, porque para o TypeScript é um `unknown[]` legítimo dos dois lados. Hoje
+cada consulta tem o seu.
+
+> ### Teste que não testa nada passa igual a teste que passa
+>
+> **É a lição mais transferível do dia.** A verificação que deveria pegar o item
+> (b) casava as consultas **por um nome recém-renomeado**: achou **ZERO**
+> consultas e imprimiu **"todas rodam"**. Verde por vacuidade.
+>
+> O conserto não foi ajustar o nome — foi fazer a verificação **falhar se não
+> achar exatamente 4**. Toda checagem que varre um conjunto precisa afirmar o
+> **tamanho** do conjunto, senão o dia em que ela deixar de achar as coisas é
+> exatamente o dia em que ela para de avisar.
+
 ## Isolamento entre organizações
 
 Fechado nas duas camadas desde a migration **006** (06/09/2026).
@@ -611,6 +762,12 @@ rodam na inicialização. Testado com base suja de propósito.
 > primeiro, migration no mesmo lote** — a 006 sozinha teria trocado uma gravação
 > cruzada silenciosa por um erro de FK cru na cara do usuário. Vale para a
 > próxima vez que uma constraint nova for fechada sobre um caminho já aberto.
+>
+> **A 023 mostrou a versão forte disso em 07/09/2026:** ali não bastou a ordem
+> dos **commits**, foi preciso ordem dos **DEPLOYS** — código num, migration em
+> outro. Ver "A regra das DUAS ETAPAS". Quem apertar uma coluna daqui para a
+> frente lê as duas: esta diz *em que ordem escrever*, aquela diz *em que ordem
+> publicar*.
 
 ## Planos comerciais
 
@@ -1127,7 +1284,7 @@ o `sudo` pede uma senha que ninguém do time tem —, então o desenvolvimento
 aponta para o `nonia_dev`, remoto, por túnel SSH.
 
 **A limitação é desta máquina e não se transfere.** O repositório é
-auto-suficiente: **21 migrations**, seed idempotente com login de demonstração, e
+auto-suficiente: **23 migrations**, seed idempotente com login de demonstração, e
 `db:migrate`, `db:seed:dev`, `db:status` e `auth:owner` prontos. Quem tem
 administrador no próprio computador instala Postgres 15+, aponta a
 `DATABASE_URL` para `localhost` e não precisa de SSH, de túnel, de credencial de
@@ -1277,7 +1434,8 @@ Datadas para que ninguém as leia como fato consumado.
 | **`purgeStaleSessions()` existe em `lib/auth.ts` e ninguém chama** — a tabela `sessions` cresce para sempre. Levantado pelo próprio backend logo após remover as permissões órfãs, para não ficar com dois pesos | 06/09/2026 |
 | **`PATCH /api/users/<id>` com id malformado devolve 500 em vez de 404.** Uuid válido inexistente devolve 404 certo; o malformado cai no catch genérico — mesmo gênero do JSON malformado | 06/09/2026 |
 | **"Consolidação financeira da rede" é promessa não cumprida.** O seletor de igreja existe; consolidar dados de várias numa visão só não. Ver "Multi-congregação" | 06/09/2026 |
-| **Datas em UTC fora do lançamento financeiro — três primos e três defaults.** A correção de 07/09/2026 (ver "A data do lançamento") fechou o financeiro e **deixou estes de fora por escolha de escopo, não por descuido**. No código: `app/(app)/ministerios/page.tsx`, no `nextSunday()` — **caminho de ESCRITA**, e o mais grave dos três: à noite ele cria a chamada do ministério no **domingo errado**; está com o Lucas. `app/api/ministries/[id]/attendance/route.ts`, no padrão do `?date=` — leitura, gravidade menor. `app/api/export/comprovantes/route.ts` — só nome de arquivo do zip. No banco, **três `DEFAULT CURRENT_DATE` da migration 001** seguem de pé, com a **mesma impossibilidade** que motivou a 020: `members.admission_date`, `visitors.visit_date` e `cell_members.joined_at`. Mexer neles exige conferir, um a um, quem depende deles hoje | 07/09/2026 |
+| **Sobrou um primo do UTC: `app/api/export/comprovantes/route.ts`.** É **só o nome do arquivo do zip** — nenhum dado gravado, nenhuma consulta. Fica registrado para não parecer esquecido; o resto fechou (ver "O nextSunday" e "Os três defaults") | 07/09/2026 |
+| **Não existe editar evento.** Não há `PUT` nem `PATCH` em `/api/events`, e a tela do calendário não oferece edição em lugar nenhum: hoje um evento se **cria** e se **apaga**, e nada nele é editável. Apareceu ao construir os responsáveis, mas **não é lacuna dos responsáveis — é recurso ausente**. Não enfiamos um `PUT` de propósito: sem tela e sem permissão pensada, ele criaria **meia edição**, que é pior que a ausência porque parece pronta. Está com o Lucas | 07/09/2026 |
 | **O histórico gravado errado nas noites anteriores não foi corrigido.** A 020 não toca em linha existente, de propósito: corrigir dado contábil já lançado é decisão do Lucas, não efeito colateral de migration. Está com ele decidir se há o que corrigir | 07/09/2026 |
 | **`linger` do túnel de banco — continua aberta, e DEIXOU de ser a nº 1 em 07/09/2026.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão. O que a colocava em primeiro lugar era o túnel ser o **único** caminho do time até dado; com produção no ar, ele deixou de ser. Continua sendo o único caminho até o `nonia_dev` e o `nonia_front`: sem ele **o time para de desenvolver, mas o produto não cai**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09, rebaixada em 07/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais — e desde 07/09/2026 pelo motivo oposto.** Ele diz que `APP_URL` é "opcional, e hoje sem uso" e que "não há hospedagem nem domínio no escopo atual". As duas frases eram verdade em 06/09 e são falsas agora: há domínio, e a variável **está gravada em produção**. O bloco do `BILLING_BYPASS` continua correto e é o melhor pedaço do arquivo. É arquivo do backend pela regra de propriedade, e está com ele | 06/09, revista em 07/09/2026 |
