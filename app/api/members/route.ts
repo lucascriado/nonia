@@ -23,6 +23,8 @@ export async function GET(request: Request) {
     const filtro = filtrosDeMembros(searchParams, organizationId(auth));
     const { page, pageSize, offset } = paginacao(searchParams);
     const where = filtro.where.join(" AND ");
+    // "Este mês" é o mês da IGREJA. Ver o bloco do indicador abaixo.
+    const hoje = hojeNoFuso(auth.organization.timezone);
 
     // O total é o do conjunto FILTRADO, não o da organização: senão a tela
     // diria "137 resultados" mostrando 4. Os indicadores saem da MESMA
@@ -33,6 +35,12 @@ export async function GET(request: Request) {
     // `is_new`: ela nasce true na criação e nunca volta a false, então contá-la
     // diria "novo este mês" sobre quem entrou em 2022. Medido no nonia_dev em
     // 06/09/2026: `is_new` dava 7, admitidos no mês davam 1.
+    //
+    // E "o mês corrente" é o da IGREJA, não o de UTC. Era date_trunc sobre
+    // CURRENT_DATE, que segue o fuso da sessão do Postgres: nas últimas três
+    // horas do dia 30 ou 31, o indicador pulava para o mês seguinte e zerava --
+    // logo depois de um domingo de recepção de novos membros, que é quando ele
+    // mais importa. A regra de QUEM conta não mudou; só de onde sai o "hoje".
     const contagem = await query<{
       total: number; newThisMonth: number; active: number;
       baptized: number; awaitingBaptism: number;
@@ -40,14 +48,14 @@ export async function GET(request: Request) {
       `SELECT
          count(*)::int AS total,
          count(*) FILTER (
-           WHERE admission_date >= date_trunc('month', CURRENT_DATE)::date
-             AND admission_date <  (date_trunc('month', CURRENT_DATE) + interval '1 month')::date
+           WHERE admission_date >= date_trunc('month', $${filtro.valores.length + 1}::date)::date
+             AND admission_date <  (date_trunc('month', $${filtro.valores.length + 1}::date) + interval '1 month')::date
          )::int AS "newThisMonth",
          count(*) FILTER (WHERE status = 'active')::int AS active,
          count(*) FILTER (WHERE baptism_status = 'baptized')::int AS baptized,
          count(*) FILTER (WHERE baptism_status = 'waiting')::int AS "awaitingBaptism"
        FROM member_directory WHERE ${where}`,
-      filtro.valores,
+      [...filtro.valores, hoje],
     );
 
     /**

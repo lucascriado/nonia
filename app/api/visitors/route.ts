@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
 
     // Ver o comentário em /api/members: filtra no servidor e só então pagina.
-    const filtro = filtrosDeVisitantes(searchParams, organizationId(auth));
+    const filtro = filtrosDeVisitantes(searchParams, organizationId(auth), auth.organization.timezone);
     const { page, pageSize, offset } = paginacao(searchParams);
     const where = filtro.where.join(" AND ");
 
