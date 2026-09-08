@@ -1,3 +1,5 @@
+import { hojeNoFuso } from "@/lib/datas";
+
 // Filtros e paginação das listagens.
 //
 // Fonte ÚNICA dos filtros: a listagem e a exportação montam o WHERE a partir
@@ -66,7 +68,7 @@ export function filtrosDeMembros(params: URLSearchParams, organizationId: string
  */
 export const DIAS_VISITA_RECENTE = 14;
 
-export function filtrosDeVisitantes(params: URLSearchParams, organizationId: string): Filtro {
+export function filtrosDeVisitantes(params: URLSearchParams, organizationId: string, fuso: string | null | undefined): Filtro {
   const f: Filtro = { where: ["organization_id = $1"], valores: [organizationId] };
   const busca = params.get("search")?.trim();
   condicao(f, busca ? `%${busca}%` : null, (n) => `concat_ws(' ', full_name, email, invited_by) ILIKE $${n}`);
@@ -78,7 +80,16 @@ export function filtrosDeVisitantes(params: URLSearchParams, organizationId: str
   // cadastrado pelo app seria "recente" para sempre e a aba viraria uma
   // segunda "Todos" com o uso. Mesma doença do `is_new` nos indicadores.
   const aba = params.get("tab");
-  if (aba === "Recentes") f.where.push(`visit_date >= CURRENT_DATE - interval '${DIAS_VISITA_RECENTE} days'`);
+  //
+  // A JANELA CONTINUA SENDO DE 14 DIAS -- só o "hoje" de onde ela é contada
+  // mudou. Era CURRENT_DATE, que segue o fuso da SESSÃO do Postgres (UTC nos
+  // nossos bancos): das 21h à meia-noite em Brasília a janela já tinha virado
+  // o dia, e um visitante de exatamente 14 dias atrás saía da aba cedo demais.
+  // Agora o corte parte do dia de hoje NA IGREJA.
+  if (aba === "Recentes") {
+    f.valores.push(hojeNoFuso(fuso));
+    f.where.push(`visit_date >= $${f.valores.length}::date - interval '${DIAS_VISITA_RECENTE} days'`);
+  }
   else if (aba && aba !== "Todos" && aba !== "all") f.where.push("membership_stage = 'visited'");
   const convidou = params.get("invitedBy");
   condicao(f, convidou && convidou !== "all" ? convidou : null, (n) => `invited_by = $${n}`);

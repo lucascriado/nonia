@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
     // Os MESMOS parâmetros da listagem, lidos do mesmo lugar: a tela manda a
     // query string que ela já tem, sem traduzir nada.
-    const lista = await envio.candidatos(audience, searchParams, org);
+    const lista = await envio.candidatos(audience, searchParams, org, auth.organization.timezone);
     const resumo = envio.conferir(lista);
 
     // Paginado sobre a lista JÁ RESOLVIDA, e não por uma segunda consulta com

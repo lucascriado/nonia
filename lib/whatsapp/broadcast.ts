@@ -80,10 +80,20 @@ export type Candidato = {
  * que vira mentira no dia em que um dos dois mudar -- e ninguém descobriria,
  * porque os dois continuariam "funcionando".
  */
-export async function candidatos(publico: Publico, params: URLSearchParams, organizationId: string): Promise<Candidato[]> {
+export async function candidatos(
+  publico: Publico,
+  params: URLSearchParams,
+  organizationId: string,
+  // O fuso da igreja atravessa até aqui porque a aba "Recentes" dos visitantes
+  // é um filtro de DATA, e esta função é a única resolução de público do
+  // projeto: se o fuso parasse no meio do caminho, a prévia e o envio
+  // continuariam concordando entre si e os dois estariam errados juntos --
+  // que é o pior modo de falhar deste arquivo.
+  fuso: string | null | undefined,
+): Promise<Candidato[]> {
   const filtro = publico === "members"
     ? filtrosDeMembros(params, organizationId)
-    : filtrosDeVisitantes(params, organizationId);
+    : filtrosDeVisitantes(params, organizationId, fuso);
   const { rows } = await query<{ id: string; name: string; phone: string | null }>(
     `SELECT id, full_name AS name, phone FROM ${viewDe(publico)}
       WHERE ${filtro.where.join(" AND ")}

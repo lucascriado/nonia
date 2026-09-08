@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   try {
     const auth = await requirePermission("visitors.read");
     const { searchParams } = new URL(request.url);
-    const filtro = filtrosDeVisitantes(searchParams, organizationId(auth));
+    const filtro = filtrosDeVisitantes(searchParams, organizationId(auth), auth.organization.timezone);
 
     const { rows } = await query<Record<string, string | null>>(
       `SELECT full_name, email, phone, birth_date, gender, marital_status, cpf, zip_code,

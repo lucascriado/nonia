@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     const escolhidos = lerIncluir(payload.incluir);
     const lista = escolhidos
       ? await envio.porIds(audience, escolhidos, org)
-      : await envio.candidatos(audience, params, org);
+      : await envio.candidatos(audience, params, org, auth.organization.timezone);
     const conferencia = envio.conferir(lista);
 
     if (payload.preview) return Response.json({ preview: conferencia });
