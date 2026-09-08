@@ -48,6 +48,9 @@ type FinancialTransaction = {
   /** Só vem da ficha individual, nunca da listagem. */
   attachmentUrl?: string;
   notes?: string;
+  /** Divisão do pagamento. Vem do GET da ficha (vazio = forma única); o formulário
+   *  de edição precisa dela para reabrir dividido. Ver financial-record-dialog. */
+  payments?: { method: string; amount: string }[];
 };
 
 type Summary = { income: string; expense: string; balance: string; pendingCount: number; pendingAmount: string };
@@ -396,5 +399,6 @@ function transactionValues(item: FinancialTransaction): Partial<FinancialRecordV
     attachmentUrl: item.attachmentUrl ?? "",
     attachmentName: item.attachmentName ?? "",
     notes: item.notes ?? "",
+    payments: item.payments,
   };
 }

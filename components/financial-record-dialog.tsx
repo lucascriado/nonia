@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowDownCircle, ArrowUpCircle, CalendarDays, CreditCard, LoaderCircle, Paperclip, Save, Tag, X } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, CalendarDays, CreditCard, LoaderCircle, Paperclip, Plus, Save, Split, Tag, X } from "lucide-react";
 import { expenseCategories, incomeCategories, paymentMethods, ATTACHMENT_MAX_BYTES } from "@/lib/finance-records";
 import { useSession } from "@/components/current-user";
 import { hojeNoFuso } from "@/lib/datas";
@@ -18,6 +18,13 @@ export type FinancialRecordValues = {
   attachmentUrl: string;
   attachmentName: string;
   notes: string;
+  /**
+   * Divisão do pagamento em várias formas. Contrato do backend:
+   * ausente ou com UMA forma = caminho normal (paymentMethod); DUAS ou mais =
+   * dividido; `[]` explícito desfaz uma divisão anterior. "Dividido" é MARCA que
+   * a API põe sozinha na coluna antiga -- a tela nunca a manda nem a oferece.
+   */
+  payments?: { method: string; amount: string }[];
 };
 
 /**
@@ -49,9 +56,22 @@ const emptyValues: FinancialRecordValues = {
   notes: "",
 };
 
+/** Reais em texto -> centavos inteiros, para a soma da divisão bater com o total
+ *  sem erro de ponto flutuante (é como a API compara). */
+function emCentavos(valor: string) {
+  const n = Number(valor);
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+function reais(centavos: number) {
+  return (centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+}
+
 function normalizeValues(hoje: string, initialValues?: Partial<FinancialRecordValues>) {
   const normalized = { ...emptyValues, transactionDate: hoje };
-  for (const key of Object.keys(emptyValues) as Array<keyof FinancialRecordValues>) {
+  // `payments` fica de fora: é array, tratado à parte no formulário. Aqui só as
+  // strings planas, como sempre.
+  for (const key of Object.keys(emptyValues) as Array<Exclude<keyof FinancialRecordValues, "payments">>) {
     const value = initialValues?.[key];
     if (typeof value === "string") normalized[key] = value;
   }
@@ -79,6 +99,13 @@ export function FinancialRecordDialog({
   const [values, setValues] = useState<FinancialRecordValues>(() => normalizeValues(hojeNoFuso(fuso), initialValues));
   const [submitting, setSubmitting] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
+  /** Ligado quando o pagamento é dividido em mais de uma forma. */
+  const [dividir, setDividir] = useState(false);
+  /** As partes da divisão. Só valem quando `dividir`; UMA parte não é divisão. */
+  const [parcelas, setParcelas] = useState<{ method: string; amount: string }[]>([]);
+  /** O lançamento JÁ era dividido ao abrir? Se era e vira forma única, mandamos
+   *  `payments: []` para DESFAZER a divisão -- ausente não desfaz nada. */
+  const eraDividido = (initialValues?.payments?.length ?? 0) >= 2;
 
   useEffect(() => {
     if (open) {
@@ -88,6 +115,10 @@ export function FinancialRecordDialog({
       setValues(normalizeValues(hojeNoFuso(fuso), initialValues));
       setSubmitting(false);
       setAttachmentError("");
+      // Abre dividido se a ficha veio com duas formas ou mais; uma só é forma única.
+      const partes = initialValues?.payments ?? [];
+      setDividir(partes.length >= 2);
+      setParcelas(partes.length >= 2 ? partes.map((p) => ({ method: p.method, amount: p.amount })) : []);
     }
   }, [fuso, initialValues, open]);
 
@@ -108,8 +139,38 @@ export function FinancialRecordDialog({
   const isIncome = values.type === "income";
   const categories = isIncome ? incomeCategories : expenseCategories;
 
+  // A soma das partes, em centavos, e se ela fecha com o total. É indicação AO
+  // VIVO para a pessoa; a garantia dura é do banco e a frase exata é da API.
+  const totalCentavos = emCentavos(values.amount);
+  const somaParcelas = parcelas.reduce((acc, parte) => acc + emCentavos(parte.amount), 0);
+  const partesPreenchidas = parcelas.filter((parte) => parte.method && parte.amount).length;
+  const somaFecha = dividir && partesPreenchidas >= 2 && totalCentavos > 0 && somaParcelas === totalCentavos;
+
   function update(field: keyof FinancialRecordValues, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  function ativarDivisao() {
+    setDividir(true);
+    // Começa com a forma já escolhida (se houver) e uma linha em branco, para
+    // não partir do zero.
+    setParcelas((atuais) => atuais.length ? atuais : [
+      { method: values.paymentMethod || "", amount: "" },
+      { method: "", amount: "" },
+    ]);
+  }
+  function desativarDivisao() {
+    setDividir(false);
+  }
+  function atualizarParcela(indice: number, campo: "method" | "amount", valor: string) {
+    setParcelas((atuais) => atuais.map((parte, i) => (i === indice ? { ...parte, [campo]: valor } : parte)));
+  }
+  function adicionarParcela() {
+    // No máximo uma linha por forma: o banco tem UNIQUE (lançamento, forma).
+    setParcelas((atuais) => (atuais.length >= paymentMethods.length ? atuais : [...atuais, { method: "", amount: "" }]));
+  }
+  function removerParcela(indice: number) {
+    setParcelas((atuais) => atuais.filter((_, i) => i !== indice));
   }
 
   function updateType(type: string) {
@@ -147,7 +208,20 @@ export function FinancialRecordDialog({
     if (submitting || readOnly) return;
     setSubmitting(true);
     try {
-      await onSubmit(values);
+      const partesValidas = parcelas.filter((parte) => parte.method && parte.amount);
+      const payload: FinancialRecordValues = { ...values };
+      if (dividir && partesValidas.length >= 2) {
+        // Divisão de verdade: mando as partes. A forma solta sai -- a API marca
+        // "Dividido" sozinha na coluna antiga, e a tela nunca manda essa marca.
+        payload.payments = partesValidas.map((parte) => ({ method: parte.method, amount: parte.amount }));
+        payload.paymentMethod = "";
+      } else {
+        // Forma única. UMA parte não é divisão: ela vira a forma solta.
+        if (dividir && partesValidas.length === 1) payload.paymentMethod = partesValidas[0].method;
+        // `payments: []` só quando havia divisão a DESFAZER; ausente não desfaz.
+        if (eraDividido) payload.payments = [];
+      }
+      await onSubmit(payload);
     } finally {
       setSubmitting(false);
     }
@@ -178,7 +252,53 @@ export function FinancialRecordDialog({
             <Field label="Categoria" required><select required value={values.category} onChange={(event) => update("category", event.target.value)}>{categories.map((option) => <option key={option}>{option}</option>)}</select></Field>
             <Field label="Valor (R$)" required><input required type="number" min="0.01" step="0.01" inputMode="decimal" value={values.amount} onChange={(event) => update("amount", event.target.value)} placeholder="0,00" /></Field>
             <Field label={isIncome ? "De onde veio" : "Para onde foi"}><input value={values.counterparty} onChange={(event) => update("counterparty", event.target.value)} placeholder={isIncome ? "Ex: Membro, evento, doador..." : "Ex: Fornecedor, concessionária..."} /></Field>
-            <Field label="Forma de Pagamento"><select value={values.paymentMethod} onChange={(event) => update("paymentMethod", event.target.value)}><option value="">Selecione</option>{paymentMethods.map((method) => <option key={method}>{method}</option>)}</select></Field>
+            <Field label="Forma de Pagamento" wide>
+              {!dividir ? (
+                <div className="finance-pay-single">
+                  <select value={values.paymentMethod} onChange={(event) => update("paymentMethod", event.target.value)}>
+                    <option value="">Selecione</option>
+                    {paymentMethods.map((method) => <option key={method}>{method}</option>)}
+                  </select>
+                  {!readOnly && (
+                    <button type="button" className="finance-pay-split-toggle" onClick={ativarDivisao}>
+                      <Split aria-hidden />Dividir em mais de uma forma
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="finance-pay-split">
+                  <ul className="finance-pay-parts">
+                    {parcelas.map((parte, indice) => {
+                      // Cada forma só aparece uma vez: o banco tem UNIQUE por forma.
+                      const usadasEmOutras = parcelas.filter((_, j) => j !== indice).map((p) => p.method);
+                      return (
+                        <li key={indice}>
+                          <select value={parte.method} onChange={(event) => atualizarParcela(indice, "method", event.target.value)}>
+                            <option value="">Forma</option>
+                            {paymentMethods.map((method) => <option key={method} value={method} disabled={usadasEmOutras.includes(method)}>{method}</option>)}
+                          </select>
+                          <input type="number" min="0.01" step="0.01" inputMode="decimal" placeholder="0,00" value={parte.amount} onChange={(event) => atualizarParcela(indice, "amount", event.target.value)} />
+                          <button type="button" className="finance-pay-remove" aria-label="Remover forma" onClick={() => removerParcela(indice)}><X aria-hidden /></button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="finance-pay-split-foot">
+                    <button type="button" onClick={adicionarParcela} disabled={parcelas.length >= paymentMethods.length}><Plus aria-hidden />Adicionar forma</button>
+                    <button type="button" onClick={desativarDivisao}>Voltar para forma única</button>
+                  </div>
+                  {/* Indicação ao vivo. A frase exata que RECUSA é da API; esta só
+                      ajuda antes de enviar. */}
+                  <p className={`finance-pay-sum ${somaFecha ? "is-ok" : "is-off"}`} role="status">
+                    {totalCentavos <= 0
+                      ? "Informe o Valor (R$) total do lançamento acima."
+                      : somaFecha
+                        ? `As formas somam R$ ${reais(somaParcelas)}, igual ao total.`
+                        : `As formas somam R$ ${reais(somaParcelas)} de R$ ${reais(totalCentavos)}. ${somaParcelas > totalCentavos ? `Sobram R$ ${reais(somaParcelas - totalCentavos)}.` : `Faltam R$ ${reais(totalCentavos - somaParcelas)}.`}`}
+                  </p>
+                </div>
+              )}
+            </Field>
           </FormSection>
 
           <FormSection title="Data e Situação" icon={<CalendarDays />} className="finance-status">
