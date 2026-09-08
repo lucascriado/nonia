@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowDownCircle, ArrowUpCircle, CalendarDays, CreditCard, LoaderCircle, Paperclip, Save, Tag, X } from "lucide-react";
 import { expenseCategories, incomeCategories, paymentMethods, ATTACHMENT_MAX_BYTES } from "@/lib/finance-records";
+import { useSession } from "@/components/current-user";
+import { hojeNoFuso } from "@/lib/datas";
 
 export type FinancialRecordValues = {
   type: string;
@@ -18,6 +20,21 @@ export type FinancialRecordValues = {
   notes: string;
 };
 
+/**
+ * A data NÃO está aqui, e a ausência é o conserto.
+ *
+ * Ela era `new Date().toISOString().slice(0, 10)` neste objeto, e isso errava
+ * de dois jeitos ao mesmo tempo:
+ *
+ *  1. FUSO -- `toISOString()` é UTC. Em Brasília, das 21h à meia-noite, ele
+ *     devolve AMANHÃ, e a tesouraria lança o culto da noite com a data do dia
+ *     seguinte. No dia 30 ou 31 o lançamento pula de MÊS e desloca o
+ *     fechamento.
+ *  2. MOMENTO -- sendo constante de módulo, a data congelava na hora em que a
+ *     aba carregou. Uma aba aberta desde ontem abria o formulário com ontem.
+ *
+ * Agora ela é calculada na hora em que o formulário abre, no fuso da igreja.
+ */
 const emptyValues: FinancialRecordValues = {
   type: "income",
   description: "",
@@ -25,15 +42,15 @@ const emptyValues: FinancialRecordValues = {
   counterparty: "",
   amount: "",
   status: "paid",
-  transactionDate: new Date().toISOString().slice(0, 10),
+  transactionDate: "",
   paymentMethod: "",
   attachmentUrl: "",
   attachmentName: "",
   notes: "",
 };
 
-function normalizeValues(initialValues?: Partial<FinancialRecordValues>) {
-  const normalized = { ...emptyValues };
+function normalizeValues(hoje: string, initialValues?: Partial<FinancialRecordValues>) {
+  const normalized = { ...emptyValues, transactionDate: hoje };
   for (const key of Object.keys(emptyValues) as Array<keyof FinancialRecordValues>) {
     const value = initialValues?.[key];
     if (typeof value === "string") normalized[key] = value;
@@ -54,17 +71,25 @@ export function FinancialRecordDialog({
   mode: "create" | "edit" | "view";
   onSubmit: (values: FinancialRecordValues) => Promise<boolean>;
 }) {
-  const [values, setValues] = useState<FinancialRecordValues>(() => normalizeValues(initialValues));
+  // O fuso da igreja, não o do navegador: uma secretária viajando não muda o
+  // dia em que a igreja lança. Enquanto a sessão não respondeu, `organization`
+  // é null e o fallback de `hojeNoFuso` vale -- e o formulário só abre depois.
+  const { organization } = useSession();
+  const fuso = organization?.timezone;
+  const [values, setValues] = useState<FinancialRecordValues>(() => normalizeValues(hojeNoFuso(fuso), initialValues));
   const [submitting, setSubmitting] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
 
   useEffect(() => {
     if (open) {
-      setValues(normalizeValues(initialValues));
+      // hojeNoFuso() roda AQUI, na abertura, e não uma vez por carregamento
+      // da página: é o que faz a aba esquecida aberta desde ontem não sugerir
+      // ontem.
+      setValues(normalizeValues(hojeNoFuso(fuso), initialValues));
       setSubmitting(false);
       setAttachmentError("");
     }
-  }, [initialValues, open]);
+  }, [fuso, initialValues, open]);
 
   useEffect(() => {
     if (!open) return;

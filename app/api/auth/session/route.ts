@@ -23,8 +23,8 @@ export async function GET() {
     // avaliação precisa dele em toda tela, mas resolvê-lo em toda requisição
     // autenticada custaria uma consulta a mais em cada chamada de API. A tela
     // já busca /api/auth/session, então aqui ele vem de graça.
-    const organizations = await db.query<{ id: string; name: string; slug: string; roleSlug: string }>(
-      `SELECT o.id, o.name, o.slug, r.slug AS "roleSlug"
+    const organizations = await db.query<{ id: string; name: string; slug: string; timezone: string; roleSlug: string }>(
+      `SELECT o.id, o.name, o.slug, o.timezone, r.slug AS "roleSlug"
        FROM organization_members om
        JOIN organizations o ON o.id = om.organization_id
        JOIN roles r ON r.id = om.role_id

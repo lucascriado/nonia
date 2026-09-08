@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, Plus, Trash2, X } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly, useSession } from "@/components/current-user";
+import { hojeNoFuso } from "@/lib/datas";
 import { toast } from "sonner";
 import { DeleteRecordDialog } from "@/components/person-record-dialog";
 
@@ -301,7 +302,20 @@ function EventDetailsModal({ canDelete, event, onClose, onDelete }: { canDelete:
 }
 
 function EventFormModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (values: EventFormValues) => Promise<boolean> }) {
-  const [values, setValues] = useState<EventFormValues>(() => ({ ...emptyForm, date: new Date().toISOString().slice(0, 10) }));
+  /**
+   * A DATA SUGERIDA SAI DO FUSO DA IGREJA, não de `toISOString()`.
+   *
+   * Era UTC, e em Brasília das 21h à meia-noite isso sugere AMANHÃ: quem abre
+   * "Novo Evento" às 21h30 de domingo agenda para segunda sem perceber. Num
+   * calendário o erro é pior que no financeiro, porque a data É o conteúdo --
+   * ninguém confere a data de um evento contra outra fonte.
+   *
+   * Quando a tela passar a abrir este formulário a partir de um DIA CLICADO,
+   * a data do dia clicado entra aqui como valor inicial e vence esta sugestão.
+   * O `hojeNoFuso` continua sendo o caso "abriu pelo botão, sem dia escolhido".
+   */
+  const { organization } = useSession();
+  const [values, setValues] = useState<EventFormValues>(() => ({ ...emptyForm, date: hojeNoFuso(organization?.timezone) }));
   const [submitting, setSubmitting] = useState(false);
 
   async function submit(event: FormEvent) {
