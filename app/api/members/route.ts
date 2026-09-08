@@ -7,6 +7,7 @@ import { assertWithinPlanLimit } from "@/lib/plan-limits";
 import { Member, Ministry, Person } from "@/lib/models";
 import { readJson } from "@/lib/http";
 import { apiError, nullable, personAttributes, RecordPayload, validateRecordPayload } from "@/lib/records";
+import { hojeNoFuso } from "@/lib/datas";
 
 export const runtime = "nodejs";
 
@@ -145,6 +146,12 @@ export async function POST(request: Request) {
         status: payload.status === "Inativo" ? "inactive" : "active",
         baptismStatus: payload.baptismDate ? "baptized" : "waiting",
         baptismDate: nullable(payload.baptismDate),
+        // No fuso da igreja, e não pelo DEFAULT CURRENT_DATE do banco, que roda
+        // em UTC: das 21h à meia-noite em Brasília o membro nascia admitido
+        // AMANHÃ, e no dia 30 ou 31 caía no MÊS seguinte -- somindo do
+        // indicador "novos este mês" logo acima nesta mesma rota. Ver
+        // lib/datas.ts; o default do banco sai num deploy posterior.
+        admissionDate: hojeNoFuso(auth.organization.timezone),
         cellName: payload.cell || "Sem célula",
       }, { transaction });
       await syncCellMembership(auth, person.id, payload.cell, transaction);
