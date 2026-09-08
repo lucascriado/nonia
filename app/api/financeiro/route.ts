@@ -1,10 +1,10 @@
 import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { FinancialTransaction } from "@/lib/models";
+import { FinancialTransaction, FinancialTransactionPayment } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import { filtrosDeFinanceiro, paginacao } from "@/lib/listings";
-import { financeAttributes, FinancePayload, validateFinancePayload } from "@/lib/finance-records";
+import { financeAttributes, FinancePayload, parcelasDoPagamento, validateFinancePayload } from "@/lib/finance-records";
 import { readJson } from "@/lib/http";
 import { FUSO_PADRAO } from "@/lib/datas";
 
@@ -95,6 +95,22 @@ export async function POST(request: Request) {
         { ...attributes, organizationId: organizationId(auth) },
         { transaction },
       );
+      // AS PARTES ENTRAM NA MESMA TRANSAÇÃO, e é isso que faz a garantia do
+      // banco funcionar: a trigger é DIFERIDA e confere no COMMIT, quando o
+      // lançamento e todas as partes já estão lá. Fora desta transação, a
+      // primeira parte inserida seria uma soma que não fecha.
+      const parcelas = parcelasDoPagamento(payload);
+      if (parcelas) {
+        for (const parcela of parcelas) {
+          await FinancialTransactionPayment.create({
+            organizationId: organizationId(auth),
+            transactionId: record.id,
+            paymentMethod: parcela.method,
+            amount: parcela.amount,
+          }, { transaction });
+        }
+      }
+
       const action = attributes.type === "income" ? "registrou uma entrada de" : "registrou uma saída de";
       await addActivity(transaction, auth, "financial", action, attributes.description);
       return record.id;

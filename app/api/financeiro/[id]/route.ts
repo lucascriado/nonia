@@ -1,11 +1,11 @@
 import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { FinancialTransaction } from "@/lib/models";
+import { FinancialTransaction, FinancialTransactionPayment } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import { assertAffected } from "@/lib/tenant";
-import { financeAttributes, FinancePayload, validateFinancePayload } from "@/lib/finance-records";
-import { notFound, readJson, requireUuid } from "@/lib/http";
+import { financeAttributes, FinancePayload, parcelasDoPagamento, validateFinancePayload } from "@/lib/finance-records";
+import { HttpError, notFound, readJson, requireUuid } from "@/lib/http";
 
 export const runtime = "nodejs";
 
@@ -19,7 +19,23 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     const { rows } = await query(`
       SELECT id, type, description, category, counterparty, amount, status,
         transaction_date AS "transactionDate", payment_method AS "paymentMethod",
-        attachment_url AS "attachmentUrl", attachment_name AS "attachmentName", notes
+        attachment_url AS "attachmentUrl", attachment_name AS "attachmentName", notes,
+        retroactive, retroactive_reason AS "retroactiveReason",
+        -- AS FORMAS SAEM AQUI, na rota de UM lançamento, e não na listagem.
+        -- É a mesma divisão que o comprovante já faz: a lista diz o essencial
+        -- (a coluna payment_method, que com divisão diz "Dividido"), e o
+        -- detalhe vem quando alguém abre o lançamento. Sem isto o formulário
+        -- de edição não teria como mostrar a divisão que vai editar.
+        --
+        -- Array vazio quando não houve divisão -- e vazio aqui é resposta, não
+        -- ausência: significa forma única, que está em paymentMethod.
+        COALESCE((
+          SELECT json_agg(json_build_object('method', fp.payment_method, 'amount', fp.amount::text)
+                          ORDER BY fp.amount DESC, fp.payment_method)
+            FROM financial_transaction_payments fp
+           WHERE fp.transaction_id = financial_transactions.id
+             AND fp.organization_id = financial_transactions.organization_id
+        ), '[]') AS payments
       FROM financial_transactions
       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
     `, [id, organizationId(auth)]);
@@ -46,13 +62,67 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
     const attributes = financeAttributes(payload);
+
+    /**
+     * EDITAR UM LANÇAMENTO DIVIDIDO.
+     *
+     * A chave `payments` AUSENTE não é o mesmo que `payments` vazio — é a
+     * mesma rede de segurança que `attachmentUrl` já tem neste módulo: a chave
+     * ausente preserva o que está gravado, e só o vazio explícito apaga.
+     *
+     * Aqui ela não pode nem preservar nem apagar em silêncio, e o motivo é
+     * concreto: mudar o TOTAL de um lançamento dividido sem mexer nas partes
+     * quebra a soma, e a trigger diferida do banco reprovaria no COMMIT — a
+     * pessoa levaria um 500 depois de salvar. As três saídas possíveis eram
+     * deixar estourar (500 cru), apagar as partes calado (perda de dado
+     * silenciosa) ou recusar com uma frase. É a terceira.
+     *
+     * Quem manda `payments` — com duas ou mais formas, ou vazio para voltar a
+     * forma única — edita normalmente.
+     */
+    const parcelas = parcelasDoPagamento(payload);
+    const mandouFormas = payload.payments !== undefined;
+
     await db.transaction(async (transaction) => {
+      const existentes = await FinancialTransactionPayment.count({
+        where: { transactionId: id, organizationId: organizationId(auth) },
+        transaction,
+      });
+      if (existentes > 0 && !mandouFormas) {
+        throw new HttpError(
+          400,
+          "Este lançamento foi dividido em mais de uma forma de pagamento. Edite-o com as formas, "
+            + "ou escolha uma forma única para deixar de ser dividido.",
+          "lancamento_dividido",
+        );
+      }
+
       // Lançamento na lixeira não se edita: restaure primeiro.
       const [affected] = await FinancialTransaction.update(attributes, {
         where: { id, organizationId: organizationId(auth), deletedAt: null },
         transaction,
       });
       assertAffected(affected, "Lançamento não encontrado.");
+
+      if (mandouFormas) {
+        // Reescreve inteiro em vez de casar linha a linha: o conjunto de
+        // formas é pequeno e a diferença nunca vale o risco de sobrar uma
+        // parte órfã. A trigger é diferida, então o estado sem partes no meio
+        // da transação não reprova nada.
+        await FinancialTransactionPayment.destroy({
+          where: { transactionId: id, organizationId: organizationId(auth) },
+          transaction,
+        });
+        for (const parcela of parcelas ?? []) {
+          await FinancialTransactionPayment.create({
+            organizationId: organizationId(auth),
+            transactionId: id,
+            paymentMethod: parcela.method,
+            amount: parcela.amount,
+          }, { transaction });
+        }
+      }
+
       await addActivity(transaction, auth, "financial", "atualizou o lançamento", attributes.description);
     });
 

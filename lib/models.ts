@@ -178,6 +178,35 @@ FinancialTransaction.init({
   retroactiveReason: { type: DataTypes.STRING(200), field: "retroactive_reason" },
 }, { sequelize: db, tableName: "financial_transactions", createdAt: "created_at", updatedAt: "updated_at" });
 
+/**
+ * Uma forma de pagamento de um lançamento DIVIDIDO.
+ *
+ * Lançamento com forma única NÃO tem linha aqui — a forma dele mora em
+ * `financial_transactions.payment_method`. Duas representações do mesmo
+ * estado divergiriam, e o banco recusa a divisão de uma parte só.
+ *
+ * A soma das partes fechar com o total é garantia de BANCO (constraint
+ * trigger diferida, migration 021), não deste Model.
+ */
+export class FinancialTransactionPayment extends Model<
+  InferAttributes<FinancialTransactionPayment>,
+  InferCreationAttributes<FinancialTransactionPayment>
+> {
+  declare id: CreationOptional<string>;
+  declare organizationId: string;
+  declare transactionId: string;
+  declare paymentMethod: string;
+  declare amount: string;
+}
+
+FinancialTransactionPayment.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  transactionId: { type: DataTypes.UUID, allowNull: false, field: "transaction_id" },
+  paymentMethod: { type: DataTypes.STRING(40), allowNull: false, field: "payment_method" },
+  amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+}, { sequelize: db, tableName: "financial_transaction_payments", createdAt: "created_at", updatedAt: "updated_at" });
+
 // ---------------------------------------------------------------------------
 // SaaS: organizações, usuários, sessões, RBAC e cobrança.
 // ---------------------------------------------------------------------------
