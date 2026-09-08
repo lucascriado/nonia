@@ -6,6 +6,7 @@ import { readJson } from "@/lib/http";
 import { apiError, personAttributes, RecordPayload, validateRecordPayload } from "@/lib/records";
 import { filtrosDeVisitantes, paginacao } from "@/lib/listings";
 import { membershipStage, visitorStatus } from "@/lib/visitor-stages";
+import { hojeNoFuso } from "@/lib/datas";
 
 export const runtime = "nodejs";
 
@@ -74,6 +75,22 @@ export async function POST(request: Request) {
       await Visitor.create({
         personId: person.id,
         organizationId: organizationId(auth),
+        // A DATA DA VISITA VEM DA APLICAÇÃO, no fuso da igreja.
+        //
+        // Antes ela não era passada e quem gravava era o DEFAULT CURRENT_DATE
+        // do banco, que roda no fuso da SESSÃO do Postgres -- UTC. Das 21h à
+        // meia-noite em Brasília, isso registrava a visita como sendo de
+        // AMANHÃ. É o pior lugar possível para esse defeito: visitante é
+        // cadastrado logo depois do culto de domingo à noite, exatamente
+        // dentro da janela quebrada. E a data alimenta a aba "Recentes" e o
+        // "visitantes este mês" do painel.
+        //
+        // O default do banco continua lá por enquanto, e sai numa migration
+        // PRÓPRIA, num deploy POSTERIOR a este: o Dockerfile roda
+        // "migrate && server", então uma migration que dropasse o default no
+        // mesmo deploy o removeria enquanto o container VELHO -- com o código
+        // que omite a coluna -- ainda atende requisição.
+        visitDate: hojeNoFuso(auth.organization.timezone),
         invitedBy: payload.invitedBy || "Espontâneo",
         followUpStatus: visitorStatus(payload.membershipStage),
         membershipStage: membershipStage(payload.membershipStage),

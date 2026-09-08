@@ -5,6 +5,7 @@ import { notFound, requireUuid } from "@/lib/http";
 import { Member, Person, Visitor } from "@/lib/models";
 import { assertWithinPlanLimit } from "@/lib/plan-limits";
 import { apiError } from "@/lib/records";
+import { hojeNoFuso } from "@/lib/datas";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,10 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
           status: "active",
           baptismStatus: "waiting",
           baptismDate: null,
+          // O dia da conversão, no fuso da igreja -- é a data em que a pessoa
+          // passou a ser membro. Mesmo motivo dos outros dois pontos: sem
+          // isto, quem grava é o CURRENT_DATE do banco, em UTC.
+          admissionDate: hojeNoFuso(auth.organization.timezone),
         }, { transaction });
       }
 
