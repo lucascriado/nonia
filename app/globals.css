@@ -3372,3 +3372,12 @@ button.profile-secondary-action:hover,
   background: var(--primary-soft);
   color: var(--heading);
 }
+
+/* Responsáveis no Novo Evento: o seletor de pessoas entra no modal sem estourar
+   a tela. O modal vira coluna e o miolo do formulário rola; a lista do seletor
+   tem teto próprio para não brigar por altura. */
+.event-form-modal { display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
+.event-form-modal > .event-form-grid { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.event-responsaveis > span em { color: var(--muted); font-style: normal; font-weight: 400; }
+.event-responsaveis .mpk-lista { max-height: 196px; }
+.event-responsaveis-lista svg { color: var(--primary); }

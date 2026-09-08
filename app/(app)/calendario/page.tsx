@@ -1,12 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, Plus, Trash2, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, Plus, Trash2, Users, X } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { READ_ONLY_REASON, usePermission, useReadOnly, useSession } from "@/components/current-user";
 import { hojeNoFuso } from "@/lib/datas";
 import { toast } from "sonner";
 import { DeleteRecordDialog } from "@/components/person-record-dialog";
+import { MinistryPeoplePicker, type PickerPerson } from "@/components/ministry-people-picker";
 
 type CalendarEvent = {
   id: string;
@@ -17,6 +18,10 @@ type CalendarEvent = {
   endsAt?: string | null;
   category: string;
   color: "purple" | "green" | "blue";
+  /** Quem realizou/realiza o evento. Vem JUNTO do GET /api/events (o mês inteiro
+   *  numa requisição só); array vazio quando não há. É PESSOA, não ficha de
+   *  membro -- a ficha some sem a pessoa sumir, e o evento não perde quem o fez. */
+  responsibles?: { id: string; name: string }[];
 };
 
 type EventFormValues = {
@@ -26,6 +31,8 @@ type EventFormValues = {
   date: string;
   time: string;
   color: CalendarEvent["color"];
+  /** Ids de PESSOA. Vão no POST como `responsibleIds`. */
+  responsibleIds: string[];
 };
 
 type CalendarView = "month" | "week" | "day";
@@ -37,7 +44,7 @@ const categoryOptions = [
   { label: "Ações Sociais", color: "green" },
 ] as const;
 
-const emptyForm: EventFormValues = { title: "", description: "", location: "", date: "", time: "", color: "purple" };
+const emptyForm: EventFormValues = { title: "", description: "", location: "", date: "", time: "", color: "purple", responsibleIds: [] };
 
 export default function CalendarPage() {
   const readOnly = useReadOnly();
@@ -136,7 +143,7 @@ export default function CalendarPage() {
     const response = await fetch("/api/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: values.title, description: values.description, location: values.location, startsAt, color: values.color }),
+      body: JSON.stringify({ title: values.title, description: values.description, location: values.location, startsAt, color: values.color, responsibleIds: values.responsibleIds }),
     });
 
     if (!response.ok) {
@@ -301,6 +308,9 @@ function EventDetailsModal({ canDelete, event, onClose, onDelete }: { canDelete:
         <div className="event-modal-body">
           <p><MapPin />{event.location}</p>
           <p><Clock />{timeLabel(event.startsAt)}{event.endsAt ? ` - ${timeLabel(event.endsAt)}` : ""}</p>
+          {event.responsibles && event.responsibles.length > 0 && (
+            <p className="event-responsaveis-lista"><Users />{event.responsibles.map((r) => r.name).join(", ")}</p>
+          )}
           {event.description && <article>{event.description}</article>}
         </div>
         {canDelete && <footer className="event-form-actions"><button className="event-delete-button" onClick={onDelete}><Trash2 />Excluir Evento</button></footer>}
@@ -325,6 +335,30 @@ function EventFormModal({ initialDate, onClose, onSubmit }: { initialDate: strin
   const { organization } = useSession();
   const [values, setValues] = useState<EventFormValues>(() => ({ ...emptyForm, date: initialDate || hojeNoFuso(organization?.timezone) }));
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * As pessoas que o seletor oferece. O que se GRAVA é a PESSOA (people), não a
+   * ficha de membro -- ficha some sem a pessoa sumir, e o evento não perde quem
+   * o realizou. Oferecer os membros no seletor é só o filtro de quem aparece:
+   * `member.id` já é o id da pessoa (é o que o backend resolve em `people`).
+   * Carregado só aqui, quando o formulário abre, não na tela do calendário.
+   */
+  const [pessoas, setPessoas] = useState<PickerPerson[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/members?pageSize=100", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((data: { records: { id: string; name: string; email: string }[] }) => {
+        if (vivo) setPessoas(data.records.map((m) => ({ id: m.id, name: m.name, email: m.email })));
+      })
+      .catch(() => undefined);
+    return () => { vivo = false; };
+  }, []);
+
+  function alternarResponsavel(id: string) {
+    setValues((atual) => atual.responsibleIds.includes(id)
+      ? { ...atual, responsibleIds: atual.responsibleIds.filter((x) => x !== id) }
+      : { ...atual, responsibleIds: [...atual.responsibleIds, id] });
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -352,6 +386,19 @@ function EventFormModal({ initialDate, onClose, onSubmit }: { initialDate: strin
           <label className="record-field"><span>Local *</span><input required value={values.location} onChange={(event) => setValues((current) => ({ ...current, location: event.target.value }))} /></label>
           <label className="record-field"><span>Cor</span><select value={values.color} onChange={(event) => setValues((current) => ({ ...current, color: event.target.value as CalendarEvent["color"] }))}><option value="purple">Roxo</option><option value="green">Verde</option><option value="blue">Azul</option></select></label>
           <label className="record-field wide"><span>Descrição</span><textarea value={values.description} onChange={(event) => setValues((current) => ({ ...current, description: event.target.value }))} /></label>
+          {/* Responsáveis: o MESMO seletor de pessoas do ministério, em modo de
+              várias. Sem `ministryId`, o cinza de "compromisso" fica dormente --
+              aqui não há esse conceito, só achar gente por busca. */}
+          <div className="record-field wide event-responsaveis">
+            <span>Responsáveis <em>(opcional)</em></span>
+            <MinistryPeoplePicker
+              people={pessoas}
+              mode="members"
+              selectedIds={values.responsibleIds}
+              onToggle={alternarResponsavel}
+              emptyLabel="Ninguém no cadastro de membros ainda."
+            />
+          </div>
         </div>
         <footer className="event-form-actions"><button type="button" className="record-cancel" disabled={submitting} onClick={onClose}>Cancelar</button><button className="record-save" disabled={submitting}>{submitting ? "Salvando..." : "Salvar Evento"}</button></footer>
       </form>
