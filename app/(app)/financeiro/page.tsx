@@ -242,8 +242,11 @@ export default function FinancePage() {
             ações FICA -- ela é o que esta seção passa a ser. Ver
             components/header.tsx, que monta título e legenda de `searchItems`. */}
         <section className="resource-heading is-acoes">
-          {/* Kardex: leitura, então vale mesmo em somente leitura, ao lado do exportar. */}
-          <button type="button" className="text-button kardex-abrir" onClick={() => setKardexAberto(true)}><ScrollText aria-hidden />Kardex</button>
+          {/* Kardex: leitura, então vale mesmo em somente leitura, ao lado do exportar.
+              Sem `text-button`: aquela classe é botão estilo-link (sem fundo, sem
+              borda) e aqui, entre o Exportar e o Novo Lançamento, ela fazia o botão
+              parecer texto solto. Ver `.kardex-abrir` em app/globals.css. */}
+          <button type="button" className="kardex-abrir" onClick={() => setKardexAberto(true)}><ScrollText aria-hidden />Kardex</button>
           <ExportButton resource="financeiro" permission="finance.read" filters={{ search, type, status, category, attachment }} />
           {canWrite && <button disabled={readOnly} title={readOnly ? READ_ONLY_REASON : undefined} className="primary-action" onClick={() => { setSelectedTransaction(null); setDialogMode("create"); }}><Plus />Novo Lançamento</button>}
         </section>
