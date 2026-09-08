@@ -3372,3 +3372,44 @@ button.profile-secondary-action:hover,
   background: var(--primary-soft);
   color: var(--heading);
 }
+
+/* Responsáveis no Novo Evento: o seletor de pessoas entra no modal sem estourar
+   a tela. O modal vira coluna e o miolo do formulário rola; a lista do seletor
+   tem teto próprio para não brigar por altura. */
+.event-form-modal { display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
+.event-form-modal > .event-form-grid { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.event-responsaveis > span em { color: var(--muted); font-style: normal; font-weight: 400; }
+.event-responsaveis .mpk-lista { max-height: 196px; }
+.event-responsaveis-lista svg { color: var(--primary); }
+
+/* --------------------------------------------------------------------------
+   Divisão do pagamento em várias formas (lançamento financeiro)
+   Forma única + um botão de dividir; dividido, uma linha por forma (método +
+   valor) e uma indicação AO VIVO se a soma fecha com o total. A frase que
+   RECUSA continua sendo a da API -- esta só adianta o aviso.
+   -------------------------------------------------------------------------- */
+.finance-pay-single { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.finance-pay-single select { flex: 1 1 200px; }
+.finance-pay-split-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--neutral-soft); color: var(--text); font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.finance-pay-split-toggle:hover { border-color: var(--primary-border); background: var(--primary-soft); color: var(--heading); }
+.finance-pay-split-toggle svg { width: var(--icon-sm); }
+
+.finance-pay-split { display: grid; gap: 10px; }
+.finance-pay-parts { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.finance-pay-parts li { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 42px; gap: 8px; align-items: center; }
+.finance-pay-remove { display: grid; width: 42px; min-height: 42px; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: var(--muted); }
+.finance-pay-remove:hover { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+.finance-pay-remove svg { width: var(--icon-sm); }
+.finance-pay-split-foot { display: flex; flex-wrap: wrap; gap: 10px; }
+.finance-pay-split-foot button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--neutral-soft); color: var(--text); font-size: 0.78125rem; font-weight: 600; }
+.finance-pay-split-foot button:hover:not(:disabled) { border-color: var(--primary-border); background: var(--primary-soft); color: var(--heading); }
+.finance-pay-split-foot button:disabled { cursor: not-allowed; opacity: .5; }
+.finance-pay-split-foot button svg { width: var(--icon-sm); }
+.finance-pay-sum { margin: 0; padding: 9px 12px; border-radius: var(--radius-sm); font-size: 0.78125rem; font-weight: 500; }
+.finance-pay-sum.is-off { border: 1px solid var(--warning); background: var(--warning-soft); color: var(--text); }
+.finance-pay-sum.is-ok { border: 1px solid var(--primary-border); background: var(--primary-soft); color: var(--heading); }
+
+@media (max-width: 560px) {
+  .finance-pay-parts li { grid-template-columns: minmax(0, 1fr) 42px; }
+  .finance-pay-parts li select { grid-column: 1 / -1; }
+}
