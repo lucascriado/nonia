@@ -67,3 +67,50 @@ export function hojeNoFuso(fuso: string | null | undefined, agora: Date = new Da
 export function dataEhAnteriorAHoje(data: string, fuso: string | null | undefined, agora?: Date): boolean {
   return data.slice(0, 10) < hojeNoFuso(fuso, agora);
 }
+
+/**
+ * ARITMÉTICA DE DATA, em cima de 'YYYY-MM-DD' e sem fuso nenhum.
+ *
+ * O fuso entra UMA VEZ, em `hojeNoFuso`, para responder "que dia é hoje na
+ * igreja". Dali em diante a conta é sobre um dia do calendário, que não tem
+ * hora e portanto não tem fuso -- e é isso que as funções abaixo preservam.
+ *
+ * Por que UTC aqui dentro, num arquivo que existe para fugir de UTC: porque a
+ * string não tem hora, e ler e escrever pelos acessores UTC é o único jeito de
+ * a conta não passar por fuso nenhum. `new Date("2026-09-06")` seguido de
+ * `getDay()` mistura os dois -- interpreta como meia-noite UTC e devolve o dia
+ * da semana no fuso da MÁQUINA, que em Brasília é o dia anterior às 21h. É
+ * exatamente esse par que fazia o `nextSunday()` dos ministérios errar.
+ */
+function comoUtc(data: string): Date {
+  const [ano, mes, dia] = data.slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(ano, mes - 1, dia));
+}
+
+const formatarUtc = (d: Date) =>
+  `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+
+/** Dia da semana de uma data 'YYYY-MM-DD'. 0 = domingo. */
+export function diaDaSemana(data: string): number {
+  return comoUtc(data).getUTCDay();
+}
+
+/** Soma dias a uma data 'YYYY-MM-DD'. Vira mês e ano sozinho. */
+export function somarDias(data: string, dias: number): string {
+  const d = comoUtc(data);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return formatarUtc(d);
+}
+
+/**
+ * O próximo domingo a partir de hoje NA IGREJA -- e hoje, se hoje já é domingo.
+ *
+ * É a data que a chamada de ministério sugere. O domingo é o dia de reunião da
+ * maioria delas, e sugerir o domingo errado é dado errado: a chamada nasce
+ * numa data em que ninguém se reuniu, e a do dia certo fica sem registro.
+ */
+export function proximoDomingo(fuso: string | null | undefined, agora?: Date): string {
+  const hoje = hojeNoFuso(fuso, agora);
+  const dia = diaDaSemana(hoje);
+  return dia === 0 ? hoje : somarDias(hoje, 7 - dia);
+}
