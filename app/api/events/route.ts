@@ -1,8 +1,10 @@
 import { db, query } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
-import { organizationId, requirePermission } from "@/lib/auth";
+import { AuthContext, organizationId, requirePermission } from "@/lib/auth";
 import { notFound, readJson, requireUuid } from "@/lib/http";
 import { apiError, nullable } from "@/lib/records";
+import { filterOwnedPersonIds } from "@/lib/tenant";
+import { Transaction } from "sequelize";
 
 export const runtime = "nodejs";
 
@@ -13,6 +15,14 @@ type EventPayload = {
   startsAt?: string;
   endsAt?: string;
   color?: string;
+  /**
+   * Os responsáveis por realizar o evento, por id de PESSOA.
+   *
+   * Plural de verdade -- ao contrário do "a que ministérios a pessoa pertence",
+   * que o schema torna singular. Ausente ou vazio é evento sem responsável
+   * definido, que é estado legítimo e é como todo evento existente está.
+   */
+  responsibleIds?: string[];
 };
 
 export async function GET(request: Request) {
@@ -23,24 +33,36 @@ export async function GET(request: Request) {
     const to = searchParams.get("to");
 
     // O tenant é sempre o primeiro parâmetro; os filtros vêm depois dele.
+    // Com o alias `e` desde a origem: a consulta passou a ter um JOIN lateral
+    // para os responsáveis, e coluna sem alias ficaria ambígua.
     const values: unknown[] = [organizationId(auth)];
-    const filters: string[] = ["organization_id = $1"];
+    const filters: string[] = ["e.organization_id = $1"];
 
     if (from) {
       values.push(from);
-      filters.push(`starts_at >= $${values.length}`);
+      filters.push(`e.starts_at >= $${values.length}`);
     }
 
     if (to) {
       values.push(to);
-      filters.push(`starts_at < $${values.length}`);
+      filters.push(`e.starts_at < $${values.length}`);
     }
 
     const { rows } = await query(`
-      SELECT id, title, description, location, starts_at AS "startsAt",
-        ends_at AS "endsAt", category, color
-      FROM events WHERE ${filters.join(" AND ")}
-      ORDER BY starts_at ASC
+      SELECT e.id, e.title, e.description, e.location, e.starts_at AS "startsAt",
+        e.ends_at AS "endsAt", e.category, e.color,
+        -- Os responsáveis vêm JUNTO, e não numa segunda chamada por evento: o
+        -- calendário desenha um mês inteiro de uma vez, e uma requisição por
+        -- evento seria a doença que a foto de perfil do WhatsApp evita. São
+        -- id e nome por pessoa -- alguns bytes, não a foto.
+        COALESCE((
+          SELECT json_agg(json_build_object('id', p.id, 'name', p.full_name) ORDER BY p.full_name)
+            FROM event_responsibles er
+            JOIN people p ON p.id = er.person_id AND p.organization_id = er.organization_id
+           WHERE er.event_id = e.id AND er.organization_id = e.organization_id
+        ), '[]') AS responsibles
+      FROM events e WHERE ${filters.join(" AND ")}
+      ORDER BY e.starts_at ASC
     `, values);
 
     return Response.json(rows);
@@ -79,8 +101,10 @@ export async function POST(request: Request) {
         ],
         transaction,
       });
+      const novoId = (rows as Array<{ id: string }>)[0].id;
+      await gravarResponsaveis(auth, novoId, payload.responsibleIds, transaction);
       await addActivity(transaction, auth, "calendar", "criou o evento", title, location);
-      return (rows as Array<{ id: string }>)[0].id;
+      return novoId;
     });
 
     return Response.json({ id }, { status: 201 });
@@ -121,4 +145,44 @@ export async function DELETE(request: Request) {
 function normalizeColor(color?: string) {
   if (color === "green" || color === "blue" || color === "purple") return color;
   return "purple";
+}
+
+/**
+ * Reescreve os responsáveis de um evento.
+ *
+ * `filterOwnedPersonIds` é o que impede um id de outra igreja de entrar. O
+ * banco recusaria de qualquer jeito -- as duas FKs compostas passam pelo MESMO
+ * organization_id da linha --, mas a recusa de lá seria um 23503 opaco no meio
+ * de uma transação; aqui o id estranho é simplesmente ignorado, que é o mesmo
+ * tratamento que `assignMembersToCell` já dá.
+ *
+ * Reescreve inteiro em vez de casar linha a linha: o conjunto é pequeno, e a
+ * diferença nunca vale o risco de sobrar um vínculo órfão.
+ */
+async function gravarResponsaveis(
+  auth: AuthContext,
+  eventId: string,
+  ids: string[] | undefined,
+  transaction: Transaction,
+) {
+  if (ids === undefined) return;
+
+  await db.query(
+    `DELETE FROM event_responsibles WHERE event_id = $1 AND organization_id = $2`,
+    { bind: [eventId, organizationId(auth)], transaction },
+  );
+
+  // Sem repetidos: a PK do banco recusaria o segundo, e recusar um clique
+  // duplo com erro seria pior que absorvê-lo.
+  const unicos = [...new Set((ids ?? []).map(id => id.trim()).filter(Boolean))];
+  if (unicos.length === 0) return;
+
+  const proprios = await filterOwnedPersonIds(unicos, organizationId(auth), transaction);
+  for (const personId of proprios) {
+    await db.query(
+      `INSERT INTO event_responsibles (event_id, person_id, organization_id)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      { bind: [eventId, personId, organizationId(auth)], transaction },
+    );
+  }
 }
