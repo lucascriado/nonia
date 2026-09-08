@@ -3306,7 +3306,42 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 .kardex-pendente strong { display: block; color: var(--text); font-size: 0.8125rem; }
 .kardex-pendente p { margin: 4px 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.5; }
 
-.kardex-abrir svg { width: var(--icon-md); }
+/* O botão que ABRE o kardex vive ao lado do "Exportar", e por isso tem a
+   geometria dele: mesma altura, mesmo raio, mesma fonte, mesmo espaço do
+   ícone. A COR não está aqui -- ela vem do par secundário no fim do arquivo,
+   com os outros secundários do app, para este botão ser irmão deles e não uma
+   variante nova.
+
+   Ele era `.text-button`, que é botão estilo-link de propósito (`border: 0`,
+   fundo transparente): entre dois botões preenchidos, lia como texto solto.
+   O estilo-link continua certo onde ele é a intenção -- o "Ver histórico" do
+   painel e o "Tentar de novo" do kardex --, então o conserto é este botão
+   deixar de usar a classe, e não a classe mudar de significado para os
+   outros dois. */
+.kardex-abrir {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: 0.84375rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: border-color .2s ease, background .2s ease, color .2s ease, transform .25s var(--ease-out);
+}
+.kardex-abrir:hover { transform: translateY(-1px); }
+.kardex-abrir:active { transform: scale(.98); }
+.kardex-abrir svg { width: var(--icon-md); color: var(--muted); }
+.kardex-abrir:hover svg { color: var(--primary); }
+/* No celular acompanha o "Exportar": largura inteira e 44px de alvo (a regra de
+   44px da suíte só vale em celular, e com 40px este botão a reprovaria). Fica
+   AQUI, e não junto do `.export-button` lá em cima, porque a regra base do
+   `.kardex-abrir` vem depois no arquivo e venceria por ordem um `min-height`
+   escrito antes dela. */
+@media (max-width: 640px) {
+  .kardex-abrir { width: 100%; min-height: 44px; justify-content: center; }
+}
 
 @media (max-width: 800px) {
   .kardex-layer { inset: 0; padding-inline: 16px; }
@@ -3343,6 +3378,12 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    - secundária: var(--text) sobre var(--neutral-soft) = 12.9:1 claro, 12.0:1 escuro
    - primária (inalterada): var(--on-primary-fill) sobre var(--primary-fill)
      = 7.5:1 claro, 5.0:1 escuro
+
+   08/09/2026: entrou o botão que ABRE o kardex (`.kardex-abrir`, no Financeiro).
+   Ele ficou de fora na primeira volta porque a rodada pegou a BARRA do kardex
+   (.kardex-toolbar), e o que abre não está nela. Entra na mesma lista de
+   propósito: ele é irmão do "Exportar" ao lado, não uma variante nova. A
+   geometria dele fica na seção do kardex; aqui está só a cor do par.
    -------------------------------------------------------------------------- */
 button.profile-secondary-action,
 .record-cancel,
@@ -3353,6 +3394,7 @@ button.profile-secondary-action,
 .wa-actions button:not(.primary-action),
 .wa-connected-disconnect,
 .wizard-acoes button:not(.primary-action),
+.kardex-abrir,
 .kardex-toolbar > button:not(.primary-action):not(.kardex-fechar) {
   border: 1px solid var(--border-strong);
   background: var(--neutral-soft);
@@ -3367,6 +3409,7 @@ button.profile-secondary-action:hover,
 .wa-actions button:not(.primary-action):hover:not(:disabled),
 .wa-connected-disconnect:hover:not(:disabled),
 .wizard-acoes button:not(.primary-action):hover,
+.kardex-abrir:hover,
 .kardex-toolbar > button:not(.primary-action):not(.kardex-fechar):hover:not(:disabled) {
   border-color: var(--primary-border);
   background: var(--primary-soft);
