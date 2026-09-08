@@ -19,12 +19,12 @@ de código estão em [`AGENTS.md`](AGENTS.md); como rodar o projeto, no
 | --- | --- |
 | Produção | **Existe desde 07/09/2026:** **https://nonia.lucascriado.com**, `running:healthy`. É **subdomínio de `lucascriado.com`**, e não `nonia.app` — ver "Produção" |
 | Aplicação no Coolify | **Existe de novo**, criada em 07/09/2026 no projeto `nonia.app`. **Não é a de 06/09/2026** — aquela foi excluída e continua morta. Uuid, container e destino vivem em `/home/lucas/claude.md`, não aqui: o repositório é público |
-| Base `postgres` do servidor | **É a base de PRODUÇÃO desde 07/09/2026.** 32 tabelas, migrations **001–019**, 4 planos, 5 papéis, 25 permissões — e **0 organizações, 0 usuários**. O baseline vazio (`~/backups/nonia-2026-09-06.sql`) virou **histórico**, não é mais o estado |
+| Base `postgres` do servidor | **É a base de PRODUÇÃO desde 07/09/2026**, com as migrations **001–021**. **Deixou de ser vazia no mesmo dia:** o **seed de demonstração** foi levado para lá por decisão do Lucas. **Não há igreja real** — ver "Produção". O baseline vazio (`~/backups/nonia-2026-09-06.sql`) virou **histórico**, não é mais o estado |
 | Domínio `nonia.app` | **Continua não respondendo**, e nada aponta para ele. Isso **não** significa "não há produção": ela mora em `nonia.lucascriado.com`. O nome `nonia.app` sobrevive como nome do **projeto** no Coolify, o que engana quem lê rápido |
 | Autenticação | **Integrada na `main`** em 06/09/2026. Sessão própria, RBAC e escopo de tenant em todas as rotas de `app/api` |
 | Multi-tenancy | **Integrado na `main`.** `organization_id` em toda tabela de domínio, com backstop de FK composta no banco |
 | Integração | **Feita em 06/09/2026**, `main` em `4b67d08`: Fase 1 e site público mesclados, `typecheck` limpo e `build` passando contra o `nonia_dev`. Depois disso a `main` seguiu andando — o que entrou hoje está em "O que entrou em 07/09/2026" |
-| Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com as migrations **001–019** aplicadas e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
+| Banco de desenvolvimento | **Contorno desta máquina, não a arquitetura pretendida** — ver "Por que existe um banco compartilhado". `nonia_dev`, no Postgres do Coolify (**18.6**), base separada da `postgres`, com as migrations **001–021** aplicadas e o seed rodado. Não há PostgreSQL nesta máquina — o acesso é pelo túnel SSH `nonia-db-tunnel.service`, que escuta só em `127.0.0.1:5432`. Detalhes com o admin de VPS, em `/home/lucas/claude.md` |
 
 > **O mesmo cluster hospeda a produção e os bancos de desenvolvimento**, e a
 > aplicação de produção entra nele como **superusuário** — escolha do Lucas em
@@ -44,14 +44,23 @@ Não é configuração esquecida: quatro frentes trabalham na `main` e **todo de
 roda as migrations no boot do container**. Com auto-deploy, o push de qualquer
 uma viraria migration em produção sem ninguém decidir.
 
-> ### Produção está VAZIA, e isso muda como ler este arquivo
+> ### Produção tem dado de DEMONSTRAÇÃO, e nenhuma igreja real
 >
-> **0 organizações e 0 usuários.** Nada do que subiu foi exercitado contra dado
-> real de igreja em produção. Todo "medido", "verificado" e "percorrido" deste
-> arquivo se refere ao **`nonia_dev`** e ao **`nonia_front`**, salvo onde
-> estiver escrito o contrário. Deploy que sobe não é funcionalidade exercitada,
-> e chamar uma coisa da outra é o mesmo erro do `build` passando: artefato não é
-> evidência de comportamento.
+> Ela subiu vazia em 07/09/2026 e **deixou de ser vazia no mesmo dia**: o **seed
+> de demonstração** foi levado para produção por decisão do Lucas. Não há igreja
+> real, não há usuário real, e **nada do que existe foi exercitado por alguém de
+> verdade**. Todo "medido", "verificado" e "percorrido" deste arquivo se refere
+> ao **`nonia_dev`** e ao **`nonia_front`**, salvo onde estiver escrito o
+> contrário. Deploy que sobe não é funcionalidade exercitada, e chamar uma coisa
+> da outra é o mesmo erro do `build` passando: artefato não é evidência de
+> comportamento.
+>
+> **Deixar de ser banco vazio muda o peso de toda migration daqui para a
+> frente.** Enquanto produção tinha 0 linhas, uma migration errada custava um
+> `DROP` e um redeploy. Agora existe dado lá dentro, e mesmo sendo dado de
+> demonstração ele já é o que prova que uma migration destrutiva funciona ou
+> não. A próxima que chegar depois da primeira igreja real não terá nem esse
+> ensaio.
 >
 > O `/cadastro` é **público**. A primeira pessoa que se cadastrar cria uma
 > **igreja de verdade**, com dono, na base de produção.
@@ -144,7 +153,7 @@ components/     shell, sidebar, header, diálogos, skeletons, marketing/
 lib/            db.ts, models.ts, auth.ts, tenant.ts, passwords.ts, http.ts,
                 datas.ts ("hoje" no fuso da igreja), finance-kardex.ts,
                 whatsapp/, …
-database/       migrate.mjs, migrations/ (001–019), seeds/
+database/       migrate.mjs, migrations/ (001–021), seeds/
 ```
 
 Os parênteses são route groups e **não** aparecem na URL.
@@ -191,15 +200,17 @@ primeira.
 | **Mensalidade vencida vira somente leitura** | Não bloqueio de acesso. O dado é ficha de membro e financeiro de igreja: trancar a igreja para fora do próprio cadastro por um boleto atrasado é desproporcional, e com Pix e boleto o atraso é quase sempre humano. **Consultar, buscar e exportar continuam** — somente leitura não pode virar sequestro de dado; se a igreja quiser sair, leva o que é dela. Ver "Assinatura e acesso" | 06/09/2026 |
 | **Cancelar avaliação vigente é recusado** | `409 trial_not_cancelable`. Parece restritivo e não é: quem clica quer uma de duas coisas e nenhuma é atendida. "Não quero ser cobrado" já está garantido — a avaliação termina sozinha e a igreja cai no gratuito. "Quero sair do produto" é apagar a conta, que é outra coisa e não existe. Em troca, a ação seria **irreversível**: perde os dias restantes e não há volta para `trialing`, nem contratando. **Ação irreversível sem benefício nenhum é caso de recusar, não de confirmar na tela.** Só vale enquanto a avaliação é **válida** — vencida é linha morta, e recusar ali produziria a mensagem errada; `incomplete` continua cancelável | 06/09/2026 |
 | **`slug` da organização não é editável** | `400 slug_not_editable`, em vez de ignorar em silêncio — ignorar faria a pessoa achar que mudou. Ele aparece no nome dos arquivos exportados e é aceito como identificador no login. O argumento é assimétrico: a igreja **não vê o slug em tela nenhuma**, então não poder editar não custa nada; desfazer link quebrado custa | 06/09/2026 |
-| **`timezone` não é exposto na tela** | **Reescrita em 07/09/2026: a coluna deixou de ser órfã.** `lib/datas.ts` a usa para calcular "hoje" no fuso da igreja, e dela dependem a validação do lançamento retroativo e o período padrão do kardex. O que continua de pé é **não colocar seletor de fuso na interface** — o valor é o default `America/Sao_Paulo` da 004 para todo mundo, e uma igreja em Manaus só sai disso por `UPDATE`. Seletor entra quando houver igreja em outro fuso, não antes | 06/09, reescrita em 07/09/2026 |
+| **`timezone` não é exposto na tela** | **Reescrita duas vezes em 07/09/2026, e o caminho da coluna é a lição:** ela nasceu órfã ("nada no código a usa"), virou base do lançamento retroativo e do kardex, e ao fim do dia virou **a base da regra de data do sistema inteiro** — toda data sugerida ou validada sai dela, via `lib/datas.ts`. Guardar a coluna órfã foi o que tornou a correção do UTC possível sem migration de schema. O que continua de pé, e só isso, é **não colocar seletor de fuso na interface**: o valor é o default `America/Sao_Paulo` da 004 para todo mundo, e uma igreja em Manaus só sai disso por `UPDATE`. Seletor entra quando houver igreja em outro fuso, não antes | 06/09, reescrita duas vezes em 07/09/2026 |
 | **Perfil próprio em rota própria** | `PATCH /api/auth/profile`, não um caso especial dentro de `/api/users/[id]` — aquela rota existe para agir sobre **terceiros**, e todas as guardas dela são recusas de agir sobre si | 06/09/2026 |
-| **Coluna órfã fica; permissão órfã sai** | A `timezone` ficou — e em 07/09/2026 **deixou de ser órfã**, quando `lib/datas.ts` passou a lê-la; guardar a coluna foi a decisão certa. As `people.*` saíram na migration **010**. A coluna **não promete nada a ninguém**, porque não aparece em lugar nenhum; a permissão aparece no seletor de papéis e promete poder que não existe. Papéis agora: owner 22, admin 21, secretaria 18, líder 12, leitura 9 | 06/09/2026 |
+| **Coluna órfã fica; permissão órfã sai** | A `timezone` ficou — e em 07/09/2026 **deixou de ser órfã e virou a base da regra de data do sistema**. A decisão de guardá-la foi paga com juros: sem a coluna, corrigir o UTC teria exigido migration de schema em produção. As `people.*` saíram na migration **010**. A coluna **não promete nada a ninguém**, porque não aparece em lugar nenhum; a permissão aparece no seletor de papéis e promete poder que não existe. Papéis agora: owner 22, admin 21, secretaria 18, líder 12, leitura 9 | 06/09/2026 |
 | **Carência de 7 dias** | Contados do vencimento, antes de virar somente leitura | 06/09/2026 |
 | **Somente leitura vem de DÍVIDA, não de ausência de plano pago** | Cancelar leva ao gratuito, com o teto do gratuito; **atrasar** leva a somente leitura. Sem essa distinção, cancelar seria melhor que atrasar e o somente leitura seria contornável em um clique | 06/09/2026 |
 | **Exportar entra no MVP** | A promessa "quem quiser sair leva o que é seu" só era verdadeira pela API — não havia botão de exportar em lugar nenhum. Decidido implementar em vez de recuar a promessa. Formato e cuidados em [`AGENTS.md`](AGENTS.md) | 06/09/2026 |
 | **Bypass de contratação no lugar do gateway** | A igreja clica e a assinatura vale na hora, sem pagamento real. Atalho de desenvolvimento, **não é produto**, e nasce com guarda-corpo obrigatório. Ver "Cobrança" | 06/09/2026 |
 | **Mercado Pago: API de Pagamentos, não recorrência** | `POST /v1/payments`, Checkout Transparente. **Decisão suspensa**, não revogada: vale para quando o pagamento real entrar. **Retomar quando** houver hospedagem com URL pública. Ver "Cobrança" | 06/09/2026 |
 | **`public/` fica versionado, mesmo vazio** | O `Dockerfile` faz `COPY` dele. A alternativa era remover a linha do `Dockerfile`, e foi descartada: `public/` é o **diretório padrão do Next** para estáticos, então remover a linha resolveria hoje e criaria uma armadilha no dia em que alguém puser um arquivo lá e ele não aparecer na imagem. O `.gitkeep` traz um comentário dizendo por que existe | 06/09/2026 |
+| **A data do lançamento sai do fuso da IGREJA** | Decisão do Lucas em 07/09/2026, fechando a pendência do UTC: o "hoje" do sistema vem de `organizations.timezone`, e **não** de uma constante `America/Sao_Paulo`. Fixar a constante teria consertado Brasília e mantido o defeito para qualquer igreja em outro fuso — e o produto é vendido para "várias congregações". `lib/datas.ts` é o único lugar que faz essa conta. Ver "A data do lançamento" | 07/09/2026 |
+| **Formas de pagamento múltiplas: escopo pequeno, de propósito** | A 021 atende **lançamento novo** e mais nada. Kardex, CSV de exportação e listagem do financeiro **não foram tocados** — é decisão, não omissão, e é ela que explica a coluna `payment_method` guardar `'Dividido'`. Ver "Formas de pagamento" | 07/09/2026 |
 | **Ctrl+K dispara pelo atalho DA PLATAFORMA** | Cmd+K no Mac, Ctrl+K no resto, **sem olhar o foco**. A guarda anterior protegia o *kill-line* do Cocoa em **toda** plataforma — e no Linux/Windows, onde esse kill-line **não é padrão**, ela matava em silêncio justamente o atalho que a interface anuncia no `<kbd>`. Proteção que só atuava onde não havia o que proteger, contra um atalho anunciado que não funcionava: **atalho anunciado e morto é pior que atalho inexistente, porque a pessoa culpa a si mesma.** Hoje a guarda vale só para o modificador que **não** é o da plataforma — na prática, o Ctrl no Mac. **Custo aceito e escrito:** no Linux com keymap emacs, Ctrl+K num campo abre a busca em vez de apagar a linha | 07/09/2026 |
 | **Tema sage/verde-floresta FICA** | Uma paleta índigo foi proposta e **reprovada pelo Lucas em 06/09/2026**. O commit da proposta já foi revertido na branch de UI. Não reabrir | 06/09/2026 |
 
@@ -376,12 +387,14 @@ canvas "Estado real do MVP".
 ## O que entrou em 07/09/2026
 
 **Onde isto foi medido:** `nonia_dev` e `nonia_front`. **Nada disto foi
-exercitado com dado real de igreja em produção**, que tem 0 organizações e 0
-usuários. Subiu no deploy; não foi usado.
+exercitado por usuário de verdade em produção**: lá existe o seed de
+demonstração e nenhuma igreja real. Subiu no deploy; não foi usado por
+ninguém.
 
-### Migrations 018 e 019
+### Migrations 018 a 021
 
-Aplicadas nos três bancos — `nonia_dev`, `nonia_front` e **produção**.
+**As quatro estão aplicadas nos três bancos** — `nonia_dev`, `nonia_front` e
+**produção**.
 
 - **018** — `whatsapp_contacts.avatar_url` e `avatar_checked_at`.
 - **019** — `financial_transactions.retroactive` e `retroactive_reason`, com
@@ -389,6 +402,9 @@ Aplicadas nos três bancos — `nonia_dev`, `nonia_front` e **produção**.
   marca. O `CHECK` **não** compara com `CURRENT_DATE` — não seria imutável e
   dependeria do fuso da sessão, que é exatamente o defeito que a 019 não quis
   herdar.
+- **020** — remove o `DEFAULT` de `financial_transactions.transaction_date`. Ver
+  "A data do lançamento".
+- **021** — formas de pagamento múltiplas. Ver "Formas de pagamento".
 
 ### Rotas novas
 
@@ -432,15 +448,134 @@ Sem migration, sem coluna nova, sem gravar nada.
 
 ### `lib/datas.ts` — "hoje" no fuso da igreja
 
-Nasceu com o lançamento retroativo e **não conserta o defeito de UTC**; ele
-existe para **impedir que uma regra nova nascesse em cima do defeito**. A regra
-do retroativo é inteiramente sobre data: com o "hoje" de UTC ela erraria três
-horas por dia, justamente no horário em que a secretaria lança o culto da noite.
+Nasceu com o lançamento retroativo e, **naquele momento**, não consertava o
+defeito de UTC: existia para **impedir que uma regra nova nascesse em cima do
+defeito**. A regra do retroativo é inteiramente sobre data — com o "hoje" de UTC
+ela erraria três horas por dia, justamente no horário em que a secretaria lança
+o culto da noite.
 
-Usa `organizations.timezone`, com `America/Sao_Paulo` de fallback, e é
-consumido por **dois lugares só**: a validação do lançamento retroativo
-(`lib/finance-records.ts`) e o período padrão do kardex (`lib/finance-kardex.ts`).
-Ver a pendência do UTC, que **continua aberta**.
+Usa `organizations.timezone`, com `America/Sao_Paulo` de fallback.
+
+> **No mesmo dia ele deixou de ser contenção e virou a fonte da verdade.** A
+> correção do UTC, mais tarde em 07/09/2026, apontou os quatro lugares para cá —
+> é o **único** lugar do projeto que calcula "hoje". Ver "A data do lançamento",
+> logo abaixo. O caminho vale ser lido inteiro: a peça criada para **não piorar**
+> um defeito foi a que tornou o conserto barato quando a decisão veio.
+
+### A data do lançamento sai do fuso da igreja — a pendência do UTC FECHOU
+
+**Era a pendência mais antiga em aberto do financeiro, e ela está fechada e em
+produção.** A decisão do Lucas foi **usar `organizations.timezone`**, e não
+fixar `America/Sao_Paulo`: a constante consertaria Brasília e deixaria o defeito
+de pé para qualquer igreja em outro fuso, num produto que vende "várias
+congregações".
+
+**O pior caso medido, para dar tamanho ao que fechou:** dia **30/09 às 22h** em
+Brasília, o lançamento era gravado em **outubro** — saía do fechamento de
+setembro. Foram **6 cenários medidos, 4 erravam antes, e todos acertam agora.**
+
+#### Eram QUATRO lugares, e o arquivo só conhecia três
+
+O quarto era o formulário de **Novo Evento**, em `app/(app)/calendario/page.tsx`,
+que sugeria a data com o mesmo `toISOString`.
+
+> **Escrever "são três" era o próprio risco.** Quem consertasse os três do
+> financeiro e riscasse a pendência entregaria um **pré-requisito falso**: a
+> regra "o sistema usa o fuso da igreja" continuaria mentira no calendário, e o
+> próximo a mexer confiaria nela. Lista de lugares afetados é o tipo de coisa
+> que envelhece calada — a mesma doença da lista de rotas protegidas do
+> `proxy.ts`.
+
+#### O que foi feito em cada um
+
+| Lugar | O que aconteceu |
+| --- | --- |
+| `lib/models.ts` | **Removido, não consertado.** O `defaultValue` de `transactionDate` era **código morto**: existe um único `FinancialTransaction.create` no projeto e a validação recusa payload sem data. Era um "hoje" errado **esperando a primeira chamada que esquecesse o campo** — consertá-lo teria preservado um caminho que não deve existir |
+| `components/financial-record-dialog.tsx` | Tinha **dois** defeitos. Além do fuso, a data era **constante de módulo**: congelava no carregamento da aba, então uma aba aberta desde ontem abria o formulário **com ontem**. Agora `hojeNoFuso()` roda na abertura do diálogo |
+| `app/(app)/calendario/page.tsx` | A data sugerida do Novo Evento passou a sair do fuso da igreja |
+| Banco (`003`) | O `DEFAULT CURRENT_DATE` saiu — migration **020**, abaixo |
+
+#### O encanamento que tornou tudo possível
+
+**O fuso da igreja passou a chegar ao cliente** (`lib/auth-payloads.ts` e a
+sessão). Sem isso não havia conserto possível em formulário: formulário roda no
+**navegador**, e um "hoje" calculado lá cairia no **relógio de quem digita** —
+acertando em Brasília e errando em qualquer outro lugar, que é o defeito de novo
+com outra cara.
+
+#### Migration 020 — o banco NÃO TEM COMO acertar essa data
+
+A 020 **remove** o default de `financial_transactions.transaction_date` em vez
+de corrigi-lo, e o motivo é estrutural:
+
+> **Uma expressão de `DEFAULT` do PostgreSQL não pode referenciar outra coluna
+> da mesma linha.** Para acertar, o default teria que ler o `organization_id` da
+> linha que está nascendo e buscar `organizations.timezone` — e ele não tem
+> acesso a isso. **Qualquer default naquela coluna é errado por construção**, e
+> um default errado não é rede de segurança: é a rede pegando quem cai e
+> gravando o dia errado em silêncio.
+
+A coluna **continua `NOT NULL`**. Omitir a data deixa de gravar o dia errado e
+passa a **falhar alto, com `23502`**. Trocar erro silencioso por erro barulhento
+é o ponto. A 020 **não toca em linha já gravada** — ver Pendências.
+
+### Formas de pagamento múltiplas — migration 021
+
+**Escopo pequeno por decisão do Lucas:** atende **lançamento novo** e nada mais.
+Kardex, CSV de exportação e listagem do financeiro **não foram tocados** — é
+decisão, não omissão, e é dela que sai o miolo do desenho.
+
+- **A coluna antiga `payment_method` passa a guardar `'Dividido'`** quando há
+  mais de uma forma. Existe para que **os três leitores intocados continuem
+  honestos**: com `NULL` a tela mostraria forma em branco num lançamento que
+  **tem** forma; com uma das formas, mostraria "Dinheiro" num lançamento que foi
+  metade Pix. **Meia verdade é pior que ausência, porque é indistinguível da
+  verdade.**
+- **Concatenar foi descartado** ("Pix + Dinheiro"): `varchar(40)` estoura com
+  três ou quatro formas, e cada combinação viraria um valor distinto —
+  agrupamento por forma viraria agrupamento por **combinação**.
+- **A invariante é do BANCO e vale nos DOIS sentidos:** lançamento com partes
+  tem que estar `'Dividido'`, **e** `'Dividido'` tem que ter partes. **A segunda
+  é a que se esquece.**
+- **`CONSTRAINT TRIGGER` diferida, e isso não é refinamento:** as partes entram
+  **uma a uma**, e uma verificação imediata reprovaria a **primeira parte de
+  toda divisão**. `DEFERRABLE INITIALLY DEFERRED` é o que permite a invariante
+  existir.
+- **Uma parte só NÃO é divisão:** vai como forma única, sem linha na tabela de
+  partes. **Duas representações do mesmo estado garantem que um dia discordem.**
+- **`'Dividido'` é recusado como forma escolhida pela pessoa.** É **marca**, não
+  forma — aceitá-la faria a palavra significar duas coisas.
+- Editar um lançamento dividido pelo `PUT` antigo dava **500**; agora é **400**
+  com frase que diz o que fazer.
+- Precisou de **`UNIQUE (id, organization_id)`** em `financial_transactions`,
+  para a FK composta das partes — **mesmo desenho de tenant da 006**, não
+  invenção paralela.
+
+#### O critério: por que a 020 recusou trigger e a 021 aceitou
+
+Parece contradição no mesmo dia, e não é. **A pergunta é se a regra já existe em
+outro lugar.**
+
+| | |
+| --- | --- |
+| **020, trigger recusada** | seria uma **segunda implementação** de algo que já mora em `lib/datas.ts`. Duas implementações da mesma regra **divergem um dia** — e a do banco seria a invisível |
+| **021, trigger aceita** | é **invariante de integridade**, e não existe em outro lugar. O banco é o único que consegue garanti-la contra qualquer caminho de escrita |
+
+Vale para a próxima: trigger não é proibida nem preferida — ela é o lugar certo
+quando a regra **não tem outra casa**, e o lugar errado quando já tem.
+
+### Menores, mas com gênero conhecido
+
+- **Cor do ministério: faltava a regra CSS da cor PADRÃO.** O `emptyMinistry`
+  nasce roxo, e o roxo era justamente o tom sem regra — quem criava sem tocar no
+  campo escolhia roxo, **via roxo no seletor** e o card saía com outra coisa. O
+  campo parecia não fazer nada. **O defeito estava no caso default**, que é o
+  caminho que mais gente percorre e o que menos se testa.
+- **A busca global prometia procurar eventos e só devolve páginas do sistema.**
+  **Trocamos o TEXTO, de propósito** — o `placeholder` agora diz "Buscar páginas
+  do sistema…". Não implementamos busca de conteúdo. Se um dia alguém quiser
+  busca de eventos, é **feature nova, não conserto** — e a promessa deixou de
+  existir enquanto isso.
 
 ## Isolamento entre organizações
 
@@ -992,7 +1127,7 @@ o `sudo` pede uma senha que ninguém do time tem —, então o desenvolvimento
 aponta para o `nonia_dev`, remoto, por túnel SSH.
 
 **A limitação é desta máquina e não se transfere.** O repositório é
-auto-suficiente: **19 migrations**, seed idempotente com login de demonstração, e
+auto-suficiente: **21 migrations**, seed idempotente com login de demonstração, e
 `db:migrate`, `db:seed:dev`, `db:status` e `auth:owner` prontos. Quem tem
 administrador no próprio computador instala Postgres 15+, aponta a
 `DATABASE_URL` para `localhost` e não precisa de SSH, de túnel, de credencial de
@@ -1142,7 +1277,8 @@ Datadas para que ninguém as leia como fato consumado.
 | **`purgeStaleSessions()` existe em `lib/auth.ts` e ninguém chama** — a tabela `sessions` cresce para sempre. Levantado pelo próprio backend logo após remover as permissões órfãs, para não ficar com dois pesos | 06/09/2026 |
 | **`PATCH /api/users/<id>` com id malformado devolve 500 em vez de 404.** Uuid válido inexistente devolve 404 certo; o malformado cai no catch genérico — mesmo gênero do JSON malformado | 06/09/2026 |
 | **"Consolidação financeira da rede" é promessa não cumprida.** O seletor de igreja existe; consolidar dados de várias numa visão só não. Ver "Multi-congregação" | 06/09/2026 |
-| **Data gravada em UTC nasce errada à noite — CONTINUA ABERTA, e mudou de forma em 07/09/2026.** Medido em 06/09/2026: às 21h30 em Brasília, o local é 06/09 e o gravado é **07/09**. Todo lançamento criado **entre 21h e meia-noite** cai no dia seguinte — e no dia 30 ou 31, no **mês** seguinte, deslocando o fechamento da tesouraria. É dado contábil, e reunião de igreja termina de noite. **O que mudou:** existe `lib/datas.ts`, que calcula "hoje" no fuso da igreja por `organizations.timezone` — mas ele é usado **só** pela validação do lançamento retroativo e pelo período padrão do kardex. Ele foi escrito para **não deixar uma regra nova nascer em cima do defeito**, não para consertá-lo. **Os três lugares do defeito continuam intocados:** `components/financial-record-dialog.tsx:28`, o `defaultValue` de `transactionDate` em `lib/models.ts` e o `DEFAULT CURRENT_DATE` do banco (`003`). Quem ler o `lib/datas.ts` e achar que a pendência fechou está errado. **A correção carrega uma escolha de desenho** — usar o `timezone` da organização, como o `datas.ts` já faz, ou fixar `America/Sao_Paulo` — e mudá-la muda o que a igreja vê e o que passa a ser gravado. Decisão do Lucas | 06/09, revista em 07/09/2026 |
+| **Datas em UTC fora do lançamento financeiro — três primos e três defaults.** A correção de 07/09/2026 (ver "A data do lançamento") fechou o financeiro e **deixou estes de fora por escolha de escopo, não por descuido**. No código: `app/(app)/ministerios/page.tsx`, no `nextSunday()` — **caminho de ESCRITA**, e o mais grave dos três: à noite ele cria a chamada do ministério no **domingo errado**; está com o Lucas. `app/api/ministries/[id]/attendance/route.ts`, no padrão do `?date=` — leitura, gravidade menor. `app/api/export/comprovantes/route.ts` — só nome de arquivo do zip. No banco, **três `DEFAULT CURRENT_DATE` da migration 001** seguem de pé, com a **mesma impossibilidade** que motivou a 020: `members.admission_date`, `visitors.visit_date` e `cell_members.joined_at`. Mexer neles exige conferir, um a um, quem depende deles hoje | 07/09/2026 |
+| **O histórico gravado errado nas noites anteriores não foi corrigido.** A 020 não toca em linha existente, de propósito: corrigir dado contábil já lançado é decisão do Lucas, não efeito colateral de migration. Está com ele decidir se há o que corrigir | 07/09/2026 |
 | **`linger` do túnel de banco — continua aberta, e DEIXOU de ser a nº 1 em 07/09/2026.** Sem `loginctl enable-linger`, o `nonia-db-tunnel.service` cai quando o Lucas encerra a sessão. O que a colocava em primeiro lugar era o túnel ser o **único** caminho do time até dado; com produção no ar, ele deixou de ser. Continua sendo o único caminho até o `nonia_dev` e o `nonia_front`: sem ele **o time para de desenvolver, mas o produto não cai**. Detalhes com o admin de VPS, em `/home/lucas/claude.md` | 06/09, rebaixada em 07/09/2026 |
 | **`.env.example` descreve um mundo que não existe mais — e desde 07/09/2026 pelo motivo oposto.** Ele diz que `APP_URL` é "opcional, e hoje sem uso" e que "não há hospedagem nem domínio no escopo atual". As duas frases eram verdade em 06/09 e são falsas agora: há domínio, e a variável **está gravada em produção**. O bloco do `BILLING_BYPASS` continua correto e é o melhor pedaço do arquivo. É arquivo do backend pela regra de propriedade, e está com ele | 06/09, revista em 07/09/2026 |
 | **Formulário de membro oferece quatro ministérios que não existem.** `components/person-record-dialog.tsx:120` traz `["Nenhum", "Louvor", "Missões", "Acolhimento", "Infantil"]` fixos como estado inicial; a linha 189 só troca pela lista real da igreja **se a resposta for `ok`**, e o `catch` engole a falha. Medido em igreja com zero ministérios, com `/api/ministries` forçado a 403: o campo oferece os quatro. Quem escolher um é atendido em silêncio — `app/api/members/route.ts:90` resolve pelo nome dentro da organização, não acha e grava `ministry_id NULL`; o `POST` respondeu **201** e a listagem depois mostra "Nenhum". O campo ainda está marcado obrigatório. Frontend | 07/09/2026 |
