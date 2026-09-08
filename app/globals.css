@@ -687,6 +687,12 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
 .tone-green .resource-icon { background: var(--primary-soft); color: var(--primary); }
 .tone-blue .resource-icon { background: var(--info-soft); color: var(--info); }
 .tone-gray .resource-icon { background: var(--panel-inset); color: var(--muted); }
+/* A quarta cor faltava, e era a PADRÃO (emptyMinistry nasce "purple"): quem
+   criava sem tocar no campo escolhia roxo, via roxo no seletor e o card saía com
+   o ícone sem cor -- parecia campo que não faz nada. Mesmo par de tokens do tom
+   "violeta" da casa (o das iniciais, .avatar-1), que neste tema é um neutro
+   quente. */
+.tone-purple .resource-icon { background: var(--violet-soft); color: var(--violet); }
 .resource-card em { padding: 4px 10px; border-radius: 999px; background: var(--neutral-soft); color: var(--muted); font-size: 0.6875rem; font-style: normal; font-weight: 700; white-space: nowrap; }
 .resource-card h3 { margin: 0; font-size: 1.0625rem; font-weight: 600; letter-spacing: -.01em; line-height: 1.4rem; }
 .resource-card p { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.2rem; }
@@ -2024,6 +2030,23 @@ div.members-empty { display: flex; min-height: 130px; align-items: center; justi
 .sidebar-collapse:checked ~ .record-dialog-layer,
 .sidebar-collapse:checked ~ .delete-dialog-layer { left: var(--sidebar-collapsed); }
 
+/* O menu do seletor de igreja, preso a `left:0;right:0`, era espremido para a
+   largura da barra RECOLHIDA (~59px numa barra de 76px) -- nome de igreja e
+   "Criar igreja" não cabiam e o layout quebrava. E o `.sidebar-scroll` tem
+   `overflow-x: hidden`, que recortaria um menu mais largo aberto para o lado.
+   Recolhida, o menu vira um flyout de posição FIXA ao lado do trilho, com
+   largura própria: escapa do recorte e do aperto. Só no desktop -- é onde
+   recolher existe; no celular a barra é gaveta de largura cheia. */
+@media (min-width: 801px) {
+  .sidebar-collapse:checked ~ .sidebar .workspace-menu {
+    position: fixed;
+    top: calc(var(--topbar-height) + 8px);
+    left: calc(var(--sidebar-collapsed) + 8px);
+    right: auto;
+    width: 248px;
+  }
+}
+
 button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* --------------------------------------------------------------------------
@@ -3219,7 +3242,7 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
 .wizard-cores { display: flex; flex-wrap: wrap; gap: 8px; }
 .wizard-swatch { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--text); font-size: 0.8125rem; font-weight: 600; transition: border-color .2s ease, background .2s ease; }
 .wizard-swatch > span { width: 16px; height: 16px; border-radius: 50%; background: var(--primary); }
-.wizard-swatch.tone-purple > span { background: #8b5cf6; }
+.wizard-swatch.tone-purple > span { background: var(--violet); }
 .wizard-swatch.tone-blue > span { background: var(--info); }
 .wizard-swatch.tone-green > span { background: var(--primary); }
 .wizard-swatch.tone-gray > span { background: var(--muted); }

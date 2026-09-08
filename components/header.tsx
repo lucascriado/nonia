@@ -161,8 +161,8 @@ export function Header({ title }: { title: string }) {
         <Search />
         <input
           type="search"
-          placeholder="Buscar páginas, eventos ou cadastros..."
-          aria-label="Busca global do sistema"
+          placeholder="Buscar páginas do sistema…"
+          aria-label="Buscar páginas do sistema"
           ref={campo}
           value={search}
           onBlur={() => window.setTimeout(() => setFocused(false), 120)}
