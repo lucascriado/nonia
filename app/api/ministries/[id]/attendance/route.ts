@@ -5,6 +5,7 @@ import { readJson, requireUuid } from "@/lib/http";
 import { apiError } from "@/lib/records";
 import { assertOwnedResource, filterOwnedMemberIds } from "@/lib/tenant";
 import { QueryTypes } from "sequelize";
+import { hojeNoFuso } from "@/lib/datas";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     const url = new URL(request.url);
     const history = url.searchParams.get("history") === "1";
-    const date = url.searchParams.get("date") || new Date().toISOString().slice(0, 10);
+    // O padrão é hoje NA IGREJA. Era `toISOString()`, ou seja UTC: das 21h à
+    // meia-noite em Brasília a rota abria a chamada de AMANHÃ -- uma lista
+    // vazia num dia em que a reunião acabou de acontecer. Não grava nada, e é
+    // justamente por isso que passa despercebido: quem olha conclui que a
+    // chamada não foi feita, e refaz.
+    const date = url.searchParams.get("date") || hojeNoFuso(auth.organization.timezone);
 
     if (history) {
       const { rows } = await query(`

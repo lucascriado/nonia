@@ -3,11 +3,12 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Baby, BookOpenCheck, Check, Edit3, Eye, HeartHandshake, Layers, LoaderCircle, Music, Plus, Puzzle, Search, ShieldCheck, Trash2, Users, Video, X } from "lucide-react";
 import { toast } from "sonner";
+import { proximoDomingo } from "@/lib/datas";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FirstLoad } from "@/components/first-load";
 import { FirstRun } from "@/components/first-run";
 import { HttpError, LoadFailure } from "@/components/load-failure";
-import { READ_ONLY_REASON, usePermission, useReadOnly } from "@/components/current-user";
+import { READ_ONLY_REASON, usePermission, useReadOnly, useSession } from "@/components/current-user";
 import { FilterDisclosure } from "@/components/filter-disclosure";
 import { NumberSkeleton, Skeleton } from "@/components/skeleton";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -582,7 +583,8 @@ function ResourceCardSkeleton() {
 }
 
 function AttendanceDialog({ ministry, onClose }: { ministry: Ministry | null; onClose: () => void }) {
-  const [date, setDate] = useState(nextSunday());
+  const { organization } = useSession();
+  const [date, setDate] = useState(() => proximoDomingo(organization?.timezone));
   const [members, setMembers] = useState<AttendanceMember[]>([]);
   const [history, setHistory] = useState<AttendanceHistory[]>([]);
   const [memberSearch, setMemberSearch] = useState("");
@@ -596,9 +598,12 @@ function AttendanceDialog({ ministry, onClose }: { ministry: Ministry | null; on
 
   useEffect(() => {
     if (!ministry) return;
-    setDate(nextSunday());
+    // Recalculado a cada abertura, e não uma vez por carregamento da página:
+    // é o mesmo motivo do diálogo do financeiro -- uma aba aberta desde a
+    // semana passada sugeriria o domingo da semana passada.
+    setDate(proximoDomingo(organization?.timezone));
     setMemberSearch("");
-  }, [ministry]);
+  }, [ministry, organization?.timezone]);
 
   useEffect(() => {
     if (!ministry) return;
@@ -713,13 +718,17 @@ function ministryIcon(name: string) {
   return <Users />;
 }
 
-function nextSunday() {
-  const date = new Date();
-  const day = date.getDay();
-  const offset = day === 0 ? 0 : 7 - day;
-  date.setDate(date.getDate() + offset);
-  return date.toISOString().slice(0, 10);
-}
+// nextSunday() saiu daqui: virou `proximoDomingo` em lib/datas.ts, no fuso da
+// igreja. Ela tinha DOIS defeitos empilhados, e por isso errava mesmo em
+// Brasília, onde o fuso da máquina é o certo:
+//
+//   getDay()/setDate()  contavam no fuso da MÁQUINA de quem digita;
+//   toISOString()       devolvia a data em UTC.
+//
+// Num sábado às 22h em Brasília, o primeiro achava sábado e somava um dia --
+// certo --, e o segundo transformava "domingo 22h" em "segunda 01h UTC". A
+// chamada nascia na SEGUNDA. Os dois passos estavam errados em direções
+// diferentes e não se cancelavam.
 
 function formatAttendanceDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(value)).replace(".", "");
