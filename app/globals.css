@@ -507,7 +507,18 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
 
 /* Exportar e acao secundaria ao lado da primaria — e a unica que continua
    valendo quando a conta cai para somente leitura, entao ela nao acompanha as
-   outras quando elas somem. */
+   outras quando elas somem.
+
+   O fundo de repouso e o do PAR SECUNDARIO (--neutral-soft), o mesmo dos
+   outros secundarios do app -- ver "PAR DE BOTOES" no fim do arquivo. Ate
+   08/09/2026 era --panel, e o Exportar era o unico secundario com fundo
+   proprio: a borda, o texto e o hover ja eram os do par, so o repouso
+   destoava. O valor mudou AQUI, na regra dele, em vez de o seletor entrar na
+   lista do par, porque esta regra ja declara borda, cor e hover iguais aos do
+   par -- entrar na lista daria a ele uma SEGUNDA declaracao, mais adiante no
+   arquivo, das mesmas tres coisas, e espalharia a cor de um botao por dois
+   blocos sem ganhar nada. (No `.kardex-abrir` a conta deu o contrario: la nao
+   havia cor nenhuma para duplicar.) */
 .export-button {
   display: inline-flex;
   min-height: 40px;
@@ -516,7 +527,7 @@ main > * { width: 100%; max-width: 1560px; margin-inline: auto; }
   padding: 0 var(--space-4);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: var(--panel);
+  background: var(--neutral-soft);
   color: var(--text);
   font-size: 0.84375rem;
   font-weight: 600;
