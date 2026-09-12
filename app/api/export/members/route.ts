@@ -3,10 +3,10 @@
 // É LEITURA: passa por members.read, então continua funcionando quando a
 // igreja está em modo somente leitura -- que é o ponto inteiro. Ninguém fica
 // refém do próprio cadastro por causa de um pagamento atrasado.
-import { query } from "@/lib/db";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { dataBR, montarCsv, respostaCsv, texto } from "@/lib/csv";
 import { filtrosDeMembros } from "@/lib/listings";
+import { membrosParaExportar } from "@/lib/members/queries";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -22,16 +22,7 @@ export async function GET(request: Request) {
     // "exportar o que estou vendo" continuar verdade quando um dos dois mudar.
     // A exportação não pagina de propósito -- ela leva tudo o que casa.
     const filtro = filtrosDeMembros(searchParams, organizationId(auth));
-
-    const { rows } = await query<Record<string, string | null>>(
-      `SELECT full_name, email, phone, birth_date, gender, marital_status, cpf, zip_code,
-              address, neighborhood, city, state, ministry, cell_name, role, status,
-              baptism_status, baptism_date, admission_date, notes
-       FROM member_directory
-       WHERE ${filtro.where.join(" AND ")}
-       ORDER BY full_name`,
-      filtro.valores,
-    );
+    const rows = await membrosParaExportar(filtro);
 
     const csv = montarCsv(
       ["Nome", "E-mail", "Telefone", "Data de nascimento", "Sexo", "Estado civil", "CPF", "CEP",
