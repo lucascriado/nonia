@@ -19,9 +19,14 @@ import { assertAffected } from "@/lib/tenant";
 // porque é ela que sabe responder 400. Recusas daqui (teto do plano, registro
 // de outra igreja) saem como exceção e a rota as traduz com `apiError`.
 
-/** Ministério é resolvido pelo NOME, dentro da organização. */
-async function resolverMinisterio(auth: AuthContext, nome: string | undefined, transaction: Transaction) {
-  if (!nome || nome === "Nenhum") return null;
+/**
+ * Ministério é resolvido pelo NOME, dentro da organização.
+ *
+ * Só texto: um array aqui viraria `name IN (...)` e casaria um dos ministérios,
+ * onde o SQL antigo não casava nenhum.
+ */
+async function resolverMinisterio(auth: AuthContext, nome: unknown, transaction: Transaction) {
+  if (typeof nome !== "string" || !nome || nome === "Nenhum") return null;
   return Ministry.findOne({
     where: { name: nome, organizationId: organizationId(auth) },
     transaction,

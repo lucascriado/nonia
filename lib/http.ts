@@ -61,8 +61,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * registro desta organização, e é exatamente a mesma situação que um uuid
  * válido inexistente. Do lado de quem usa, as duas são "esse registro não
  * existe", e a tela trata uma coisa só em vez de duas.
+ *
+ * O `typeof` NÃO é redundante com o tipo do parâmetro: valor vindo de JSON pode
+ * ser qualquer coisa, e `UUID.test(["<uuid>"])` passa, porque o array vira
+ * texto. Com o Sequelize isso importa: array num `where` vira `IN (...)`.
  */
-export function requireUuid(valor: string | null | undefined, mensagem = "Registro não encontrado."): string {
-  if (!valor || !UUID.test(valor)) throw notFound(mensagem);
+export function requireUuid(valor: unknown, mensagem = "Registro não encontrado."): string {
+  if (typeof valor !== "string" || !UUID.test(valor)) throw notFound(mensagem);
   return valor;
 }
