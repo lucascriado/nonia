@@ -3,7 +3,7 @@
 //
 // O nome da suíte é o pedido do Lucas: espelhar o WhatsApp, não ler mensagens.
 import pg from "/home/lucas/www/nonia-auth/node_modules/pg/lib/index.js";
-import { iniciarOpenWaFalso, conectarSessao, caixa, enviadas, midias, telefonesPorLid, contatos, chamadas, controle } from "./openwa-falso.mjs";
+import { iniciarOpenWaFalso, conectarSessao, caixa, enviadas, midias, telefonesPorLid, contatos, chamadas, controle } from "../apoio/openwa-falso.mjs";
 const BASE = "http://127.0.0.1:3210";
 let pass = 0, fail = 0;
 const ok = (c, l, e = "") => { c ? (pass++, console.log(`  ok    ${l}`)) : (fail++, console.log(`  FALHA ${l} ${e}`)); };

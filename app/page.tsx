@@ -15,9 +15,10 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { MarketingFrame } from "@/components/marketing/marketing-frame";
 import { Reveal } from "@/components/marketing/reveal";
 import { marketingRoutes, signupHref } from "@/components/marketing/routes";
-import { plans } from "./plans";
+import { plans } from "@/components/marketing/plans";
 
 export const metadata: Metadata = {
   title: "nonia - a sua igreja organizada, do cadastro ao caixa",
@@ -82,7 +83,17 @@ const faqPreview = [
   { question: "Mais de uma pessoa pode usar?", answer: "Pode. Cada uma entra com o próprio acesso e enxerga só o que o papel dela permite." },
 ];
 
+// A landing mora no layout raiz, que é de todo o site; por isso a moldura do
+// site público entra aqui, na página, e não num layout.tsx.
 export default function LandingPage() {
+  return (
+    <MarketingFrame>
+      <Landing />
+    </MarketingFrame>
+  );
+}
+
+function Landing() {
   return (
     <main className="mk-main">
       <section className="mk-hero">

@@ -1,8 +1,8 @@
 # Banco de dados PostgreSQL
 
 As migrations desta pasta preparam o banco do nonia do zero e são a **fonte de
-verdade do schema**. Convenções de código estão no [`AGENTS.md`](../AGENTS.md);
-estado do projeto e pendências, no [`CLAUDE.md`](../CLAUDE.md).
+verdade do schema**. Estado do projeto, pendências e convenções de código estão no
+[`CLAUDE.md`](../CLAUDE.md).
 
 **Requer PostgreSQL 15+.** O piso era 13, por causa do `gen_random_uuid()`
 nativo, e subiu na `006`, que usa `ON DELETE SET NULL` com lista de colunas. A
@@ -79,7 +79,7 @@ As quatro referências opcionais (`members.ministry_id`, `cells.leader_id`,
 pessoa passaria a estourar. É essa forma que exige o PostgreSQL 15+.
 
 A validação equivalente na camada de aplicação está no
-[`AGENTS.md`](../AGENTS.md) — ela continua obrigatória: o banco é a última
+[`CLAUDE.md`](../CLAUDE.md) — ela continua obrigatória: o banco é a última
 barreira, não a primeira.
 
 ## Backend Node e Sequelize

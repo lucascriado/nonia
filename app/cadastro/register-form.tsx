@@ -9,7 +9,7 @@ import { AuthField } from "@/components/auth/auth-field";
 import { AuthError, emailProblem, passwordProblem, register } from "@/components/auth/session";
 import { marketingRoutes } from "@/components/marketing/routes";
 import { maskPhone } from "@/components/masks";
-import { plans } from "../plans";
+import { plans } from "@/components/marketing/plans";
 
 type Errors = Partial<Record<"organizationName" | "fullName" | "email" | "document" | "password", string>>;
 

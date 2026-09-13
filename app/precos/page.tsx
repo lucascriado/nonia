@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Check, Minus, Sparkles } from "lucide-react";
 import { Reveal } from "@/components/marketing/reveal";
 import { marketingRoutes, signupHref } from "@/components/marketing/routes";
-import { planComparison, plans, type ComparisonValue } from "../plans";
+import { planComparison, plans, type ComparisonValue } from "@/components/marketing/plans";
 
 export const metadata: Metadata = {
   title: "Planos e preços",

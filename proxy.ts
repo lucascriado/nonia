@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { GUEST_ONLY_PAGES, isAppPage, matchesPath } from "@/lib/rotas";
 
 // Convenção "proxy" do Next 16, que substituiu "middleware".
 //
@@ -25,30 +26,8 @@ const PUBLIC_API = [
   "/api/auth/invite/accept",
 ];
 
-/**
- * Telas do sistema, em app/(app). Tudo que não estiver aqui é tratado como
- * página pública de app/(marketing) -- landing, preços, FAQ e o que vier.
- * Ao criar uma tela nova do sistema, acrescente o caminho dela nesta lista.
- */
-const APP_PAGES = [
-  "/painel",
-  "/membros",
-  "/visitantes",
-  "/ministerios",
-  "/calendario",
-  "/financeiro",
-  "/atividades",
-  "/configuracoes",
-  "/usuarios",
-  "/whatsapp",
-  "/ajuda",
-];
-
-/** Páginas que deixam de fazer sentido depois de entrar. */
-const GUEST_ONLY_PAGES = ["/entrar", "/cadastro"];
-
-const matches = (pathname: string, paths: string[]) =>
-  paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+// As telas do sistema (APP_PAGES) estão em lib/rotas.ts. Tudo que não estiver
+// lá é tratado como página pública -- landing, preços, FAQ e o que vier.
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -62,7 +41,7 @@ export function proxy(request: NextRequest) {
     );
   }
 
-  if (matches(pathname, APP_PAGES)) {
+  if (isAppPage(pathname)) {
     if (hasSession) return NextResponse.next();
     const login = new URL(LOGIN, request.url);
     // Devolve o usuário para onde ele tentou ir depois de entrar.
@@ -71,7 +50,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Quem já entrou não fica na landing nem nas telas de acesso.
-  if (hasSession && (pathname === "/" || matches(pathname, GUEST_ONLY_PAGES))) {
+  if (hasSession && (pathname === "/" || matchesPath(pathname, GUEST_ONLY_PAGES))) {
     return NextResponse.redirect(new URL(HOME, request.url));
   }
 

@@ -5,10 +5,22 @@ que as escreveu.** Entram como estão, sem portar, por uma razão de ordem:
 código commitado e imperfeito é recuperável; código perfeito e não commitado
 não existe.
 
+## Onde fica o quê
+
+| Pasta | O que é |
+| --- | --- |
+| `suites/` | as 27 suítes: contam casos contra o servidor do `subir.sh` |
+| `banco/` | recebem connection string e olham o schema direto (`fks`, `verify`, `backstop`, `reapply`) |
+| `exploracao/` | jornadas e medições que anotam achados em vez de contar casos (`demo`, `jornada`, `jornada2`, `medir-zip`) |
+| `apoio/` | o `openwa-falso.mjs`, que as suítes de WhatsApp importam |
+
+Os testes de tela (Playwright) ficam ao lado, em `tests/interface/`, e rodam
+com `npm test`.
+
 ## Como rodar
 
-    bash tests-backend/subir.sh      # banco virgem + servidor, e PROVA que os dois são o mesmo banco
-    node tests-backend/e2e.mjs       # uma suíte
+    bash tests/backend/subir.sh              # banco virgem + servidor, e PROVA que os dois são o mesmo banco
+    node tests/backend/suites/e2e.mjs        # uma suíte
     # 853 casos em 27 suítes contra banco novo
 
 **Apague o `.next` antes de uma rodada que valha como prova.** Em 07/09/2026 um
@@ -21,10 +33,10 @@ Seis arquivos NÃO seguem a chamada acima, e não é falha deles:
 
 | Arquivo | Como se roda | O que é |
 | --- | --- | --- |
-| `fks.mjs`, `verify.mjs` | `node ... <connection string>` | inspeção: imprimem o estado do schema, não contam casos |
-| `backstop.mjs`, `reapply.mjs` | `node ... <connection string>` | `reapply` só reaplica a 004 e a 005, e **falha desde a 008**, que renomeou `max_people` |
-| `demo.mjs` | servidor na porta **3212** | não é a porta do `subir.sh` |
-| `transicoes.mjs` | importa um shim de um scratchpad de sessão | o caminho morreu com a sessão que o criou |
+| `banco/fks.mjs`, `banco/verify.mjs` | `node ... <connection string>` | inspeção: imprimem o estado do schema, não contam casos |
+| `banco/backstop.mjs`, `banco/reapply.mjs` | `node ... <connection string>`, **a partir da raiz do repo** | `reapply` só reaplica a 004 e a 005, e **falha desde a 008**, que renomeou `max_people` |
+| `exploracao/demo.mjs` | servidor na porta **3212** | não é a porta do `subir.sh` |
+| `suites/transicoes.mjs` | importa um shim de um scratchpad de sessão | o caminho morreu com a sessão que o criou |
 
 ## O que ainda NÃO está portátil, para quem for pegar
 

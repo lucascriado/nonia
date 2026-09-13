@@ -10,7 +10,7 @@ import { defineConfig, devices } from "@playwright/test";
  * `getBoundingClientRect`. Teste que não mede pixel não pegaria nenhum deles.
  */
 export default defineConfig({
-  testDir: "./tests",
+  testDir: "./tests/interface",
   fullyParallel: false,
   reporter: [["list"]],
   use: {

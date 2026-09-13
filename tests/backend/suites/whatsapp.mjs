@@ -1,6 +1,6 @@
 // Blocos 1 (conexão) e 2 (envio em massa) do WhatsApp.
 import pg from "/home/lucas/www/nonia-auth/node_modules/pg/lib/index.js";
-import { iniciarOpenWaFalso, conectarSessao, chaveDe, controle, ADMIN_KEY } from "./openwa-falso.mjs";
+import { iniciarOpenWaFalso, conectarSessao, chaveDe, controle, ADMIN_KEY } from "../apoio/openwa-falso.mjs";
 
 const BASE = "http://127.0.0.1:3210";
 const DB = "postgresql://nonia:nonia@127.0.0.1:54329/nonia";

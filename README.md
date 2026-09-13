@@ -112,8 +112,7 @@ build da imagem falha. Não apague.
 
 | Assunto | Arquivo |
 | --- | --- |
-| Estado real, decisões de arquitetura, worktrees, infraestrutura e pendências | [`CLAUDE.md`](CLAUDE.md) |
-| Convenções de código, arquitetura e regras para agentes | [`AGENTS.md`](AGENTS.md) |
+| Estado real, decisões de arquitetura, worktrees, infraestrutura, pendências e convenções de código | [`CLAUDE.md`](CLAUDE.md) |
 | Banco, migrations e valores persistidos | [`database/README.md`](database/README.md) |
 
 Parte do contexto vive **fora deste repositório**, de propósito — identificador

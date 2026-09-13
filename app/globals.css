@@ -2525,9 +2525,9 @@ button:focus-visible, a:focus-visible, label[for]:focus-visible, input:focus-vis
    Campos de autenticacao
    Moram aqui, e nao no marketing.css, porque o AuthField e o AuthAlert servem
    as duas metades: /entrar e /cadastro no site publico, e a troca de senha
-   dentro do app. A folha do site so e carregada pelo layout do grupo
-   (marketing), entao no app o botao de mostrar senha caia para fora do campo
-   por falta destas regras.
+   dentro do app. A folha do site so e carregada pelo MarketingFrame, entao no
+   app o botao de mostrar senha caia para fora do campo por falta destas
+   regras.
    -------------------------------------------------------------------------- */
 
 .mk-field { display: grid; gap: 7px; }

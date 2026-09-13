@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { AppSession } from "@/components/app-session";
 import "./globals.css";
 
 const inter = Inter({
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     // compararia esse atributo com o HTML do servidor e avisaria.
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.variable}>
-        {children}
+        <AppSession>{children}</AppSession>
       </body>
     </html>
   );

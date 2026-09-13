@@ -2,7 +2,7 @@
 // deduplicação por número. Os três na mesma suíte porque são um recurso só --
 // ver sem poder escolher é a metade que não serve.
 import pg from "/home/lucas/www/nonia-auth/node_modules/pg/lib/index.js";
-import { iniciarOpenWaFalso, conectarSessao, enviadas } from "./openwa-falso.mjs";
+import { iniciarOpenWaFalso, conectarSessao, enviadas } from "../apoio/openwa-falso.mjs";
 const BASE = "http://127.0.0.1:3210";
 let pass = 0, fail = 0;
 const ok = (c, l, e = "") => { c ? (pass++, console.log(`  ok    ${l}`)) : (fail++, console.log(`  FALHA ${l} ${e}`)); };
