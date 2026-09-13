@@ -1,6 +1,6 @@
-import { query } from "@/lib/db";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { notFound, requireUuid } from "@/lib/http";
+import { WhatsappConversation, WhatsappMessage } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import * as conn from "@/lib/whatsapp/connection";
 import * as openwa from "@/lib/whatsapp/openwa";
@@ -36,17 +36,23 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     // O par (conversa, mensagem) é conferido no NOSSO banco antes de qualquer
     // chamada: sem isso, um id de mensagem de outra igreja seria repassado ao
     // OpenWA, que só sabe de sessões, não de organizações.
-    const { rows } = await query<{ chat_id: string }>(
-      `SELECT c.chat_id FROM whatsapp_messages m
-         JOIN whatsapp_conversations c
-           ON c.id = m.conversation_id AND c.organization_id = m.organization_id
-        WHERE m.organization_id = $1 AND m.conversation_id = $2 AND m.wa_message_id = $3`,
-      [org, id, messageId],
-    );
-    if (!rows[0]) throw notFound("Mensagem não encontrada nesta conversa.");
+    const linha = await WhatsappMessage.findOne({
+      attributes: ["id"],
+      where: { organizationId: org, conversationId: id, waMessageId: messageId },
+      include: [{
+        model: WhatsappConversation,
+        as: "conversation",
+        attributes: ["chatId"],
+        where: { organizationId: org },
+        required: true,
+      }],
+      raw: true,
+      nest: true,
+    }) as unknown as { conversation: { chatId: string } } | null;
+    if (!linha) throw notFound("Mensagem não encontrada nesta conversa.");
 
     const conexao = await conn.exigirConexao(org);
-    const midia = await openwa.baixarMidia(conexao.sessionId, conexao.apiKey, rows[0].chat_id, messageId);
+    const midia = await openwa.baixarMidia(conexao.sessionId, conexao.apiKey, linha.conversation.chatId, messageId);
 
     return new Response(midia.bytes, {
       headers: {

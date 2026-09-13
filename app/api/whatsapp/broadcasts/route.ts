@@ -1,12 +1,13 @@
-import { db, query } from "@/lib/db";
+import { col, fn } from "sequelize";
+import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { badRequest, readJson } from "@/lib/http";
+import { User, WhatsappBroadcast, WhatsappBroadcastRecipient } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import { paginacao } from "@/lib/listings";
 import * as conn from "@/lib/whatsapp/connection";
 import * as envio from "@/lib/whatsapp/broadcast";
-import { QueryTypes } from "sequelize";
 
 export const runtime = "nodejs";
 
@@ -64,31 +65,58 @@ export async function GET(request: Request) {
     const { page, pageSize, offset } = paginacao(searchParams);
     const org = organizationId(auth);
 
-    const contagem = await query<{ total: number }>(
-      `SELECT count(*)::int AS total FROM whatsapp_broadcasts WHERE organization_id = $1`, [org],
+    const total = await WhatsappBroadcast.count({ where: { organizationId: org } });
+    const envios = await WhatsappBroadcast.findAll({
+      attributes: [
+        "id", "message", "audience", "status", "total", "startedAt", "finishedAt",
+        ["created_at", "createdAt"], "createdBy",
+      ],
+      where: { organizationId: org },
+      order: [["created_at", "DESC"]],
+      limit: pageSize,
+      offset,
+      raw: true,
+    }) as unknown as (WhatsappBroadcast & { createdAt: Date })[];
+
+    // Quem criou, pelo nome.
+    const idsDeQuemCriou = [...new Set(envios.map((b) => b.createdBy).filter((u): u is string => Boolean(u)))];
+    const nomes = new Map(
+      idsDeQuemCriou.length
+        ? (await User.findAll({ attributes: ["id", "fullName"], where: { id: idsDeQuemCriou }, raw: true }))
+          .map((u) => [u.id, u.fullName])
+        : [],
     );
-    const { rows } = await query(
-      `SELECT b.id, b.message, b.audience, b.status, b.total,
-              b.started_at AS "startedAt", b.finished_at AS "finishedAt", b.created_at AS "createdAt",
-              u.full_name AS "createdBy",
-              -- Contadas aqui, não guardadas na linha do envio: contador gravado
-              -- envelhece calado, e a tela leria "0 pulados" com gente pulada.
-              c.sent AS "sentCount", c.failed AS "failedCount", c.skipped AS "skippedCount", c.pending AS "pendingCount"
-         FROM whatsapp_broadcasts b
-         LEFT JOIN users u ON u.id = b.created_by
-         LEFT JOIN LATERAL (
-           SELECT count(*) FILTER (WHERE status = 'sent')::int    AS sent,
-                  count(*) FILTER (WHERE status = 'failed')::int  AS failed,
-                  count(*) FILTER (WHERE status = 'skipped')::int AS skipped,
-                  count(*) FILTER (WHERE status = 'pending')::int AS pending
-             FROM whatsapp_broadcast_recipients r WHERE r.broadcast_id = b.id
-         ) c ON true
-        WHERE b.organization_id = $1
-        ORDER BY b.created_at DESC
-        LIMIT $2 OFFSET $3`,
-      [org, pageSize, offset],
-    );
-    return Response.json({ records: rows, total: contagem.rows[0].total, page, pageSize });
+
+    // Contadas aqui, não guardadas na linha do envio: contador gravado envelhece
+    // calado, e a tela leria "0 pulados" com gente pulada. Uma consulta para a
+    // página inteira, agrupada por envio e status.
+    const porStatus = envios.length
+      ? await WhatsappBroadcastRecipient.findAll({
+          attributes: ["broadcastId", "status", [fn("count", col("id")), "n"]],
+          where: { broadcastId: envios.map((b) => b.id) },
+          group: ["broadcast_id", "status"],
+          raw: true,
+        }) as unknown as { broadcastId: string; status: string; n: string | number }[]
+      : [];
+    const conta = (broadcastId: string, status: string) =>
+      Number(porStatus.find((c) => c.broadcastId === broadcastId && c.status === status)?.n ?? 0);
+
+    const records = envios.map((b) => ({
+      id: b.id,
+      message: b.message,
+      audience: b.audience,
+      status: b.status,
+      total: b.total,
+      startedAt: b.startedAt,
+      finishedAt: b.finishedAt,
+      createdAt: b.createdAt,
+      createdBy: b.createdBy ? nomes.get(b.createdBy) ?? null : null,
+      sentCount: conta(b.id, "sent"),
+      failedCount: conta(b.id, "failed"),
+      skippedCount: conta(b.id, "skipped"),
+      pendingCount: conta(b.id, "pending"),
+    }));
+    return Response.json({ records, total, page, pageSize });
   } catch (error) {
     return apiError(error);
   }
@@ -141,39 +169,52 @@ export async function POST(request: Request) {
 
     const alvos = lista.slice(0, envio.TETO_POR_ENVIO);
     const id = await db.transaction(async (transaction) => {
-      const criado = await db.query<{ id: string }>(
-        `INSERT INTO whatsapp_broadcasts (organization_id, created_by, message, audience, filters, total)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6) RETURNING id`,
+      const criado = await WhatsappBroadcast.create(
         {
+          organizationId: org,
+          createdBy: auth.user.id,
+          message: mensagem,
+          audience,
           // `filters` continua sendo gravado mesmo com lista explícita: ele deixa
           // de decidir QUEM recebe e passa a registrar DE ONDE a lista veio,
           // que é o que o histórico precisa para explicar um envio antigo.
-          bind: [org, auth.user.id, mensagem, audience, JSON.stringify(payload.filters ?? {}), alvos.length],
-          transaction,
-          type: QueryTypes.SELECT,
+          filters: payload.filters ?? {},
+          total: alvos.length,
+          startedAt: null,
+          finishedAt: null,
         },
+        { transaction },
       );
-      const broadcastId = criado[0].id;
+      const broadcastId = criado.id;
 
       // Uma linha por pessoa, inclusive quem NÃO tem telefone: ela entra como
       // `skipped`. Quem ficou de fora tem que aparecer com nome na tela -- do
       // contrário "enviei para 214" viraria mentira sem ninguém notar.
-      for (const alvo of alvos) {
-        await db.query(
-          `INSERT INTO whatsapp_broadcast_recipients
-             (broadcast_id, organization_id, person_id, name, phone, status)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          {
-            // `recebe` e não `chatId`: quem foi pulado por número repetido TEM
-            // chatId válido, e mandar para ele seria a segunda mensagem ao
-            // mesmo aparelho -- o padrão de robô que a deduplicação existe para
-            // impedir. A linha fica, com status `skipped`, para o nome aparecer
-            // no histórico em vez de sumir.
-            bind: [broadcastId, org, alvo.id, alvo.name, alvo.phone, alvo.recebe ? "pending" : "skipped"],
-            transaction,
-          },
-        );
-      }
+      //
+      // Todas na mesma gravação e com o mesmo `created_at`, como era quando
+      // cada INSERT pegava o `now()` da transação.
+      await WhatsappBroadcastRecipient.bulkCreate(
+        alvos.map((alvo) => ({
+          broadcastId,
+          organizationId: org,
+          personId: alvo.id,
+          name: alvo.name,
+          phone: alvo.phone,
+          chatId: null,
+          // `recebe` e não `chatId`: quem foi pulado por número repetido TEM
+          // chatId válido, e mandar para ele seria a segunda mensagem ao
+          // mesmo aparelho -- o padrão de robô que a deduplicação existe para
+          // impedir. A linha fica, com status `skipped`, para o nome aparecer
+          // no histórico em vez de sumir.
+          status: alvo.recebe ? "pending" : "skipped",
+          waBatchId: null,
+          waMessageId: null,
+          errorCode: null,
+          errorMessage: null,
+          sentAt: null,
+        })),
+        { transaction },
+      );
       await addActivity(transaction, auth, "whatsapp", "disparou mensagem no WhatsApp", `${conferencia.comTelefone} pessoas`);
       return broadcastId;
     });

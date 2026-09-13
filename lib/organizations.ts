@@ -1,6 +1,5 @@
-import { QueryTypes, type Transaction } from "sequelize";
-import { db } from "@/lib/db";
-import { Organization, OrganizationMember } from "@/lib/models";
+import type { Transaction } from "sequelize";
+import { Organization, OrganizationMember, Plan, Role, Subscription } from "@/lib/models";
 
 /** "Igreja Batista Central" -> "igreja-batista-central" */
 export function slugify(value: string) {
@@ -19,12 +18,13 @@ export async function uniqueOrganizationSlug(desired: string, transaction?: Tran
 
   for (let attempt = 0; attempt < 50; attempt += 1) {
     const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
-    const rows = await db.query<{ id: string }>(`SELECT id FROM organizations WHERE slug = $1`, {
-      bind: [candidate],
+    const existente = await Organization.findOne({
+      attributes: ["id"],
+      where: { slug: candidate },
       transaction,
-      type: QueryTypes.SELECT,
+      raw: true,
     });
-    if (!rows.length) return candidate;
+    if (!existente) return candidate;
   }
 
   return `${base}-${Date.now().toString(36)}`;
@@ -74,17 +74,19 @@ export async function criarOrganizacaoComDono(
     { transaction },
   );
 
-  const papeis = await db.query<{ id: string }>(
-    `SELECT id FROM roles WHERE organization_id IS NULL AND slug = 'owner'`,
-    { transaction, type: QueryTypes.SELECT },
-  );
-  if (!papeis.length) throw new Error("Papel 'owner' ausente: a migration 004 não foi aplicada.");
+  const papelDono = await Role.findOne({
+    attributes: ["id"],
+    where: { organizationId: null, slug: "owner" },
+    transaction,
+    raw: true,
+  });
+  if (!papelDono) throw new Error("Papel 'owner' ausente: a migration 004 não foi aplicada.");
 
   await OrganizationMember.create(
     {
       organizationId: organization.id,
       userId,
-      roleId: papeis[0].id,
+      roleId: papelDono.id,
       status: "active",
       isDefault: opcoes.isDefault,
     },
@@ -92,12 +94,27 @@ export async function criarOrganizacaoComDono(
   );
 
   if (opcoes.comAvaliacao) {
-    await db.query(
-      `INSERT INTO subscriptions (organization_id, plan_id, status, trial_ends_at)
-       SELECT $1, p.id, 'trialing', now() + (p.trial_days || ' days')::interval
-       FROM plans p WHERE p.slug = 'avaliacao'`,
-      { bind: [organization.id], transaction },
-    );
+    // Sem o plano 'avaliacao' no banco não se cria nada, e sem erro -- era o
+    // comportamento do INSERT ... SELECT, que simplesmente não inseria linha.
+    const avaliacao = await Plan.findOne({
+      attributes: ["id", "trialDays"],
+      where: { slug: "avaliacao" },
+      transaction,
+      raw: true,
+    });
+    if (avaliacao) {
+      await Subscription.create(
+        {
+          organizationId: organization.id,
+          planId: avaliacao.id,
+          status: "trialing",
+          // Dias corridos de 24h a partir de agora. O prazo do plano é dado do
+          // banco (`trial_days`), não constante daqui.
+          trialEndsAt: new Date(Date.now() + avaliacao.trialDays * 24 * 60 * 60 * 1000),
+        },
+        { transaction },
+      );
+    }
   }
   // Sem avaliação NÃO se cria linha de assinatura, de propósito: o plano
   // efetivo já resolve para o gratuito quando não há nenhuma, e inventar uma

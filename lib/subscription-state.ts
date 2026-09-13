@@ -13,9 +13,9 @@
 // Não pagar NUNCA tranca a igreja para fora dos próprios dados. O pior estado
 // é somente leitura: consultar, buscar e levar o que é seu continua valendo.
 
-import { QueryTypes, type Transaction } from "sequelize";
-import { db } from "@/lib/db";
+import { Transaction } from "sequelize";
 import { HttpError } from "@/lib/http";
+import { Organization, Plan, Subscription } from "@/lib/models";
 
 export const SUBSCRIPTION_STATUSES = [
   "incomplete",
@@ -27,6 +27,12 @@ export const SUBSCRIPTION_STATUSES = [
 ] as const;
 
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+/**
+ * Os estados em que a assinatura é a VIGENTE da organização -- os mesmos do
+ * índice único parcial `subscriptions_current_unique_idx`.
+ */
+export const VIGENTES: SubscriptionStatus[] = ["trialing", "active", "past_due", "incomplete"];
 
 /**
  * Transições permitidas. O webhook do gateway consulta esta tabela antes de
@@ -86,27 +92,52 @@ export async function loadSubscription(
 ): Promise<SubscriptionRow | null> {
   const { lock = false, transaction } = options;
 
-  const rows = await db.query<SubscriptionRow>(
-    `SELECT s.status, s.trial_ends_at AS "trialEndsAt", s.current_period_end AS "currentPeriodEnd",
-            p.slug AS "planSlug", p.name AS "planName",
-            p.max_members AS "maxMembers", p.max_users AS "maxUsers"
-     FROM subscriptions s
-     JOIN plans p ON p.id = s.plan_id
-     WHERE s.organization_id = $1
-       AND s.status IN ('trialing', 'active', 'past_due', 'incomplete')
-     ${lock ? "FOR UPDATE OF s" : ""}`,
-    { bind: [organization], transaction, type: QueryTypes.SELECT },
-  );
+  // O índice único parcial garante no máximo UMA assinatura vigente por
+  // organização, então `findOne` não esconde linha nenhuma.
+  //
+  // `of: Subscription` é o `FOR UPDATE OF s` de antes: trava SÓ a linha da
+  // assinatura. Sem ele o lock pegaria também a linha do plano no JOIN, e toda
+  // igreja do mesmo plano entraria na mesma fila.
+  const linha = await Subscription.findOne({
+    attributes: ["status", "trialEndsAt", "currentPeriodEnd"],
+    include: [{
+      model: Plan,
+      as: "plan",
+      attributes: ["slug", "name", "maxMembers", "maxUsers"],
+      required: true,
+    }],
+    where: { organizationId: organization, status: VIGENTES },
+    lock: lock ? { level: Transaction.LOCK.UPDATE, of: Subscription } : undefined,
+    transaction,
+    raw: true,
+    nest: true,
+  }) as unknown as {
+    status: SubscriptionStatus;
+    trialEndsAt: Date | null;
+    currentPeriodEnd: Date | null;
+    plan: { slug: string; name: string; maxMembers: number | null; maxUsers: number | null };
+  } | null;
 
-  if (lock && !rows[0]) {
-    await db.query(`SELECT 1 FROM organizations WHERE id = $1 FOR UPDATE`, {
-      bind: [organization],
+  if (lock && !linha) {
+    await Organization.findOne({
+      attributes: ["id"],
+      where: { id: organization },
+      lock: Transaction.LOCK.UPDATE,
       transaction,
-      type: QueryTypes.SELECT,
+      raw: true,
     });
   }
 
-  return rows[0] ?? null;
+  if (!linha) return null;
+  return {
+    status: linha.status,
+    trialEndsAt: linha.trialEndsAt,
+    currentPeriodEnd: linha.currentPeriodEnd,
+    planSlug: linha.plan.slug,
+    planName: linha.plan.name,
+    maxMembers: linha.plan.maxMembers,
+    maxUsers: linha.plan.maxUsers,
+  };
 }
 
 /**

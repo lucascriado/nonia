@@ -9,11 +9,11 @@
 // plano. Sem esta rota, um e-mail digitado errado consumia um assento para
 // sempre -- numa igreja no Comunidade, três enganos custariam 30% do que ela
 // paga.
-import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { conflict, notFound, requireUuid } from "@/lib/http";
+import { Invitation } from "@/lib/models";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -24,11 +24,11 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
     const { id } = await context.params;
     requireUuid(id, "Convite não encontrado.");
 
-    const rows = await db.query<{ status: string; email: string }>(
-      `SELECT status, email FROM invitations WHERE id = $1 AND organization_id = $2`,
-      { bind: [id, organizationId(auth)], type: QueryTypes.SELECT },
-    );
-    const convite = rows[0];
+    const convite = await Invitation.findOne({
+      attributes: ["status", "email"],
+      where: { id, organizationId: organizationId(auth) },
+      raw: true,
+    });
     if (!convite) throw notFound("Convite não encontrado.");
 
     // Já revogado: o objetivo de quem chamou está cumprido, então responde
@@ -46,9 +46,9 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
     }
 
     await db.transaction(async (transaction) => {
-      await db.query(
-        `UPDATE invitations SET status = 'revoked' WHERE id = $1 AND organization_id = $2`,
-        { bind: [id, organizationId(auth)], transaction },
+      await Invitation.update(
+        { status: "revoked" },
+        { where: { id, organizationId: organizationId(auth) }, transaction },
       );
       await addActivity(transaction, auth, "system", "cancelou o convite de", convite.email);
     });

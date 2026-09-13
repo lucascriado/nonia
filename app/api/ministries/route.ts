@@ -1,10 +1,10 @@
-import { db, query } from "@/lib/db";
+import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { readJson } from "@/lib/http";
+import { Member, Ministry, Person } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization, filterOwnedMemberIds } from "@/lib/tenant";
-import { QueryTypes } from "sequelize";
 
 export const runtime = "nodejs";
 
@@ -16,38 +16,80 @@ type MinistryPayload = {
   memberIds?: string[];
 };
 
+type PessoaDoMinisterio = { id: string; name: string; email: string | null };
+
 export async function GET() {
   try {
     const auth = await requirePermission("ministries.read");
-    const { rows } = await query(`
-      SELECT
-        mi.id,
-        mi.name,
-        mi.color,
-        mi.description,
-        mi.leader_id AS "leaderId",
-        leader.full_name AS "leaderName",
-        COUNT(m.person_id)::int AS "memberCount",
-        COALESCE(json_agg(json_build_object('id', p.id, 'name', p.full_name, 'email', p.email) ORDER BY p.full_name) FILTER (WHERE p.id IS NOT NULL), '[]') AS members
-      FROM ministries mi
-      LEFT JOIN people leader ON leader.id = mi.leader_id AND leader.organization_id = mi.organization_id
-      LEFT JOIN members m ON m.ministry_id = mi.id AND m.organization_id = mi.organization_id
-      LEFT JOIN people p ON p.id = m.person_id AND p.organization_id = mi.organization_id
-      WHERE mi.organization_id = $1
-      GROUP BY mi.id, leader.full_name
-      ORDER BY mi.created_at DESC, mi.name
-    `, [organizationId(auth)]);
+    const org = organizationId(auth);
 
-    const { rows: summary } = await query<{ totalVolunteers: number; activeMinistries: number }>(`
-      SELECT
-        COUNT(DISTINCT m.person_id)::int AS "totalVolunteers",
-        COUNT(DISTINCT mi.id)::int AS "activeMinistries"
-      FROM ministries mi
-      LEFT JOIN members m ON m.ministry_id = mi.id AND m.organization_id = mi.organization_id
-      WHERE mi.organization_id = $1
-    `, [organizationId(auth)]);
+    const ministerios = await Ministry.findAll({
+      attributes: ["id", "name", "color", "description", "leaderId"],
+      where: { organizationId: org },
+      order: [["created_at", "DESC"], ["name", "ASC"]],
+      raw: true,
+    });
 
-    return Response.json({ ministries: rows, summary: summary[0] ?? { totalVolunteers: 0, activeMinistries: 0 } });
+    // Líderes, vínculos e pessoas em consultas separadas, juntados aqui. Era um
+    // GROUP BY com json_agg; o resultado é o mesmo, e o tenant vai em cada uma.
+    const idsDosMinisterios = ministerios.map((m) => m.id);
+    const idsDosLideres = [...new Set(ministerios.map((m) => m.leaderId).filter((id): id is string => Boolean(id)))];
+    const [lideres, vinculos] = await Promise.all([
+      idsDosLideres.length
+        ? Person.findAll({ attributes: ["id", "fullName"], where: { organizationId: org, id: idsDosLideres }, raw: true })
+        : Promise.resolve([] as { id: string; fullName: string }[]),
+      idsDosMinisterios.length
+        ? Member.findAll({
+          attributes: ["personId", "ministryId"],
+          where: { organizationId: org, ministryId: idsDosMinisterios },
+          raw: true,
+        })
+        : Promise.resolve([] as { personId: string; ministryId: string | null }[]),
+    ]);
+    const nomeDoLider = new Map(lideres.map((l) => [l.id, l.fullName]));
+
+    // A ordem dos membros é a do BANCO (`ORDER BY full_name`), não um sort em
+    // JS: a collation do Postgres e a do JavaScript discordam em acento e caixa.
+    const pessoas = vinculos.length
+      ? await Person.findAll({
+        attributes: ["id", ["full_name", "name"], "email"],
+        where: { organizationId: org, id: vinculos.map((v) => v.personId) },
+        order: [["fullName", "ASC"]],
+        raw: true,
+      }) as unknown as PessoaDoMinisterio[]
+      : [];
+
+    const contagem = new Map<string, number>();
+    const ministerioDaPessoa = new Map<string, string>();
+    for (const v of vinculos) {
+      if (!v.ministryId) continue;
+      contagem.set(v.ministryId, (contagem.get(v.ministryId) ?? 0) + 1);
+      ministerioDaPessoa.set(v.personId, v.ministryId);
+    }
+    const membrosPorMinisterio = new Map<string, PessoaDoMinisterio[]>();
+    for (const p of pessoas) {
+      const ministryId = ministerioDaPessoa.get(p.id);
+      if (!ministryId) continue;
+      membrosPorMinisterio.set(ministryId, [...(membrosPorMinisterio.get(ministryId) ?? []), { id: p.id, name: p.name, email: p.email }]);
+    }
+
+    const rows = ministerios.map((m) => ({
+      id: m.id,
+      name: m.name,
+      color: m.color,
+      description: m.description,
+      leaderId: m.leaderId,
+      leaderName: m.leaderId ? nomeDoLider.get(m.leaderId) ?? null : null,
+      memberCount: contagem.get(m.id) ?? 0,
+      members: membrosPorMinisterio.get(m.id) ?? [],
+    }));
+
+    // Voluntários são os membros (distintos por pessoa, que é a PK de
+    // `members`) ligados a algum ministério desta igreja; ministérios ativos,
+    // todos os da igreja.
+    const summary = { totalVolunteers: vinculos.length, activeMinistries: ministerios.length };
+
+    return Response.json({ ministries: rows, summary });
   } catch (error) {
     return apiError(error);
   }
@@ -65,28 +107,20 @@ export async function POST(request: Request) {
         await assertBelongsToOrganization("people", "id", payload.leaderId, organizationId(auth), transaction);
       }
 
-      const created = await db.query<{ id: string }>(`
-        INSERT INTO ministries (organization_id, name, color, description, leader_id)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id
-      `, {
-        bind: [
-          organizationId(auth),
-          name,
-          payload.color || "purple",
-          payload.description?.trim() || null,
-          payload.leaderId || null,
-        ],
-        transaction,
-        type: QueryTypes.SELECT,
-      });
+      const created = await Ministry.create({
+        organizationId: organizationId(auth),
+        name,
+        color: payload.color || "purple",
+        description: payload.description?.trim() || null,
+        leaderId: payload.leaderId || null,
+      }, { transaction });
 
-      const ministryId = created[0].id;
+      const ministryId = created.id;
       const memberIds = await filterOwnedMemberIds(payload.memberIds ?? [], organizationId(auth), transaction);
       for (const memberId of memberIds) {
-        await db.query(
-          `UPDATE members SET ministry_id = $1 WHERE person_id = $2 AND organization_id = $3`,
-          { bind: [ministryId, memberId, organizationId(auth)], transaction },
+        await Member.update(
+          { ministryId },
+          { where: { personId: memberId, organizationId: organizationId(auth) }, transaction },
         );
       }
 

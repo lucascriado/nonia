@@ -1,10 +1,10 @@
-import { db, query } from "@/lib/db";
+import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { readJson, requireUuid } from "@/lib/http";
+import { Member, MinistryAttendanceRecord, MinistryAttendanceSession, Ministry, Person } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import { assertOwnedResource, filterOwnedMemberIds } from "@/lib/tenant";
-import { QueryTypes } from "sequelize";
 import { hojeNoFuso } from "@/lib/datas";
 
 export const runtime = "nodejs";
@@ -20,6 +20,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
     requireUuid(id, "Ministério não encontrado.");
     await assertOwnedResource("ministries", id, organizationId(auth), "Ministério não encontrado.");
+    const org = organizationId(auth);
 
     const url = new URL(request.url);
     const history = url.searchParams.get("history") === "1";
@@ -31,41 +32,78 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const date = url.searchParams.get("date") || hojeNoFuso(auth.organization.timezone);
 
     if (history) {
-      const { rows } = await query(`
-        SELECT
-          s.id,
-          s.meeting_date AS date,
-          s.title,
-          COUNT(ar.member_id)::int AS "recordCount",
-          COUNT(ar.member_id) FILTER (WHERE ar.present)::int AS "presentCount",
-          COUNT(ar.member_id) FILTER (WHERE NOT ar.present)::int AS "absentCount"
-        FROM ministry_attendance_sessions s
-        LEFT JOIN ministry_attendance_records ar
-          ON ar.session_id = s.id AND ar.organization_id = s.organization_id
-        WHERE s.ministry_id = $1 AND s.organization_id = $2
-        GROUP BY s.id
-        ORDER BY s.meeting_date DESC
-        LIMIT 12
-      `, [id, organizationId(auth)]);
+      const sessoes = await MinistryAttendanceSession.findAll({
+        attributes: ["id", ["meeting_date", "date"], "title"],
+        where: { ministryId: id, organizationId: org },
+        order: [["meetingDate", "DESC"]],
+        limit: 12,
+        raw: true,
+      }) as unknown as { id: string; date: string; title: string }[];
+
+      // As contagens saem das linhas de presença, somadas aqui. Era um
+      // COUNT ... FILTER por sessão; `present` é NOT NULL, então ausente é
+      // exatamente quem não está presente.
+      const presencas = sessoes.length
+        ? await MinistryAttendanceRecord.findAll({
+          attributes: ["sessionId", "present"],
+          where: { organizationId: org, sessionId: sessoes.map((s) => s.id) },
+          raw: true,
+        })
+        : [];
+
+      const rows = sessoes.map((s) => {
+        const daSessao = presencas.filter((p) => p.sessionId === s.id);
+        const presentCount = daSessao.filter((p) => p.present).length;
+        return {
+          id: s.id,
+          date: s.date,
+          title: s.title,
+          recordCount: daSessao.length,
+          presentCount,
+          absentCount: daSessao.length - presentCount,
+        };
+      });
       return Response.json({ records: rows });
     }
 
-    const { rows: members } = await query(`
-      SELECT
-        p.id,
-        p.full_name AS name,
-        p.email,
-        COALESCE(ar.present, false) AS present,
-        ar.notes
-      FROM members m
-      JOIN people p ON p.id = m.person_id AND p.organization_id = m.organization_id
-      LEFT JOIN ministry_attendance_sessions s
-        ON s.ministry_id = m.ministry_id AND s.meeting_date = $2 AND s.organization_id = m.organization_id
-      LEFT JOIN ministry_attendance_records ar
-        ON ar.session_id = s.id AND ar.member_id = m.person_id AND ar.organization_id = m.organization_id
-      WHERE m.ministry_id = $1 AND m.organization_id = $3
-      ORDER BY p.full_name
-    `, [id, date, organizationId(auth)]);
+    const [vinculos, sessao] = await Promise.all([
+      Member.findAll({ attributes: ["personId"], where: { ministryId: id, organizationId: org }, raw: true }),
+      // Roda sempre, mesmo sem membros: é esta consulta que recusa um ?date=
+      // que não é data, como a antiga fazia.
+      MinistryAttendanceSession.findOne({
+        attributes: ["id"],
+        where: { ministryId: id, meetingDate: date, organizationId: org },
+        raw: true,
+      }),
+    ]);
+
+    // A ordem é a do BANCO (`ORDER BY full_name`), não um sort em JS: a
+    // collation do Postgres e a do JavaScript discordam em acento e caixa.
+    const pessoas = vinculos.length
+      ? await Person.findAll({
+        attributes: ["id", ["full_name", "name"], "email"],
+        where: { organizationId: org, id: vinculos.map((v) => v.personId) },
+        order: [["fullName", "ASC"]],
+        raw: true,
+      }) as unknown as { id: string; name: string; email: string | null }[]
+      : [];
+
+    const presencas = sessao && pessoas.length
+      ? await MinistryAttendanceRecord.findAll({
+        attributes: ["memberId", "present", "notes"],
+        where: { sessionId: sessao.id, organizationId: org, memberId: pessoas.map((p) => p.id) },
+        raw: true,
+      })
+      : [];
+    const presencaDe = new Map(presencas.map((p) => [p.memberId, p]));
+
+    const members = pessoas.map((p) => ({
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      present: presencaDe.get(p.id)?.present ?? false,
+      notes: presencaDe.get(p.id)?.notes ?? null,
+    }));
 
     return Response.json({ date, members });
   } catch (error) {
@@ -84,14 +122,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await db.transaction(async (transaction) => {
       await assertOwnedResource("ministries", id, organizationId(auth), "Ministério não encontrado.", transaction);
 
-      const sessionRows = await db.query<{ id: string }>(`
-        INSERT INTO ministry_attendance_sessions (ministry_id, organization_id, meeting_date)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (ministry_id, meeting_date)
-        DO UPDATE SET updated_at = now()
-        RETURNING id
-      `, { bind: [id, organizationId(auth), payload.date], transaction, type: QueryTypes.SELECT });
-      const sessionId = sessionRows[0].id;
+      // A sessão é única por ministério + data. Chamada já aberta nesse dia é
+      // reaproveitada (só o updated_at anda); o id volta do RETURNING nos dois
+      // casos.
+      const [sessao] = await MinistryAttendanceSession.bulkCreate(
+        [{ ministryId: id, organizationId: organizationId(auth), meetingDate: payload.date }],
+        {
+          conflictAttributes: ["ministryId", "meetingDate"],
+          // `updated_at` é o nome do ATRIBUTO (ver `createdAt: "created_at"` no
+          // Model); o tipo do Sequelize só conhece os campos declarados.
+          updateOnDuplicate: ["updated_at" as never],
+          transaction,
+        },
+      );
+      const sessionId = sessao.id;
 
       const records = Array.isArray(payload.records) ? payload.records : [];
       // Só entram na chamada os membros da própria organização.
@@ -99,29 +143,40 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         await filterOwnedMemberIds(records.map((record) => record.memberId), organizationId(auth), transaction),
       );
 
+      // Uma gravação por linha, na ordem do payload, como antes: o mesmo membro
+      // duas vezes no payload fica com a última marcação, em vez de estourar o
+      // "ON CONFLICT DO UPDATE cannot affect row a second time" de um insert só.
       for (const record of records) {
         if (!owned.has(record.memberId)) continue;
-        await db.query(`
-          INSERT INTO ministry_attendance_records (session_id, member_id, organization_id, present, notes)
-          VALUES ($1, $2, $3, $4, $5)
-          ON CONFLICT (session_id, member_id)
-          DO UPDATE SET present = EXCLUDED.present, notes = EXCLUDED.notes, updated_at = now()
-        `, {
-          bind: [sessionId, record.memberId, organizationId(auth), record.present, record.notes?.trim() || null],
+        await MinistryAttendanceRecord.bulkCreate([{
+          sessionId,
+          memberId: record.memberId,
+          organizationId: organizationId(auth),
+          // `?? null` e não o default do Model: `present` ausente no payload
+          // continua sendo recusado pelo NOT NULL do banco, como era -- o
+          // default `false` gravaria "ausente" sem ninguém ter marcado.
+          present: (record.present ?? null) as boolean,
+          notes: record.notes?.trim() || null,
+        }], {
+          conflictAttributes: ["sessionId", "memberId"],
+          updateOnDuplicate: ["present", "notes", "updated_at" as never],
+          returning: false,
           transaction,
         });
       }
 
-      const ministryRows = await db.query<{ name: string }>(
-        `SELECT name FROM ministries WHERE id = $1 AND organization_id = $2`,
-        { bind: [id, organizationId(auth)], transaction, type: QueryTypes.SELECT },
-      );
+      const ministry = await Ministry.findOne({
+        attributes: ["name"],
+        where: { id, organizationId: organizationId(auth) },
+        transaction,
+        raw: true,
+      });
       await addActivity(
         transaction,
         auth,
         "members",
         "registrou presença da escola bíblica em",
-        ministryRows[0]?.name ?? "Ministério",
+        ministry?.name ?? "Ministério",
       );
     });
 

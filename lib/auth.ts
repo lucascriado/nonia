@@ -7,9 +7,16 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { QueryTypes, type Transaction } from "sequelize";
-import { db } from "@/lib/db";
+import { Op, fn, type Transaction } from "sequelize";
 import { forbidden, unauthorized } from "@/lib/http";
+import {
+  Organization,
+  OrganizationMember,
+  Role as RoleModel,
+  RolePermission,
+  Session,
+  User,
+} from "@/lib/models";
 import { assertWritable } from "@/lib/subscription-state";
 
 export const SESSION_COOKIE = "nonia_session";
@@ -87,45 +94,82 @@ export async function createSession(
   const token = createSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-  await db.query(
-    `INSERT INTO sessions (user_id, organization_id, token_hash, ip_address, user_agent, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+  await Session.create(
     {
-      bind: [
-        userId,
-        organizationIdValue,
-        hashToken(token),
-        meta.ipAddress || null,
-        meta.userAgent?.slice(0, 400) || null,
-        expiresAt,
-      ],
-      transaction,
+      userId,
+      organizationId: organizationIdValue,
+      tokenHash: hashToken(token),
+      ipAddress: meta.ipAddress || null,
+      userAgent: meta.userAgent?.slice(0, 400) || null,
+      expiresAt,
     },
+    { transaction },
   );
 
   return { token, expiresAt };
 }
 
 export async function revokeSession(token: string) {
-  await db.query(`UPDATE sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL`, {
-    bind: [hashToken(token)],
-  });
+  await Session.update(
+    { revokedAt: new Date() },
+    { where: { tokenHash: hashToken(token), revokedAt: null } },
+  );
 }
 
 export async function revokeAllUserSessions(userId: string, transaction?: Transaction) {
-  await db.query(`UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, {
-    bind: [userId],
-    transaction,
-  });
+  await Session.update(
+    { revokedAt: new Date() },
+    { where: { userId, revokedAt: null }, transaction },
+  );
+}
+
+/**
+ * Conta uma senha errada e tranca a conta ao chegar no limite.
+ *
+ * Usado pelo login e pela troca de senha, com os mesmos números: um contador
+ * separado daria um caminho de força bruta sem trava.
+ *
+ * O INCREMENTO É DO BANCO: `increment` é um `UPDATE ... SET n = n + 1`, nunca
+ * lido-somado-gravado aqui, então duas tentativas simultâneas contam duas. O
+ * `RETURNING` devolve a contagem JÁ somada, e é ela que decide a trava.
+ *
+ * Era um único UPDATE com `literal("CASE WHEN ... THEN now() + ...")`, e morreu
+ * no build de PRODUÇÃO: o compilador juntou as duas partes da string e engoliu
+ * o espaço, gerando `>= 5THEN` -- Postgres recusa, e toda senha errada virava
+ * 500 em vez de 401, sem trava nenhuma. Em `next dev` passava. Medido em
+ * 12/09/2026 contra o build standalone. SQL em string não entra mais aqui.
+ */
+export async function registrarSenhaErrada(userId: string, limite: { tentativas: number; minutos: number }) {
+  // `returning` funciona no Postgres, mas os tipos do Sequelize v6 não o
+  // declaram em `increment` -- por isso as opções vão por variável.
+  const opcoes = { by: 1, where: { id: userId }, returning: ["failed_login_attempts"] };
+  const resultado = await User.increment("failedLoginAttempts", opcoes);
+  // O formato do retorno do `increment` no Postgres é `[[[linha], n], n]`.
+  // Procura a linha em vez de confiar na profundidade.
+  const linha = (resultado as unknown[]).flat(3).find(
+    (item): item is { failed_login_attempts: number } =>
+      typeof item === "object" && item !== null && "failed_login_attempts" in item,
+  );
+  if (linha && linha.failed_login_attempts >= limite.tentativas) {
+    // Relógio da aplicação, o mesmo que confere a trava (`lockedUntil > Date.now()`).
+    await User.update(
+      { lockedUntil: new Date(Date.now() + limite.minutos * 60 * 1000) },
+      { where: { id: userId } },
+    );
+  }
 }
 
 /** Remove sessões expiradas ou revogadas há mais de 30 dias. */
 export async function purgeStaleSessions() {
-  await db.query(
-    `DELETE FROM sessions
-     WHERE expires_at < now() - interval '30 days'
-        OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '30 days')`,
-  );
+  const limite = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  await Session.destroy({
+    where: {
+      [Op.or]: [
+        { expiresAt: { [Op.lt]: limite } },
+        { revokedAt: { [Op.ne]: null, [Op.lt]: limite } },
+      ],
+    },
+  });
 }
 
 type SessionRow = {
@@ -151,51 +195,98 @@ type SessionRow = {
   permissions: string[];
 };
 
-const SESSION_QUERY = `
-  SELECT
-    s.id AS "sessionId",
-    s.expires_at AS "expiresAt",
-    s.last_seen_at AS "lastSeenAt",
-    u.id AS "userId",
-    u.email,
-    u.full_name AS "fullName",
-    u.phone,
-    u.avatar_url AS "avatarUrl",
-    u.status AS "userStatus",
-    o.id AS "organizationId",
-    o.name AS "organizationName",
-    o.slug AS "organizationSlug",
-    o.status AS "organizationStatus",
-    o.timezone AS "organizationTimezone",
-    om.status AS "membershipStatus",
-    om.person_id AS "personId",
-    r.slug AS "roleSlug",
-    r.name AS "roleName",
-    r.level AS "roleLevel",
-    COALESCE(
-      array_agg(rp.permission_slug) FILTER (WHERE rp.permission_slug IS NOT NULL),
-      ARRAY[]::varchar[]
-    ) AS permissions
-  FROM sessions s
-  JOIN users u ON u.id = s.user_id
-  JOIN organizations o ON o.id = s.organization_id
-  JOIN organization_members om
-    ON om.organization_id = s.organization_id AND om.user_id = s.user_id
-  JOIN roles r ON r.id = om.role_id
-  LEFT JOIN role_permissions rp ON rp.role_id = r.id
-  WHERE s.token_hash = $1
-    AND s.revoked_at IS NULL
-    AND s.expires_at > now()
-  GROUP BY s.id, u.id, o.id, om.organization_id, om.user_id, r.id
-`;
+/**
+ * A linha da sessão com tudo o que o contexto precisa, ou null.
+ *
+ * O que conta como sessão VÁLIDA mora nas condições abaixo, e cada uma é
+ * obrigatória -- tirar qualquer uma é falha de segurança:
+ *
+ *   token_hash igual      o banco guarda só o SHA-256 do token
+ *   revoked_at IS NULL    logout, troca de senha e suspensão revogam
+ *   expires_at > now()    comparado com o relógio do BANCO (fn("now")), como
+ *                         sempre foi, e não com o do servidor da aplicação
+ *   usuário existe        INNER JOIN (`required: true`)
+ *   organização existe    INNER JOIN (`required: true`)
+ *   vínculo existe        a busca do vínculo na organização DA SESSÃO
+ *   papel existe          INNER JOIN no vínculo (`required: true`)
+ *
+ * Status de usuário, vínculo e organização são conferidos por quem chama,
+ * porque cada um tem uma consequência diferente (null ou 403).
+ *
+ * Três consultas em vez de uma: `organization_members` casa com a sessão por
+ * DUAS colunas (organização e usuário), e a associação do Sequelize conhece
+ * uma só -- a segunda consulta usa o par que a primeira devolveu. A terceira
+ * traz as permissões do papel (o antigo LEFT JOIN + array_agg): papel sem
+ * permissão nenhuma continua valendo, com o conjunto vazio.
+ */
+async function loadSessionRow(token: string): Promise<SessionRow | null> {
+  const sessao = await Session.findOne({
+    attributes: ["id", "expiresAt", "lastSeenAt", "userId", "organizationId"],
+    where: {
+      tokenHash: hashToken(token),
+      revokedAt: null,
+      expiresAt: { [Op.gt]: fn("now") },
+    },
+    include: [
+      {
+        model: User,
+        as: "user",
+        attributes: ["id", "email", "fullName", "phone", "avatarUrl", "status"],
+        required: true,
+      },
+      {
+        model: Organization,
+        as: "organization",
+        attributes: ["id", "name", "slug", "status", "timezone"],
+        required: true,
+      },
+    ],
+  });
+  if (!sessao) return null;
 
-async function loadContext(token: string): Promise<AuthContext | null> {
-  const rows = await db.query<SessionRow>(SESSION_QUERY, {
-    bind: [hashToken(token)],
-    type: QueryTypes.SELECT,
+  const { user, organization } = sessao as Session & { user: User; organization: Organization };
+
+  const vinculo = await OrganizationMember.findOne({
+    attributes: ["status", "personId", "roleId"],
+    where: { organizationId: sessao.organizationId, userId: sessao.userId },
+    include: [{ model: RoleModel, as: "role", attributes: ["id", "slug", "name", "level"], required: true }],
+  });
+  if (!vinculo) return null;
+
+  const { role } = vinculo as OrganizationMember & { role: RoleModel };
+
+  const permissoes = await RolePermission.findAll({
+    attributes: ["permissionSlug"],
+    where: { roleId: role.id },
+    raw: true,
   });
 
-  const row = rows[0];
+  return {
+    sessionId: sessao.id,
+    expiresAt: sessao.expiresAt,
+    lastSeenAt: sessao.lastSeenAt,
+    userId: user.id,
+    email: user.email,
+    fullName: user.fullName,
+    phone: user.phone,
+    avatarUrl: user.avatarUrl,
+    userStatus: user.status,
+    organizationId: organization.id,
+    organizationName: organization.name,
+    organizationSlug: organization.slug,
+    organizationStatus: organization.status,
+    organizationTimezone: organization.timezone,
+    membershipStatus: vinculo.status,
+    personId: vinculo.personId,
+    roleSlug: role.slug,
+    roleName: role.name,
+    roleLevel: role.level,
+    permissions: permissoes.map((p) => p.permissionSlug),
+  };
+}
+
+async function loadContext(token: string): Promise<AuthContext | null> {
+  const row = await loadSessionRow(token);
   if (!row) return null;
   if (row.userStatus !== "active" || row.membershipStatus !== "active") return null;
 
@@ -213,9 +304,7 @@ async function loadContext(token: string): Promise<AuthContext | null> {
   const expiresAt = shouldRenew ? new Date(now + SESSION_TTL_MS) : current;
 
   if (shouldRenew || shouldTouch) {
-    await db.query(`UPDATE sessions SET last_seen_at = now(), expires_at = $2 WHERE id = $1`, {
-      bind: [row.sessionId, expiresAt],
-    });
+    await Session.update({ lastSeenAt: new Date(), expiresAt }, { where: { id: row.sessionId } });
   }
 
   return {

@@ -9,8 +9,8 @@
 // Criar uma segunda igreja é o que faz o plano Rede ser verdade: "várias
 // congregações no mesmo painel" precisa de um caminho para chegar à segunda.
 // Até aqui o único era ser convidada por outra pessoa.
-import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
+import { Organization, OrganizationMember, Role } from "@/lib/models";
 import { addActivity } from "@/lib/activities";
 import {
   createSession,
@@ -44,16 +44,39 @@ export async function GET() {
   try {
     const auth = await requireSession();
 
-    const rows = await db.query(
-      `SELECT o.id, o.name, o.slug, o.timezone, r.slug AS "roleSlug", r.name AS "roleName",
-              om.is_default AS "isDefault", om.joined_at AS "joinedAt"
-       FROM organization_members om
-       JOIN organizations o ON o.id = om.organization_id
-       JOIN roles r ON r.id = om.role_id
-       WHERE om.user_id = $1 AND om.status = 'active' AND o.status = 'active'
-       ORDER BY om.is_default DESC, o.name`,
-      { bind: [auth.user.id], type: QueryTypes.SELECT },
-    );
+    const vinculos = await OrganizationMember.findAll({
+      attributes: ["isDefault", "joinedAt"],
+      where: { userId: auth.user.id, status: "active" },
+      include: [
+        {
+          model: Organization,
+          as: "organization",
+          attributes: ["id", "name", "slug", "timezone"],
+          where: { status: "active" },
+          required: true,
+        },
+        { model: Role, as: "role", attributes: ["slug", "name"], required: true },
+      ],
+      order: [["isDefault", "DESC"], [{ model: Organization, as: "organization" }, "name", "ASC"]],
+      raw: true,
+      nest: true,
+    }) as unknown as {
+      isDefault: boolean;
+      joinedAt: Date;
+      organization: { id: string; name: string; slug: string; timezone: string };
+      role: { slug: string; name: string };
+    }[];
+    // As chaves (e a ordem delas) são as que a tela sempre recebeu.
+    const rows = vinculos.map(({ organization, role, isDefault, joinedAt }) => ({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      timezone: organization.timezone,
+      roleSlug: role.slug,
+      roleName: role.name,
+      isDefault,
+      joinedAt,
+    }));
 
     return Response.json({ organizations: rows, current: auth.organization.id });
   } catch (error) {

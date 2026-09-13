@@ -13,12 +13,13 @@
 // O que separa as duas é a senha atual. Sem ela, isto viraria "quem pegou uma
 // sessão aberta troca a senha e toma a conta", que é exatamente o motivo de a
 // redefinição sem confirmação estar restrita a um responsável.
-import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
+import { Session, User } from "@/lib/models";
 import { addActivity } from "@/lib/activities";
 import {
   createSession,
   jsonWithCookie,
+  registrarSenhaErrada,
   requestMeta,
   requireSession,
   sessionCookie,
@@ -51,15 +52,11 @@ export async function POST(request: Request) {
     const strengthError = validatePasswordStrength(newPassword);
     if (strengthError) throw badRequest(strengthError, "weak_password");
 
-    const rows = await db.query<{
-      passwordHash: string | null;
-      lockedUntil: Date | null;
-    }>(
-      `SELECT password_hash AS "passwordHash", locked_until AS "lockedUntil"
-       FROM users WHERE id = $1`,
-      { bind: [auth.user.id], type: QueryTypes.SELECT },
-    );
-    const user = rows[0];
+    const user = await User.findOne({
+      attributes: ["passwordHash", "lockedUntil"],
+      where: { id: auth.user.id },
+      raw: true,
+    });
     if (!user) throw unauthorized();
 
     if (user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now()) {
@@ -71,16 +68,8 @@ export async function POST(request: Request) {
     }
 
     if (!(await verifyPassword(currentPassword, user.passwordHash))) {
-      await db.query(
-        `UPDATE users
-         SET failed_login_attempts = failed_login_attempts + 1,
-             locked_until = CASE
-               WHEN failed_login_attempts + 1 >= $2 THEN now() + make_interval(mins => $3::int)
-               ELSE locked_until
-             END
-         WHERE id = $1`,
-        { bind: [auth.user.id, MAX_FAILED_ATTEMPTS, LOCK_MINUTES] },
-      );
+      // Mesmo contador e mesma trava do login; ver registrarSenhaErrada.
+      await registrarSenhaErrada(auth.user.id, { tentativas: MAX_FAILED_ATTEMPTS, minutos: LOCK_MINUTES });
       // Mesmo código do login, de propósito: quem errou não descobre por aqui
       // nada que não descobriria tentando entrar.
       throw unauthorized("Senha atual incorreta.", "invalid_credentials");
@@ -93,20 +82,18 @@ export async function POST(request: Request) {
     const meta = requestMeta(request);
 
     const session = await db.transaction(async (transaction) => {
-      await db.query(
-        `UPDATE users
-         SET password_hash = $2, failed_login_attempts = 0, locked_until = NULL
-         WHERE id = $1`,
-        { bind: [auth.user.id, passwordHash], transaction },
+      await User.update(
+        { passwordHash, failedLoginAttempts: 0, lockedUntil: null },
+        { where: { id: auth.user.id }, transaction },
       );
 
       // Revoga tudo e emite uma sessão nova, em vez de poupar a atual. É uma
       // regra só -- "senha nova invalida o que existia com a antiga" -- em vez
       // de uma regra com exceção, e ainda rotaciona o token de quem trocou.
       // O cookie da resposta repõe a sessão, então ninguém é deslogado.
-      await db.query(
-        `UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`,
-        { bind: [auth.user.id], transaction },
+      await Session.update(
+        { revokedAt: new Date() },
+        { where: { userId: auth.user.id, revokedAt: null }, transaction },
       );
 
       await addActivity(transaction, auth, "system", "alterou a própria senha");

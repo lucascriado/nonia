@@ -1,6 +1,7 @@
-import { query } from "@/lib/db";
+import { Op, col, fn, where, type WhereOptions } from "sequelize";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { paginacao } from "@/lib/listings";
+import { Person, WhatsappConversation, WhatsappMessage } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import * as conn from "@/lib/whatsapp/connection";
 import * as inbox from "@/lib/whatsapp/inbox";
@@ -46,52 +47,54 @@ export async function GET(request: Request) {
     }
 
     const busca = searchParams.get("search")?.trim();
-    const where = ["c.organization_id = $1"];
-    const valores: unknown[] = [org];
+    // Tenant sempre na frente; os filtros da tela entram DEPOIS dele.
+    const condicoes: WhereOptions[] = [{ organizationId: org }];
     if (busca) {
-      valores.push(`%${busca}%`);
-      where.push(`concat_ws(' ', c.wa_name, c.phone, p.full_name) ILIKE $${valores.length}`);
+      // O nome do cadastro entra na busca: é por ele que a igreja procura.
+      condicoes.push(where(
+        fn("concat_ws", " ", col("WhatsappConversation.wa_name"), col("WhatsappConversation.phone"), col("person.full_name")),
+        { [Op.iLike]: `%${busca}%` },
+      ));
     }
-    if (searchParams.get("unread") === "true") where.push("c.unread_count > 0");
-    const filtro = where.join(" AND ");
+    if (searchParams.get("unread") === "true") condicoes.push({ unreadCount: { [Op.gt]: 0 } });
+    const filtro: WhereOptions = { [Op.and]: condicoes };
+    // LEFT JOIN com a pessoa: a conversa não identificada continua na lista.
+    const pessoa = { model: Person, as: "person", attributes: ["fullName"], where: { organizationId: org }, required: false };
 
-    const contagem = await query<{ total: number }>(
-      `SELECT count(*)::int AS total FROM whatsapp_conversations c
-         LEFT JOIN people p ON p.id = c.person_id
-        WHERE ${filtro}`,
-      valores,
-    );
-    const { rows } = await query(
-      `SELECT c.id, c.chat_id AS "chatId", c.kind, c.phone,
-              -- Se a pessoa está cadastrada, o nome DELA ganha do nome do
-              -- WhatsApp: a igreja conhece a pessoa pelo cadastro.
-              COALESCE(p.full_name, c.wa_name) AS name,
-              c.person_id AS "personId",
-              p.full_name IS NULL AS "naoIdentificado",
-              c.last_message_at AS "lastMessageAt",
-              c.last_message_preview AS "previewCru",
-              -- A ÚLTIMA MENSAGEM DE VERDADE, para a prévia da lista sair da
-              -- mesma função que a de dentro da conversa. Ver abaixo.
-              u.type AS "ultimoTipo", u.body AS "ultimoCorpo",
-              c.unread_count AS "unreadCount",
-              c.sync_cursor IS NOT NULL AS "synced"
-         FROM whatsapp_conversations c
-         LEFT JOIN people p ON p.id = c.person_id
-         LEFT JOIN LATERAL (
-           SELECT m.type, m.body FROM whatsapp_messages m
-            WHERE m.conversation_id = c.id AND m.organization_id = c.organization_id
-              -- O mesmo corte da conversa: a prévia da lista tem que ser a
-              -- última mensagem DE GENTE, senão a conversa aparece como
-              -- "[aviso do WhatsApp]" enquanto a última fala foi um texto.
-              AND m.type <> 'system'
-            ORDER BY m.sent_at DESC, m.id DESC
-            LIMIT 1
-         ) u ON true
-        WHERE ${filtro}
-        ORDER BY c.last_message_at DESC NULLS LAST
-        LIMIT $${valores.length + 1} OFFSET $${valores.length + 2}`,
-      [...valores, pageSize, offset],
-    );
+    const total = await WhatsappConversation.count({
+      include: [{ ...pessoa, attributes: [] }],
+      where: filtro,
+    });
+    const conversas = await WhatsappConversation.findAll({
+      attributes: ["id", "chatId", "kind", "phone", "waName", "personId", "lastMessageAt", "lastMessagePreview", "unreadCount", "syncCursor"],
+      include: [pessoa],
+      where: filtro,
+      order: [["lastMessageAt", "DESC NULLS LAST"]],
+      limit: pageSize,
+      offset,
+      raw: true,
+      nest: true,
+    }) as unknown as (WhatsappConversation & { person: { fullName: string | null } })[];
+
+    // A ÚLTIMA MENSAGEM DE VERDADE de cada conversa da página, para a prévia da
+    // lista sair da mesma função que a de dentro da conversa. Ver abaixo.
+    //
+    // Uma consulta por conversa, e só as da página: "a última de cada uma" não
+    // cabe numa consulta de Model sem SQL escrito à mão, e a página tem no
+    // máximo 100 linhas.
+    const ultimas = await Promise.all(conversas.map((c) => WhatsappMessage.findOne({
+      attributes: ["type", "body"],
+      where: {
+        conversationId: c.id,
+        organizationId: org,
+        // O mesmo corte da conversa: a prévia da lista tem que ser a última
+        // mensagem DE GENTE, senão a conversa aparece como "[aviso do WhatsApp]"
+        // enquanto a última fala foi um texto.
+        type: { [Op.ne]: "system" },
+      },
+      order: [["sentAt", "DESC"], ["id", "DESC"]],
+      raw: true,
+    })));
 
     return Response.json({
       /**
@@ -112,17 +115,26 @@ export async function GET(request: Request) {
        * honesto: quer dizer "ainda não sabemos", não "a mensagem é vazia". Quem
        * lê tem o `synced` ao lado para distinguir os dois.
        */
-      records: rows.map((c) => {
-        const linha = c as Record<string, unknown> & {
-          ultimoTipo: string | null; ultimoCorpo: string | null; previewCru: string | null;
-        };
-        const { ultimoTipo, ultimoCorpo, previewCru, ...resto } = linha;
+      records: conversas.map((c, i) => {
+        const ultima = ultimas[i];
+        const nomeDoCadastro = c.person?.fullName ?? null;
         return {
-          ...resto,
-          preview: ultimoTipo ? inbox.previa(ultimoTipo, ultimoCorpo) : previewCru || null,
+          id: c.id,
+          chatId: c.chatId,
+          kind: c.kind,
+          phone: c.phone,
+          // Se a pessoa está cadastrada, o nome DELA ganha do nome do WhatsApp:
+          // a igreja conhece a pessoa pelo cadastro.
+          name: nomeDoCadastro ?? c.waName,
+          personId: c.personId,
+          naoIdentificado: nomeDoCadastro === null,
+          lastMessageAt: c.lastMessageAt,
+          unreadCount: c.unreadCount,
+          synced: c.syncCursor !== null,
+          preview: ultima?.type ? inbox.previa(ultima.type, ultima.body) : c.lastMessagePreview || null,
         };
       }),
-      total: contagem.rows[0].total,
+      total,
       page,
       pageSize,
       // O bloco que impede o vazio mentiroso: a tela só mostra "não há conversa"

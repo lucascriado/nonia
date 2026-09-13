@@ -1,6 +1,6 @@
-import { query } from "@/lib/db";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { HttpError, badRequest, notFound, requireUuid } from "@/lib/http";
+import { WhatsappConversation } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import * as conn from "@/lib/whatsapp/connection";
 import * as inbox from "@/lib/whatsapp/inbox";
@@ -63,13 +63,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     requireUuid(id, "Conversa não encontrada.");
     const org = organizationId(auth);
 
-    const { rows } = await query<{ chat_id: string; wa_name: string | null; phone: string | null }>(
-      `SELECT chat_id, wa_name, phone FROM whatsapp_conversations
-        WHERE id = $1 AND organization_id = $2`,
-      [id, org],
-    );
-    if (!rows[0]) throw notFound("Conversa não encontrada.");
-    const conversa = rows[0];
+    const conversa = await WhatsappConversation.findOne({
+      attributes: ["chatId", "waName", "phone"],
+      where: { id, organizationId: org },
+      raw: true,
+    });
+    if (!conversa) throw notFound("Conversa não encontrada.");
 
     // A RECUSA VEM ANTES DE LER O CORPO, e não é economia: o Next trunca o
     // corpo no limite dele e o `formData()` estoura depois, então sem esta
@@ -114,7 +113,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const conexao = await conn.exigirConexao(org);
     const enviada = await openwa.enviarMidia(conexao.sessionId, conexao.apiKey, tipo, {
-      chatId: conversa.chat_id,
+      chatId: conversa.chatId,
       base64: Buffer.from(await arquivo.arrayBuffer()).toString("base64"),
       mimetype,
       filename: arquivo.name || undefined,
@@ -126,7 +125,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     await inbox.registrarEnviada(
       auth,
-      { id, organizationId: org, nome: conversa.wa_name ?? conversa.phone },
+      { id, organizationId: org, nome: conversa.waName ?? conversa.phone },
       {
         waMessageId: waId,
         // O tipo gravado é o que a TELA vai renderizar. `voice` e `audio` são

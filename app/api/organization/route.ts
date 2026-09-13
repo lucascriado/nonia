@@ -9,12 +9,12 @@
 // banco desde a 004 sem nenhuma rota consultando -- permissão declarada e
 // nunca usada é pior do que não existir, porque aparece no seletor de papéis
 // prometendo um poder que não existe.
-import { QueryTypes } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { badRequest, readJson } from "@/lib/http";
 import { validarDocumento } from "@/lib/documents";
+import { Organization } from "@/lib/models";
 import { EMAIL_PATTERN } from "@/lib/organizations";
 import { apiError } from "@/lib/records";
 
@@ -33,13 +33,13 @@ export async function GET() {
   try {
     const auth = await requirePermission("organization.read", "organization.write");
 
-    const rows = await db.query(
-      `SELECT id, name, slug, document, email, phone, status, created_at AS "createdAt"
-       FROM organizations WHERE id = $1`,
-      { bind: [organizationId(auth)], type: QueryTypes.SELECT },
-    );
+    const organization = await Organization.findOne({
+      attributes: ["id", "name", "slug", "document", "email", "phone", "status", ["created_at", "createdAt"]],
+      where: { id: organizationId(auth) },
+      raw: true,
+    });
 
-    return Response.json(rows[0]);
+    return Response.json(organization);
   } catch (error) {
     return apiError(error);
   }
@@ -78,33 +78,24 @@ export async function PATCH(request: Request) {
     }
 
     await db.transaction(async (transaction) => {
-      await db.query(
-        `UPDATE organizations
-         SET name = COALESCE($2, name),
-             document = CASE WHEN $3::boolean THEN $4 ELSE document END,
-             email = CASE WHEN $5::boolean THEN $6 ELSE email END,
-             phone = CASE WHEN $7::boolean THEN $8 ELSE phone END
-         WHERE id = $1`,
-        {
-          bind: [
-            organizationId(auth),
-            name ?? null,
-            payload.document !== undefined, documento,
-            payload.email !== undefined, email,
-            payload.phone !== undefined, payload.phone?.trim() || null,
-          ],
-          transaction,
-        },
-      );
+      // Só entra no UPDATE o campo que veio no payload; ausente mantém o valor.
+      const valores: { name?: string; document?: string | null; email?: string | null; phone?: string | null } = {};
+      if (name != null) valores.name = name;
+      if (payload.document !== undefined) valores.document = documento;
+      if (payload.email !== undefined) valores.email = email;
+      if (payload.phone !== undefined) valores.phone = payload.phone?.trim() || null;
+
+      await Organization.update(valores, { where: { id: organizationId(auth) }, transaction });
       await addActivity(transaction, auth, "system", "atualizou os dados da igreja", name ?? auth.organization.name);
     });
 
-    const rows = await db.query(
-      `SELECT id, name, slug, document, email, phone, status FROM organizations WHERE id = $1`,
-      { bind: [organizationId(auth)], type: QueryTypes.SELECT },
-    );
+    const atualizada = await Organization.findOne({
+      attributes: ["id", "name", "slug", "document", "email", "phone", "status"],
+      where: { id: organizationId(auth) },
+      raw: true,
+    });
 
-    return Response.json(rows[0]);
+    return Response.json(atualizada);
   } catch (error) {
     return apiError(error);
   }

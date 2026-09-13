@@ -1,5 +1,5 @@
 import type { Transaction } from "sequelize";
-import { db } from "@/lib/db";
+import { Activity } from "@/lib/models";
 
 export type ActivityCategory = "members" | "visitors" | "calendar" | "system" | "financial" | "whatsapp";
 
@@ -9,6 +9,10 @@ export type ActivityActor = {
   organization: { id: string };
 };
 
+/**
+ * Grava a atividade DENTRO da transação de quem chama: se a escrita que ela
+ * descreve for desfeita, o registro vai junto, e vice-versa.
+ */
 export async function addActivity(
   transaction: Transaction,
   actor: ActivityActor,
@@ -17,20 +21,19 @@ export async function addActivity(
   subject?: string | null,
   details?: string | null,
 ) {
-  await db.query(
-    `INSERT INTO activities (organization_id, actor_user_id, category, actor, action, subject, details)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+  await Activity.create(
     {
-      bind: [
-        actor.organization.id,
-        actor.user.id,
-        category,
-        actor.user.fullName,
-        action,
-        subject ?? null,
-        details ?? null,
-      ],
-      transaction,
+      organizationId: actor.organization.id,
+      actorUserId: actor.user.id,
+      category,
+      actor: actor.user.fullName,
+      action,
+      subject: subject ?? null,
+      details: details ?? null,
+      // Era o DEFAULT now() da coluna. O Model não tem default para ela, e o
+      // validador de NOT NULL do Sequelize recusaria a criação sem o campo.
+      occurredAt: new Date(),
     },
+    { transaction },
   );
 }

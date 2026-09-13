@@ -1,12 +1,12 @@
 // Aceite de convite: cria (ou vincula) o usuário e já abre a sessão.
-import { QueryTypes } from "sequelize";
+import { Op, col, fn, where } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { createSession, jsonWithCookie, requestMeta, resolveSession, sessionCookie } from "@/lib/auth";
 import { sessionPayload } from "@/lib/auth-payloads";
 import { badRequest, notFound, readJson, unauthorized } from "@/lib/http";
 import { hashInvitationToken } from "@/lib/invitations";
-import { Invitation, OrganizationMember, User } from "@/lib/models";
+import { Invitation, Organization, OrganizationMember, User } from "@/lib/models";
 import { hashPassword, validatePasswordStrength, verifyPassword } from "@/lib/passwords";
 import { apiError } from "@/lib/records";
 
@@ -21,33 +21,39 @@ export async function POST(request: Request) {
     if (!token) throw badRequest("Convite não informado.", "invalid_invitation");
     if (!payload.password) throw badRequest("Informe a senha.");
 
-    const invitations = await db.query<{
+    // Convite válido: pendente, dentro do prazo (pelo relógio do BANCO, como
+    // sempre foi) e de uma igreja ativa -- INNER JOIN, `required: true`.
+    const encontrado = await Invitation.findOne({
+      attributes: ["id", "organizationId", "email", "fullName", "roleId", "invitedBy"],
+      where: {
+        tokenHash: hashInvitationToken(token),
+        status: "pending",
+        expiresAt: { [Op.gt]: fn("now") },
+      },
+      include: [{ model: Organization, as: "organization", attributes: ["name"], where: { status: "active" }, required: true }],
+      raw: true,
+      nest: true,
+    }) as unknown as {
       id: string;
       organizationId: string;
       email: string;
       fullName: string | null;
       roleId: string;
       invitedBy: string | null;
-      organizationName: string;
-    }>(
-      `SELECT i.id, i.organization_id AS "organizationId", i.email, i.full_name AS "fullName",
-              i.role_id AS "roleId", i.invited_by AS "invitedBy", o.name AS "organizationName"
-       FROM invitations i
-       JOIN organizations o ON o.id = i.organization_id
-       WHERE i.token_hash = $1 AND i.status = 'pending' AND i.expires_at > now()
-         AND o.status = 'active'`,
-      { bind: [hashInvitationToken(token)], type: QueryTypes.SELECT },
-    );
+      organization: { name: string };
+    } | null;
 
-    const invitation = invitations[0];
-    if (!invitation) throw notFound("Convite não encontrado ou expirado.", "invalid_invitation");
+    if (!encontrado) throw notFound("Convite não encontrado ou expirado.", "invalid_invitation");
+    const { organization, ...dadosDoConvite } = encontrado;
+    const invitation = { ...dadosDoConvite, organizationName: organization.name };
 
-    const existingUsers = await db.query<{ id: string; passwordHash: string | null; fullName: string }>(
-      `SELECT id, password_hash AS "passwordHash", full_name AS "fullName"
-       FROM users WHERE lower(email) = lower($1)`,
-      { bind: [invitation.email], type: QueryTypes.SELECT },
-    );
-    const existingUser = existingUsers[0];
+    // lower() dos DOIS lados, no banco: é a expressão do índice único, e a
+    // conta de caixa do Postgres não é necessariamente a do JavaScript.
+    const existingUser = await User.findOne({
+      attributes: ["id", "passwordHash", "fullName"],
+      where: where(fn("lower", col("email")), fn("lower", invitation.email)),
+      raw: true,
+    });
 
     // Quem já tem conta confirma com a senha atual; quem não tem, define uma.
     if (existingUser) {

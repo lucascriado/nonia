@@ -1,7 +1,7 @@
-import { db, query } from "@/lib/db";
+import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { Member, Person, Visitor } from "@/lib/models";
+import { Member, Person, Visitor, VisitorDirectory } from "@/lib/models";
 import { readJson, requireUuid } from "@/lib/http";
 import { apiError, personAttributes, RecordPayload, validateRecordPayload } from "@/lib/records";
 import { assertAffected } from "@/lib/tenant";
@@ -17,17 +17,22 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     requireUuid(id, "Visitante não encontrado.");
 
     // Com a foto, que a listagem não traz mais. Ver o GET de membros.
-    const { rows } = await query(`
-      SELECT id, full_name AS name, email, phone, birth_date AS "birthDate",
-        gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
-        address, neighborhood, city, state, avatar_url AS "photoDataUrl", notes,
-        visit_date AS date, invited_by AS "invitedBy",
-        membership_stage AS "membershipStage"
-      FROM visitor_directory WHERE id = $1 AND organization_id = $2
-    `, [id, organizationId(auth)]);
+    //
+    // No apelido `[coluna, nome]` a coluna é a do BANCO (`full_name`), não o
+    // atributo do Model -- ver lib/members/queries.ts.
+    const visitante = await VisitorDirectory.findOne({
+      attributes: [
+        "id", ["full_name", "name"], "email", "phone", "birthDate",
+        "gender", ["marital_status", "civilStatus"], "cpf", "zipCode",
+        "address", "neighborhood", "city", "state", ["avatar_url", "photoDataUrl"], "notes",
+        ["visit_date", "date"], "invitedBy", "membershipStage",
+      ],
+      where: { id, organizationId: organizationId(auth) },
+      raw: true,
+    });
 
-    if (!rows.length) throw notFound("Visitante não encontrado.");
-    return Response.json(rows[0]);
+    if (!visitante) throw notFound("Visitante não encontrado.");
+    return Response.json(visitante);
   } catch (error) {
     return apiError(error);
   }

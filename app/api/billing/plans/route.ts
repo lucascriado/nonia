@@ -2,9 +2,8 @@
 // código, para o preço e o teto mostrados na tela serem os mesmos que o
 // backend aplica -- essa divergência já apareceu uma vez, entre a landing e o
 // plano atribuído no cadastro.
-import { QueryTypes } from "sequelize";
-import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
+import { Plan } from "@/lib/models";
 import { planSnapshot } from "@/lib/plan-limits";
 import { bypassEnabled } from "@/lib/billing-bypass";
 import { apiError } from "@/lib/records";
@@ -16,15 +15,16 @@ export async function GET() {
   try {
     const auth = await requirePermission("billing.read", "billing.write");
 
-    const plans = await db.query(
-      `SELECT slug, name, description, price_cents AS "priceCents", currency,
-              billing_period AS "billingPeriod", max_members AS "maxMembers",
-              max_users AS "maxUsers", features
-       FROM plans
-       WHERE is_active AND trial_days = 0
-       ORDER BY sort_order`,
-      { type: QueryTypes.SELECT },
-    );
+    // `trialDays: 0` tira a avaliação: ela não se contrata.
+    const plans = await Plan.findAll({
+      attributes: [
+        "slug", "name", "description", "priceCents", "currency",
+        "billingPeriod", "maxMembers", "maxUsers", "features",
+      ],
+      where: { isActive: true, trialDays: 0 },
+      order: [["sortOrder", "ASC"]],
+      raw: true,
+    });
 
     return Response.json({
       plans,

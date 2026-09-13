@@ -1,7 +1,12 @@
-import { QueryTypes, type Transaction } from "sequelize";
-import { db } from "@/lib/db";
+import type { Transaction } from "sequelize";
 import { organizationId, type AuthContext } from "@/lib/auth";
+import { Cell, CellMember, Member } from "@/lib/models";
 import { filterOwnedMemberIds } from "@/lib/tenant";
+
+// Toda consulta daqui recebe a `transaction` de quem chama: estas funções rodam
+// DENTRO da transação de outras rotas (o service de membros, as rotas de
+// célula). Uma consulta sem ela enxergaria outro snapshot e poderia travar
+// contra a própria transação que a chamou.
 
 /**
  * Mantém `cell_members` coerente com o nome de célula gravado no membro.
@@ -13,26 +18,25 @@ export async function syncCellMembership(
   cellName: string | undefined,
   transaction: Transaction,
 ) {
-  await db.query(`DELETE FROM cell_members WHERE member_id = $1 AND organization_id = $2`, {
-    bind: [memberId, organizationId(auth)],
-    transaction,
-  });
+  await CellMember.destroy({ where: { memberId, organizationId: organizationId(auth) }, transaction });
   if (!cellName || cellName === "Sem célula") return;
 
-  const rows = await db.query<{ id: string }>(
-    `SELECT id FROM cells WHERE name = $1 AND organization_id = $2`,
-    { bind: [cellName, organizationId(auth)], transaction, type: QueryTypes.SELECT },
-  );
-  const cell = rows[0];
+  const cell = await Cell.findOne({
+    attributes: ["id"],
+    where: { name: cellName, organizationId: organizationId(auth) },
+    transaction,
+    raw: true,
+  });
   if (!cell) return;
 
   const [owned] = await filterOwnedMemberIds([memberId], organizationId(auth), transaction);
   if (!owned) return;
 
-  await db.query(
-    `INSERT INTO cell_members (cell_id, member_id, organization_id) VALUES ($1, $2, $3)
-     ON CONFLICT DO NOTHING`,
-    { bind: [cell.id, memberId, organizationId(auth)], transaction },
+  // `ignoreDuplicates` é o ON CONFLICT DO NOTHING. `joined_at` fica de fora e
+  // cai no DEFAULT do banco -- ver o comentário do Model `CellMember`.
+  await CellMember.bulkCreate(
+    [{ cellId: cell.id, memberId, organizationId: organizationId(auth) }],
+    { ignoreDuplicates: true, returning: false, transaction },
   );
 }
 
@@ -47,18 +51,14 @@ export async function assignMembersToCell(
   const owned = await filterOwnedMemberIds(memberIds, organizationId(auth), transaction);
 
   for (const memberId of owned) {
-    await db.query(`DELETE FROM cell_members WHERE member_id = $1 AND organization_id = $2`, {
-      bind: [memberId, organizationId(auth)],
-      transaction,
-    });
-    await db.query(
-      `INSERT INTO cell_members (cell_id, member_id, organization_id) VALUES ($1, $2, $3)
-       ON CONFLICT DO NOTHING`,
-      { bind: [cellId, memberId, organizationId(auth)], transaction },
+    await CellMember.destroy({ where: { memberId, organizationId: organizationId(auth) }, transaction });
+    await CellMember.bulkCreate(
+      [{ cellId, memberId, organizationId: organizationId(auth) }],
+      { ignoreDuplicates: true, returning: false, transaction },
     );
-    await db.query(`UPDATE members SET cell_name = $1 WHERE person_id = $2 AND organization_id = $3`, {
-      bind: [cellName, memberId, organizationId(auth)],
-      transaction,
-    });
+    await Member.update(
+      { cellName },
+      { where: { personId: memberId, organizationId: organizationId(auth) }, transaction },
+    );
   }
 }

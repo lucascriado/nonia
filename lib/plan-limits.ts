@@ -23,8 +23,8 @@
 //     perde nada e ninguém fica sem acesso -- a organização só não cresce mais.
 //   * O papel não interfere. Teto é comercial, não é permissão.
 
-import { QueryTypes, type Transaction } from "sequelize";
-import { db } from "@/lib/db";
+import { Op, type Transaction, type WhereOptions } from "sequelize";
+import { Invitation, Member, OrganizationMember, Plan } from "@/lib/models";
 import { organizationId, type AuthContext } from "@/lib/auth";
 import { HttpError } from "@/lib/http";
 import { loadSubscription, resolveAccess, type Access } from "@/lib/subscription-state";
@@ -49,8 +49,8 @@ export type EffectivePlan = PlanRow & {
 };
 
 const RESOURCE = {
-  members: { coluna: "max_members", rotulo: "membros", verbo: "cadastrar mais membros" },
-  users: { coluna: "max_users", rotulo: "usuários com acesso", verbo: "dar acesso a mais gente" },
+  members: { atributo: "maxMembers", rotulo: "membros", verbo: "cadastrar mais membros" },
+  users: { atributo: "maxUsers", rotulo: "usuários com acesso", verbo: "dar acesso a mais gente" },
 } as const;
 
 /**
@@ -102,22 +102,19 @@ export async function resolveEffectivePlan(
   }
 
   // 3. Gratuito, sem prazo para expirar.
-  const gratuitos = await db.query<PlanRow>(
-    `SELECT slug, name, max_members AS "maxMembers", max_users AS "maxUsers"
-     FROM plans WHERE slug = $1 AND is_active`,
-    { bind: [FREE_PLAN_SLUG], transaction, type: QueryTypes.SELECT },
-  );
-  if (!gratuitos[0]) return null;
-  return base(gratuitos[0], "free", false);
+  const gratuito = await Plan.findOne({
+    attributes: ["slug", "name", "maxMembers", "maxUsers"],
+    where: { slug: FREE_PLAN_SLUG, isActive: true },
+    transaction,
+    raw: true,
+  }) as PlanRow | null;
+  if (!gratuito) return null;
+  return base(gratuito, "free", false);
 }
 
 export async function usoAtual(resource: LimitedResource, organization: string, transaction?: Transaction) {
   if (resource === "members") {
-    const rows = await db.query<{ total: number }>(
-      `SELECT count(*)::int AS total FROM members WHERE organization_id = $1`,
-      { bind: [organization], transaction, type: QueryTypes.SELECT },
-    );
-    return rows[0].total;
+    return Member.count({ where: { organizationId: organization }, transaction });
   }
 
   // Um assento é ocupado por quem tem acesso e por quem foi convidado e ainda
@@ -125,17 +122,18 @@ export async function usoAtual(resource: LimitedResource, organization: string, 
   // enfileirando convites e deixando todos aceitarem depois.
   // Suspenso não ocupa assento: ele não entra no sistema. Reativar volta a
   // ocupar, e por isso a reativação também é verificada.
-  const rows = await db.query<{ total: number }>(
-    `SELECT (
-       (SELECT count(*) FROM organization_members
-         WHERE organization_id = $1 AND status <> 'suspended')
-       +
-       (SELECT count(*) FROM invitations
-         WHERE organization_id = $1 AND status = 'pending' AND expires_at > now())
-     )::int AS total`,
-    { bind: [organization], transaction, type: QueryTypes.SELECT },
-  );
-  return rows[0].total;
+  //
+  // Em sequência, e não em Promise.all: com transação, as duas consultas
+  // correm na mesma conexão de qualquer jeito.
+  const comAcesso = await OrganizationMember.count({
+    where: { organizationId: organization, status: { [Op.ne]: "suspended" } },
+    transaction,
+  });
+  const convitesPendentes = await Invitation.count({
+    where: { organizationId: organization, status: "pending", expiresAt: { [Op.gt]: new Date() } },
+    transaction,
+  });
+  return comAcesso + convitesPendentes;
 }
 
 /**
@@ -152,16 +150,24 @@ async function planoQueResolve(
   teto: number,
   transaction?: Transaction,
 ) {
-  const coluna = RESOURCE[resource].coluna;
-  const rows = await db.query<{ name: string }>(
-    `SELECT name FROM plans
-     WHERE is_active AND trial_days = 0 AND slug <> $1
-       AND (${coluna} IS NULL OR ${coluna} > $2)
-     ORDER BY sort_order
-     LIMIT 1`,
-    { bind: [atual.slug, teto], transaction, type: QueryTypes.SELECT },
-  );
-  return rows[0]?.name ?? null;
+  const atributo = RESOURCE[resource].atributo;
+  // Teto nulo é ilimitado, então resolve qualquer uso.
+  const tetoQueResolve: WhereOptions = {
+    [Op.or]: [{ [atributo]: null }, { [atributo]: { [Op.gt]: teto } }],
+  };
+  const plano = await Plan.findOne({
+    attributes: ["name"],
+    where: {
+      [Op.and]: [
+        { isActive: true, trialDays: 0, slug: { [Op.ne]: atual.slug } },
+        tetoQueResolve,
+      ],
+    },
+    order: [["sortOrder", "ASC"]],
+    transaction,
+    raw: true,
+  });
+  return plano?.name ?? null;
 }
 
 /**

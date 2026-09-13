@@ -1,8 +1,11 @@
-import { query } from "@/lib/db";
+import { Op, col, fn, where, type WhereOptions } from "sequelize";
 import { organizationId, requirePermission } from "@/lib/auth";
+import { Activity } from "@/lib/models";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
+
+const DIA = 86_400_000;
 
 export async function GET(request: Request) {
   try {
@@ -14,24 +17,33 @@ export async function GET(request: Request) {
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
     const limit = Math.min(10, Math.max(1, Number(searchParams.get("limit")) || 10));
 
-    const values: unknown[] = [organizationId(auth)];
-    const filters: string[] = ["organization_id = $1"];
+    // O tenant é a primeira condição, e as outras se acrescentam a ele.
+    const condicoes: WhereOptions[] = [{ organizationId: organizationId(auth) }];
 
-    if (category && category !== "all") { values.push(category); filters.push(`category = $${values.length}`); }
+    if (category && category !== "all") condicoes.push({ category });
     if (date && date !== "all") {
-      const interval = date === "today" ? "1 day" : date === "week" ? "7 days" : "30 days";
-      filters.push(`occurred_at >= now() - interval '${interval}'`);
+      // Janela corrida a partir de agora: 1, 7 ou 30 dias de 24 horas.
+      const dias = date === "today" ? 1 : date === "week" ? 7 : 30;
+      condicoes.push({ occurredAt: { [Op.gte]: new Date(Date.now() - dias * DIA) } });
     }
-    if (search) { values.push(`%${search}%`); filters.push(`concat_ws(' ', actor, action, subject, details) ILIKE $${values.length}`); }
+    if (search) {
+      condicoes.push(where(
+        fn("concat_ws", " ", col("actor"), col("action"), col("subject"), col("details")),
+        { [Op.iLike]: `%${search}%` },
+      ));
+    }
 
-    const where = `WHERE ${filters.join(" AND ")}`;
-    const count = await query<{ count: number }>(`SELECT count(*)::int AS count FROM activities ${where}`, values);
-    values.push(limit, (page - 1) * limit);
-    const records = await query(`
-      SELECT id, category, actor, action, subject, details, occurred_at AS "occurredAt"
-      FROM activities ${where} ORDER BY occurred_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}
-    `, values);
-    return Response.json({ records: records.rows, total: count.rows[0].count, page, pageSize: limit });
+    const filtro = { [Op.and]: condicoes };
+    const total = await Activity.count({ where: filtro });
+    const records = await Activity.findAll({
+      attributes: ["id", "category", "actor", "action", "subject", "details", "occurredAt"],
+      where: filtro,
+      order: [["occurredAt", "DESC"]],
+      limit,
+      offset: (page - 1) * limit,
+      raw: true,
+    });
+    return Response.json({ records, total, page, pageSize: limit });
   } catch (error) {
     return apiError(error);
   }

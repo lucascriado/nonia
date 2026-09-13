@@ -1,5 +1,5 @@
 // Cadastro: cria a organização (tenant) e o usuário proprietário dela.
-import { QueryTypes } from "sequelize";
+import { col, fn, where } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { createSession, jsonWithCookie, requestMeta, resolveSession, sessionCookie } from "@/lib/auth";
@@ -49,11 +49,12 @@ export async function POST(request: Request) {
       documento = validado.formatado;
     }
 
-    const existing = await db.query<{ id: string }>(`SELECT id FROM users WHERE lower(email) = $1`, {
-      bind: [email],
-      type: QueryTypes.SELECT,
+    const existing = await User.findOne({
+      attributes: ["id"],
+      where: where(fn("lower", col("email")), email),
+      raw: true,
     });
-    if (existing.length) {
+    if (existing) {
       throw conflict("Já existe uma conta com este e-mail.", "email_taken");
     }
 

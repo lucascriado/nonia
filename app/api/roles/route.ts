@@ -1,7 +1,7 @@
 // Papéis que podem ser atribuídos dentro da organização (para o seletor de convite).
-import { QueryTypes } from "sequelize";
-import { db } from "@/lib/db";
+import { Op } from "sequelize";
 import { organizationId, requirePermission } from "@/lib/auth";
+import { Role, RolePermission } from "@/lib/models";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -10,16 +10,38 @@ export async function GET() {
   try {
     const auth = await requirePermission("users.read", "users.write");
 
-    const rows = await db.query(
-      `SELECT r.id, r.slug, r.name, r.description, r.level,
-              COALESCE(array_agg(rp.permission_slug) FILTER (WHERE rp.permission_slug IS NOT NULL), ARRAY[]::varchar[]) AS permissions
-       FROM roles r
-       LEFT JOIN role_permissions rp ON rp.role_id = r.id
-       WHERE r.organization_id IS NULL OR r.organization_id = $1
-       GROUP BY r.id
-       ORDER BY r.level DESC`,
-      { bind: [organizationId(auth)], type: QueryTypes.SELECT },
-    );
+    // Papéis do sistema (organization_id nulo) e os próprios desta igreja.
+    const papeis = await Role.findAll({
+      attributes: ["id", "slug", "name", "description", "level"],
+      where: { [Op.or]: [{ organizationId: null }, { organizationId: organizationId(auth) }] },
+      order: [["level", "DESC"]],
+      raw: true,
+    });
+
+    // As permissões de cada papel numa segunda consulta, montadas em JS. Papel
+    // sem nenhuma permissão sai com lista vazia, e não fica de fora.
+    const vinculos = papeis.length
+      ? await RolePermission.findAll({
+        attributes: ["roleId", "permissionSlug"],
+        where: { roleId: papeis.map((papel) => papel.id) },
+        raw: true,
+      })
+      : [];
+    const permissoesPorPapel = new Map<string, string[]>();
+    for (const { roleId, permissionSlug } of vinculos) {
+      const lista = permissoesPorPapel.get(roleId) ?? [];
+      lista.push(permissionSlug);
+      permissoesPorPapel.set(roleId, lista);
+    }
+
+    const rows = papeis.map((papel) => ({
+      id: papel.id,
+      slug: papel.slug,
+      name: papel.name,
+      description: papel.description,
+      level: papel.level,
+      permissions: permissoesPorPapel.get(papel.id) ?? [],
+    }));
 
     return Response.json(rows);
   } catch (error) {

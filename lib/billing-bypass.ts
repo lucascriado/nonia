@@ -29,11 +29,12 @@
 // que não sabe que este bypass existe -- continua igual.
 
 import { randomUUID } from "node:crypto";
-import { QueryTypes, type Transaction } from "sequelize";
+import type { Transaction } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { badRequest, conflict, notFound } from "@/lib/http";
-import { canTransition, loadSubscription, type SubscriptionStatus } from "@/lib/subscription-state";
+import { BillingEvent, Plan, Subscription } from "@/lib/models";
+import { canTransition, loadSubscription, VIGENTES, type SubscriptionStatus } from "@/lib/subscription-state";
 import type { AuthContext } from "@/lib/auth";
 
 // NÃO REMOVA ISTO ACHANDO QUE É REDUNDANTE.
@@ -91,30 +92,30 @@ async function registrarEvento(
   payload: Record<string, unknown>,
   transaction: Transaction,
 ) {
-  await db.query(
-    `INSERT INTO billing_events (provider, provider_event_id, type, organization_id, payload, processed_at)
-     VALUES ($1, $2, $3, $4, $5::jsonb, now())`,
+  // Recebido e processado no mesmo instante: não houve gateway entre um e outro.
+  const agora = new Date();
+  const conteudo: Record<string, unknown> = { ...payload, byUserId: auth.user.id, byUserName: auth.user.fullName };
+  await BillingEvent.create(
     {
-      bind: [
-        BYPASS_PROVIDER,
-        randomUUID(),
-        tipo,
-        auth.organization.id,
-        JSON.stringify({ ...payload, byUserId: auth.user.id, byUserName: auth.user.fullName }),
-      ],
-      transaction,
+      provider: BYPASS_PROVIDER,
+      providerEventId: randomUUID(),
+      type: tipo,
+      organizationId: auth.organization.id,
+      payload: conteudo,
+      receivedAt: agora,
+      processedAt: agora,
     },
+    { transaction },
   );
 }
 
 /** Ativa o plano escolhido, na hora. */
 export async function activatePlan(auth: AuthContext, planSlug: string) {
-  const planos = await db.query<PlanRow>(
-    `SELECT id, slug, name, billing_period AS "billingPeriod", trial_days AS "trialDays"
-     FROM plans WHERE slug = $1 AND is_active`,
-    { bind: [planSlug], type: QueryTypes.SELECT },
-  );
-  const plano = planos[0];
+  const plano = await Plan.findOne({
+    attributes: ["id", "slug", "name", "billingPeriod", "trialDays"],
+    where: { slug: planSlug, isActive: true },
+    raw: true,
+  }) as PlanRow | null;
   if (!plano) throw notFound("Plano não encontrado.", "invalid_plan");
   if (plano.trialDays > 0) {
     throw badRequest("Não é possível contratar o período de avaliação.", "invalid_plan");
@@ -139,27 +140,30 @@ export async function activatePlan(auth: AuthContext, planSlug: string) {
     // Prefixo no id externo além do provider: quem inspecionar a linha vê a
     // origem nos dois campos, mesmo lendo só um deles.
     const externo = `${BYPASS_PROVIDER}:${randomUUID()}`;
+    // Um instante só para os dois campos, como o now() de antes, que era o
+    // mesmo dentro da transação.
+    const agora = new Date();
 
     if (atual) {
       // Só uma assinatura vigente por organização (índice único parcial), então
       // contratar troca a linha existente em vez de criar outra.
-      await db.query(
-        `UPDATE subscriptions
-         SET plan_id = $2, status = 'active', started_at = now(),
-             current_period_start = now(), current_period_end = $3,
-             cancel_at_period_end = false, canceled_at = NULL, ended_at = NULL,
-             provider = $4, provider_subscription_id = $5
-         WHERE organization_id = $1
-           AND status IN ('trialing', 'active', 'past_due', 'incomplete')`,
-        { bind: [auth.organization.id, plano.id, fim, BYPASS_PROVIDER, externo], transaction },
+      await Subscription.update(
+        {
+          planId: plano.id, status: "active", startedAt: agora,
+          currentPeriodStart: agora, currentPeriodEnd: fim,
+          cancelAtPeriodEnd: false, canceledAt: null, endedAt: null,
+          provider: BYPASS_PROVIDER, providerSubscriptionId: externo,
+        },
+        { where: { organizationId: auth.organization.id, status: VIGENTES }, transaction },
       );
     } else {
-      await db.query(
-        `INSERT INTO subscriptions
-           (organization_id, plan_id, status, started_at, current_period_start, current_period_end,
-            provider, provider_subscription_id)
-         VALUES ($1, $2, 'active', now(), now(), $3, $4, $5)`,
-        { bind: [auth.organization.id, plano.id, fim, BYPASS_PROVIDER, externo], transaction },
+      await Subscription.create(
+        {
+          organizationId: auth.organization.id, planId: plano.id, status: "active", startedAt: agora,
+          currentPeriodStart: agora, currentPeriodEnd: fim,
+          provider: BYPASS_PROVIDER, providerSubscriptionId: externo,
+        },
+        { transaction },
       );
     }
 
@@ -211,12 +215,10 @@ export async function cancelPlan(auth: AuthContext) {
       throw conflict(`Uma assinatura em "${atual.status}" não pode ser cancelada.`, "invalid_transition");
     }
 
-    await db.query(
-      `UPDATE subscriptions
-       SET status = 'canceled', canceled_at = now(), ended_at = now(), cancel_at_period_end = false
-       WHERE organization_id = $1
-         AND status IN ('trialing', 'active', 'past_due', 'incomplete')`,
-      { bind: [auth.organization.id], transaction },
+    const agora = new Date();
+    await Subscription.update(
+      { status: "canceled", canceledAt: agora, endedAt: agora, cancelAtPeriodEnd: false },
+      { where: { organizationId: auth.organization.id, status: VIGENTES }, transaction },
     );
 
     await registrarEvento(

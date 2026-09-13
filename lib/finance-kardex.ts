@@ -1,5 +1,6 @@
-import { query } from "@/lib/db";
+import { Op, col, fn } from "sequelize";
 import { hojeNoFuso, FUSO_PADRAO } from "@/lib/datas";
+import { FinancialTransaction } from "@/lib/models";
 
 /**
  * KARDEX -- o extrato do financeiro em ordem, com saldo corrente linha a linha.
@@ -33,8 +34,32 @@ import { hojeNoFuso, FUSO_PADRAO } from "@/lib/datas";
  * período vai à parte, para quem imprime saber que eles existem.
  */
 
+/**
+ * DINHEIRO EM CENTAVOS INTEIROS (BigInt), nunca float.
+ *
+ * `amount` é numeric(12,2) e chega do banco como texto ("150.00"). A conta do
+ * saldo corrente é feita em centavos e volta a texto no formato em que o
+ * Postgres escreve um numeric de duas casas -- "-30.00", "1234.50" --, que é o
+ * que o kardex sempre devolveu.
+ */
+const CEM = BigInt(100);
+const ZERO = BigInt(0);
+
+function centavos(valor: string): bigint {
+  const negativo = valor.trim().startsWith("-");
+  const [inteiro, fracao = ""] = valor.trim().replace("-", "").split(".");
+  const absoluto = BigInt(inteiro || "0") * CEM + BigInt((fracao + "00").slice(0, 2));
+  return negativo ? -absoluto : absoluto;
+}
+
+function paraTexto(valor: bigint): string {
+  const negativo = valor < ZERO;
+  const absoluto = negativo ? -valor : valor;
+  return `${negativo ? "-" : ""}${absoluto / CEM}.${String(absoluto % CEM).padStart(2, "0")}`;
+}
+
 /** Sinal do lançamento no saldo. Entrada soma, saída subtrai. */
-const MOVIMENTO = "CASE WHEN type = 'income' THEN amount ELSE -amount END";
+const movimento = (type: string, amount: string) => (type === "income" ? centavos(amount) : -centavos(amount));
 
 /**
  * Teto de linhas, e ele RECUSA em vez de cortar.
@@ -105,31 +130,41 @@ export async function montarKardex(
   // 1. SALDO ANTERIOR -- tudo o que se moveu antes do primeiro dia do período.
   //    Uma consulta própria, e não a primeira linha da outra: o período pode
   //    não ter lançamento nenhum e o saldo anterior continua existindo.
-  const anterior = await query<{ saldo: string }>(
-    `SELECT COALESCE(sum(${MOVIMENTO}), 0)::text AS saldo
-       FROM financial_transactions
-      WHERE organization_id = $1
-        AND deleted_at IS NULL
-        AND status = 'paid'
-        AND transaction_date < $2`,
-    [organizationId, periodo.de],
-  );
-  const saldoAnterior = anterior.rows[0].saldo;
+  //
+  //    A soma por tipo sai do banco como TEXTO (numeric), e a subtração é em
+  //    centavos inteiros: nenhum float entre o banco e o papel.
+  const porTipo = await FinancialTransaction.findAll({
+    attributes: ["type", [fn("sum", col("amount")), "soma"]],
+    where: {
+      organizationId,
+      deletedAt: null,
+      status: "paid",
+      transactionDate: { [Op.lt]: periodo.de },
+    },
+    group: ["type"],
+    raw: true,
+  }) as unknown as { type: string; soma: string }[];
+  // Sem lançamento nenhum, "0" -- o COALESCE(sum, 0) de antes, que não tinha casas.
+  const saldoAnterior = porTipo.length === 0
+    ? "0"
+    : paraTexto(porTipo.reduce((saldo, { type, soma }) => saldo + movimento(type, soma), ZERO));
 
   // 2. Conta antes de trazer. Recusar depois de montar 40 mil linhas seria
   //    pagar o custo inteiro para no fim dizer que não dá.
-  const contagem = await query<{ pagos: number; pendentes: number; pendentesValor: string }>(
-    `SELECT
-       count(*) FILTER (WHERE status = 'paid')::int AS pagos,
-       count(*) FILTER (WHERE status = 'pending')::int AS pendentes,
-       COALESCE(sum(amount) FILTER (WHERE status = 'pending'), 0)::text AS "pendentesValor"
-     FROM financial_transactions
-      WHERE organization_id = $1
-        AND deleted_at IS NULL
-        AND transaction_date BETWEEN $2 AND $3`,
-    [organizationId, periodo.de, periodo.ate],
-  );
-  const { pagos, pendentes, pendentesValor } = contagem.rows[0];
+  const porStatus = await FinancialTransaction.findAll({
+    attributes: ["status", [fn("count", col("id")), "quantos"], [fn("sum", col("amount")), "soma"]],
+    where: {
+      organizationId,
+      deletedAt: null,
+      transactionDate: { [Op.between]: [periodo.de, periodo.ate] },
+    },
+    group: ["status"],
+    raw: true,
+  }) as unknown as { status: string; quantos: string | number; soma: string }[];
+  const doStatus = (status: string) => porStatus.find((l) => l.status === status);
+  const pagos = Number(doStatus("paid")?.quantos ?? 0);
+  const pendentes = Number(doStatus("pending")?.quantos ?? 0);
+  const pendentesValor = doStatus("pending")?.soma ?? "0";
   if (pagos > KARDEX_MAX_LINHAS) {
     return {
       erro:
@@ -140,35 +175,49 @@ export async function montarKardex(
 
   // 3. As linhas, com o saldo corrente.
   //
-  //    A janela ordena pelo MESMO critério do ORDER BY de fora. Se os dois
-  //    divergissem, o saldo de cada linha seria calculado numa ordem e impresso
-  //    noutra -- as linhas certas, os saldos embaralhados, o total no pé
-  //    correto. Ficam juntos e escritos igual de propósito.
-  const { rows } = await query<LinhaDoKardex>(
-    `SELECT
-       id,
-       transaction_date AS "transactionDate",
-       description, category,
-       counterparty,
-       payment_method AS "paymentMethod",
-       type,
-       CASE WHEN type = 'income'  THEN amount::text END AS entrada,
-       CASE WHEN type = 'expense' THEN amount::text END AS saida,
-       ($4::numeric + sum(${MOVIMENTO}) OVER (
-          ORDER BY transaction_date, created_at, id
-          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-       ))::text AS saldo,
-       retroactive,
-       retroactive_reason AS "retroactiveReason",
-       (created_at AT TIME ZONE $5)::date AS "recordedOn"
-     FROM financial_transactions
-      WHERE organization_id = $1
-        AND deleted_at IS NULL
-        AND status = 'paid'
-        AND transaction_date BETWEEN $2 AND $3
-      ORDER BY transaction_date, created_at, id`,
-    [organizationId, periodo.de, periodo.ate, saldoAnterior, tz],
-  );
+  //    O saldo é acumulado AQUI, percorrendo as linhas NA ORDEM EM QUE O BANCO
+  //    AS DEVOLVEU -- e essa ordem é o ORDER BY abaixo, com o desempate
+  //    completo. Era uma window function no SQL, e a regra era a mesma: a
+  //    janela ordenava pelo mesmo critério do ORDER BY de fora. Se as duas
+  //    ordens divergissem, o saldo de cada linha seria calculado numa ordem e
+  //    impresso noutra -- as linhas certas, os saldos embaralhados, o total no
+  //    pé correto. Com uma ordem só, não há como divergirem. NÃO reordene
+  //    `brutas` depois desta consulta.
+  const brutas = await FinancialTransaction.findAll({
+    attributes: [
+      "id", "transactionDate", "description", "category", "counterparty",
+      "paymentMethod", "type", "amount", "retroactive", "retroactiveReason", "created_at",
+    ],
+    where: {
+      organizationId,
+      deletedAt: null,
+      status: "paid",
+      transactionDate: { [Op.between]: [periodo.de, periodo.ate] },
+    },
+    order: [["transactionDate", "ASC"], ["created_at", "ASC"], ["id", "ASC"]],
+    raw: true,
+  }) as unknown as (FinancialTransaction & { created_at: Date })[];
+
+  let corrente = centavos(saldoAnterior);
+  const rows: LinhaDoKardex[] = brutas.map((l) => {
+    corrente += movimento(l.type, l.amount);
+    return {
+      id: l.id,
+      transactionDate: l.transactionDate,
+      description: l.description,
+      category: l.category,
+      counterparty: l.counterparty,
+      paymentMethod: l.paymentMethod,
+      type: l.type,
+      entrada: l.type === "income" ? l.amount : null,
+      saida: l.type === "expense" ? l.amount : null,
+      saldo: paraTexto(corrente),
+      retroactive: l.retroactive,
+      retroactiveReason: l.retroactiveReason,
+      // O dia em que foi LANÇADO, no calendário da igreja.
+      recordedOn: hojeNoFuso(tz, new Date(l.created_at)),
+    };
+  });
 
   const somar = (filtro: (l: LinhaDoKardex) => string | null) =>
     rows.reduce((total, linha) => total + Number(filtro(linha) ?? 0), 0).toFixed(2);

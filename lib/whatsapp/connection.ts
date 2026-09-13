@@ -1,5 +1,5 @@
-import { query } from "@/lib/db";
 import { HttpError, conflict, notFound } from "@/lib/http";
+import { OrganizationWhatsapp } from "@/lib/models";
 import * as openwa from "./openwa";
 import { NOME_DO_SEGREDO, cifrar, decifrar, whatsappSecretConfigurado } from "./secrets";
 
@@ -22,17 +22,6 @@ export type Conexao = {
   status: string;
   phone: string | null;
   connectedAt: string | null;
-};
-
-type Linha = {
-  organization_id: string;
-  session_id: string;
-  session_name: string;
-  api_key_id: string | null;
-  api_key_encrypted: string;
-  status: string;
-  phone: string | null;
-  connected_at: string | null;
 };
 
 export function whatsappDisponivel(): boolean {
@@ -66,22 +55,23 @@ function exigirConfiguracao() {
 }
 
 export async function carregarConexao(organizationId: string): Promise<Conexao | null> {
-  const { rows } = await query<Linha>(
-    `SELECT organization_id, session_id, session_name, api_key_id, api_key_encrypted, status, phone, connected_at
-       FROM organization_whatsapp WHERE organization_id = $1`,
-    [organizationId],
-  );
-  const linha = rows[0];
+  const linha = await OrganizationWhatsapp.findOne({
+    attributes: [
+      "organizationId", "sessionId", "sessionName", "apiKeyId", "apiKeyEncrypted", "status", "phone", "connectedAt",
+    ],
+    where: { organizationId },
+    raw: true,
+  });
   if (!linha) return null;
   return {
-    organizationId: linha.organization_id,
-    sessionId: linha.session_id,
-    sessionName: linha.session_name,
-    apiKey: decifrar(linha.api_key_encrypted),
-    apiKeyId: linha.api_key_id,
+    organizationId: linha.organizationId,
+    sessionId: linha.sessionId,
+    sessionName: linha.sessionName,
+    apiKey: decifrar(linha.apiKeyEncrypted),
+    apiKeyId: linha.apiKeyId,
     status: linha.status,
     phone: linha.phone,
-    connectedAt: linha.connected_at,
+    connectedAt: linha.connectedAt as unknown as string | null,
   };
 }
 
@@ -121,12 +111,20 @@ export async function conectar(organizationId: string, slug: string): Promise<Co
     throw erro;
   }
 
-  await query(
-    `INSERT INTO organization_whatsapp
-       (organization_id, session_id, session_name, api_key_id, api_key_encrypted, api_key_prefix, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [organizationId, sessao.id, nome, chave.id ?? null, cifrar(chave.apiKey), chave.keyPrefix ?? null, sessao.status ?? "created"],
-  );
+  await OrganizationWhatsapp.create({
+    organizationId,
+    sessionId: sessao.id,
+    sessionName: nome,
+    apiKeyId: chave.id ?? null,
+    apiKeyEncrypted: cifrar(chave.apiKey),
+    apiKeyPrefix: chave.keyPrefix ?? null,
+    status: sessao.status ?? "created",
+    phone: null,
+    pushName: null,
+    connectedAt: null,
+    lastCheckedAt: null,
+    chatsSyncedAt: null,
+  });
 
   await openwa.iniciarSessao(sessao.id, chave.apiKey).catch(() => undefined);
   const conexao = await carregarConexao(organizationId);
@@ -142,19 +140,16 @@ export async function conectar(organizationId: string, slug: string): Promise<Co
  */
 export async function sincronizar(conexao: Conexao) {
   const sessao = await openwa.lerSessao(conexao.sessionId, conexao.apiKey);
-  await query(
-    `UPDATE organization_whatsapp
-        SET status = $2, phone = $3, push_name = $4,
-            connected_at = COALESCE($5, connected_at),
-            last_checked_at = now(), updated_at = now()
-      WHERE organization_id = $1`,
-    [
-      conexao.organizationId,
-      sessao.status ?? "unknown",
-      sessao.phone ?? null,
-      sessao.pushName ?? null,
-      sessao.connectedAt ?? null,
-    ],
+  await OrganizationWhatsapp.update(
+    {
+      status: sessao.status ?? "unknown",
+      phone: sessao.phone ?? null,
+      pushName: sessao.pushName ?? null,
+      // Só quando o OpenWA informa: sem a data, a última conhecida fica.
+      ...(sessao.connectedAt != null ? { connectedAt: new Date(sessao.connectedAt) } : {}),
+      lastCheckedAt: new Date(),
+    },
+    { where: { organizationId: conexao.organizationId } },
   );
   return sessao;
 }
@@ -166,9 +161,6 @@ export async function desconectar(conexao: Conexao) {
   await openwa.desconectarSessao(conexao.sessionId, conexao.apiKey).catch(() => undefined);
   if (conexao.apiKeyId) await openwa.revogarChave(conexao.apiKeyId).catch(() => undefined);
   await openwa.apagarSessao(conexao.sessionId).catch(() => undefined);
-  const { rows } = await query<{ organization_id: string }>(
-    `DELETE FROM organization_whatsapp WHERE organization_id = $1 RETURNING organization_id`,
-    [conexao.organizationId],
-  );
-  if (!rows.length) throw notFound("Conexão não encontrada.");
+  const apagadas = await OrganizationWhatsapp.destroy({ where: { organizationId: conexao.organizationId } });
+  if (!apagadas) throw notFound("Conexão não encontrada.");
 }

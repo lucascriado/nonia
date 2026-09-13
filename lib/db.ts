@@ -1,8 +1,6 @@
 import { Sequelize } from "sequelize";
 import pg from "pg";
 
-type QueryResult<T> = { rows: T[] };
-
 const globalForDb = globalThis as unknown as { sequelize?: Sequelize };
 
 function createSequelize() {
@@ -26,7 +24,6 @@ export const db = globalForDb.sequelize ?? createSequelize();
 
 if (process.env.NODE_ENV !== "production") globalForDb.sequelize = db;
 
-export async function query<T>(sql: string, values: unknown[] = []): Promise<QueryResult<T>> {
-  const [rows] = await db.query(sql, { bind: values });
-  return { rows: rows as T[] };
-}
+// Não há mais helper de SQL cru aqui, de propósito: toda consulta passa pelos
+// Models de lib/models.ts. Ver o `serverExternalPackages` do next.config.ts
+// para o motivo de o Sequelize não poder ser empacotado.

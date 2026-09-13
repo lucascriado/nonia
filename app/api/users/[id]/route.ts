@@ -1,9 +1,10 @@
 // Troca de papel, desativação e remoção de um usuário dentro da organização.
-import { QueryTypes } from "sequelize";
+import { Op } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { badRequest, forbidden, notFound, readJson, requireUuid } from "@/lib/http";
+import { OrganizationMember, Role, Session, User } from "@/lib/models";
 import { hashPassword, validatePasswordStrength } from "@/lib/passwords";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization } from "@/lib/tenant";
@@ -20,35 +21,43 @@ type UpdatePayload = {
 };
 
 async function ownerCount(organization: string) {
-  const rows = await db.query<{ count: number }>(
-    `SELECT count(*)::int AS count
-     FROM organization_members om
-     JOIN roles r ON r.id = om.role_id
-     WHERE om.organization_id = $1 AND om.status = 'active' AND r.slug = 'owner'`,
-    { bind: [organization], type: QueryTypes.SELECT },
-  );
-  return rows[0]?.count ?? 0;
+  return OrganizationMember.count({
+    where: { organizationId: organization, status: "active" },
+    include: [{ model: Role, as: "role", attributes: [], where: { slug: "owner" }, required: true }],
+  });
 }
 
 async function membership(organization: string, userId: string) {
-  const rows = await db.query<{
-    userId: string;
-    roleSlug: string;
-    roleLevel: number;
-    fullName: string;
-    status: string;
-    organizationCount: number;
-  }>(
-    `SELECT om.user_id AS "userId", r.slug AS "roleSlug", r.level AS "roleLevel",
-            u.full_name AS "fullName", om.status,
-            (SELECT count(*)::int FROM organization_members o2 WHERE o2.user_id = om.user_id) AS "organizationCount"
-     FROM organization_members om
-     JOIN roles r ON r.id = om.role_id
-     JOIN users u ON u.id = om.user_id
-     WHERE om.organization_id = $1 AND om.user_id = $2`,
-    { bind: [organization, userId], type: QueryTypes.SELECT },
-  );
-  return rows[0] ?? null;
+  const [vinculo, organizationCount] = await Promise.all([
+    OrganizationMember.findOne({
+      attributes: ["userId", "status"],
+      where: { organizationId: organization, userId },
+      include: [
+        { model: Role, as: "role", attributes: ["slug", "level"], required: true },
+        { model: User, as: "user", attributes: ["fullName"], required: true },
+      ],
+      raw: true,
+      nest: true,
+    }) as unknown as Promise<{
+      userId: string;
+      status: string;
+      role: { slug: string; level: number };
+      user: { fullName: string };
+    } | null>,
+    // Em quantas igrejas a pessoa entra -- TODOS os vínculos dela, de
+    // propósito sem filtro de organização: é o que decide se a senha, que é da
+    // identidade, pode ser redefinida por um responsável DESTA igreja.
+    OrganizationMember.count({ where: { userId } }),
+  ]);
+  if (!vinculo) return null;
+  return {
+    userId: vinculo.userId,
+    roleSlug: vinculo.role.slug,
+    roleLevel: vinculo.role.level,
+    fullName: vinculo.user.fullName,
+    status: vinculo.status,
+    organizationCount,
+  };
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -128,14 +137,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     let roleId: string | null = null;
     if (payload.roleSlug) {
-      const roles = await db.query<{ id: string }>(
-        `SELECT id FROM roles
-         WHERE slug = $1 AND (organization_id IS NULL OR organization_id = $2)
-         ORDER BY organization_id NULLS LAST LIMIT 1`,
-        { bind: [payload.roleSlug, organizationId(auth)], type: QueryTypes.SELECT },
-      );
-      if (!roles.length) throw badRequest("Papel inválido.", "invalid_role");
-      roleId = roles[0].id;
+      // Como no POST: o papel próprio da igreja antes do papel do sistema.
+      //
+      // Só TEXTO chega ao `where`. No Sequelize um array vira `IN (...)`, e
+      // `roleSlug: ["owner"]` passaria pela guarda de cima (que compara com
+      // `=== "owner"`) e acharia o papel de proprietário. Com SQL cru o array
+      // virava o texto '{"owner"}', não casava com papel nenhum e dava 400 --
+      // que é o que continua dando.
+      const role = typeof payload.roleSlug !== "string" ? null : await Role.findOne({
+        attributes: ["id"],
+        where: {
+          slug: payload.roleSlug,
+          [Op.or]: [{ organizationId: null }, { organizationId: organizationId(auth) }],
+        },
+        order: [["organizationId", "ASC NULLS LAST"]],
+        raw: true,
+      });
+      if (!role) throw badRequest("Papel inválido.", "invalid_role");
+      roleId = role.id;
     }
 
     if (payload.status && !["active", "suspended"].includes(payload.status)) {
@@ -154,45 +173,36 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         await assertBelongsToOrganization("people", "id", payload.personId, organizationId(auth), transaction);
       }
 
-      await db.query(
-        `UPDATE organization_members
-         SET role_id = COALESCE($3, role_id),
-             status = COALESCE($4, status),
-             person_id = CASE WHEN $5::boolean THEN $6::uuid ELSE person_id END
-         WHERE organization_id = $1 AND user_id = $2`,
-        {
-          bind: [
-            organizationId(auth),
-            id,
-            roleId,
-            payload.status ?? null,
-            payload.personId !== undefined,
-            payload.personId ?? null,
-          ],
-          transaction,
-        },
-      );
+      // Só entra no UPDATE o que veio: papel e status ausentes mantêm o valor
+      // atual, e `personId: null` explícito desvincula a ficha de pessoa.
+      const valores: { roleId?: string; status?: string; personId?: string | null } = {};
+      if (roleId != null) valores.roleId = roleId;
+      if (payload.status != null) valores.status = payload.status;
+      if (payload.personId !== undefined) valores.personId = payload.personId ?? null;
+
+      await OrganizationMember.update(valores, {
+        where: { organizationId: organizationId(auth), userId: id },
+        transaction,
+      });
 
       if (passwordHash) {
-        await db.query(
-          `UPDATE users SET password_hash = $2, failed_login_attempts = 0, locked_until = NULL
-           WHERE id = $1`,
-          { bind: [id, passwordHash], transaction },
+        await User.update(
+          { passwordHash, failedLoginAttempts: 0, lockedUntil: null },
+          { where: { id }, transaction },
         );
         // Senha nova invalida tudo que estava aberto com a antiga.
-        await db.query(
-          `UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`,
-          { bind: [id], transaction },
+        await Session.update(
+          { revokedAt: new Date() },
+          { where: { userId: id, revokedAt: null }, transaction },
         );
         await addActivity(transaction, auth, "system", "redefiniu a senha de", target.fullName);
       }
 
       // Acesso suspenso derruba as sessões abertas naquela organização.
       if (payload.status === "suspended") {
-        await db.query(
-          `UPDATE sessions SET revoked_at = now()
-           WHERE user_id = $1 AND organization_id = $2 AND revoked_at IS NULL`,
-          { bind: [id, organizationId(auth)], transaction },
+        await Session.update(
+          { revokedAt: new Date() },
+          { where: { userId: id, organizationId: organizationId(auth), revokedAt: null }, transaction },
         );
       }
 
@@ -228,8 +238,8 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
 
     await db.transaction(async (transaction) => {
       // Remove só o vínculo: o usuário segue existindo em outras igrejas.
-      await db.query(`DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`, {
-        bind: [organizationId(auth), id],
+      await OrganizationMember.destroy({
+        where: { organizationId: organizationId(auth), userId: id },
         transaction,
       });
       await addActivity(transaction, auth, "system", "removeu o acesso de", target.fullName);

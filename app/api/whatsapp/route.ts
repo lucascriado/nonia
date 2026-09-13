@@ -1,5 +1,5 @@
-import { query } from "@/lib/db";
 import { organizationId, requirePermission } from "@/lib/auth";
+import { WhatsappMessage } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import * as conn from "@/lib/whatsapp/connection";
 
@@ -36,13 +36,9 @@ export async function GET() {
      * TIPO, pelo mesmo motivo de `hasMedia` -- os bytes não estão do nosso lado
      * para serem contados.
      */
-    const { rows: midia } = await query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM whatsapp_messages
-        WHERE organization_id = $1
-          AND type IN ('image', 'video', 'audio', 'voice', 'sticker', 'document')`,
-      [org],
-    );
-    const mediaCount = midia[0].n;
+    const mediaCount = await WhatsappMessage.count({
+      where: { organizationId: org, type: ["image", "video", "audio", "voice", "sticker", "document"] },
+    });
 
     // O estado vem do OpenWA. Se ele não responder, devolvemos o último fato
     // conhecido dizendo que é o último fato conhecido -- em vez de 503 numa

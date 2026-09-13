@@ -1,9 +1,8 @@
 // Sessão atual. Responde 200 mesmo sem sessão (authenticated: false) porque
 // é a sondagem que a tela de login faz antes de decidir para onde ir.
-import { QueryTypes } from "sequelize";
-import { db } from "@/lib/db";
 import { clearedSessionCookie, getSession, jsonWithCookie } from "@/lib/auth";
 import { sessionPayload } from "@/lib/auth-payloads";
+import { Organization, OrganizationMember, Role } from "@/lib/models";
 import { planSnapshot } from "@/lib/plan-limits";
 import { apiError } from "@/lib/records";
 
@@ -23,15 +22,33 @@ export async function GET() {
     // avaliação precisa dele em toda tela, mas resolvê-lo em toda requisição
     // autenticada custaria uma consulta a mais em cada chamada de API. A tela
     // já busca /api/auth/session, então aqui ele vem de graça.
-    const organizations = await db.query<{ id: string; name: string; slug: string; timezone: string; roleSlug: string }>(
-      `SELECT o.id, o.name, o.slug, o.timezone, r.slug AS "roleSlug"
-       FROM organization_members om
-       JOIN organizations o ON o.id = om.organization_id
-       JOIN roles r ON r.id = om.role_id
-       WHERE om.user_id = $1 AND om.status = 'active' AND o.status = 'active'
-       ORDER BY om.is_default DESC, o.name`,
-      { bind: [auth.user.id], type: QueryTypes.SELECT },
-    );
+    const vinculos = await OrganizationMember.findAll({
+      attributes: [],
+      where: { userId: auth.user.id, status: "active" },
+      include: [
+        {
+          model: Organization,
+          as: "organization",
+          attributes: ["id", "name", "slug", "timezone"],
+          where: { status: "active" },
+          required: true,
+        },
+        { model: Role, as: "role", attributes: ["slug"], required: true },
+      ],
+      order: [["isDefault", "DESC"], [{ model: Organization, as: "organization" }, "name", "ASC"]],
+      raw: true,
+      nest: true,
+    }) as unknown as {
+      organization: { id: string; name: string; slug: string; timezone: string };
+      role: { slug: string };
+    }[];
+    const organizations = vinculos.map(({ organization, role }) => ({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      timezone: organization.timezone,
+      roleSlug: role.slug,
+    }));
 
     const plan = await planSnapshot(auth.organization.id);
 

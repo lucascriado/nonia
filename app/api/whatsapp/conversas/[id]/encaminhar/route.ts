@@ -1,6 +1,7 @@
-import { query } from "@/lib/db";
+import type { InferAttributes } from "sequelize";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { HttpError, badRequest, notFound, readJson, requireUuid } from "@/lib/http";
+import { Person, WhatsappConversation, WhatsappMessage } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import * as conn from "@/lib/whatsapp/connection";
 import * as inbox from "@/lib/whatsapp/inbox";
@@ -9,16 +10,16 @@ import { chatIdDoTelefone } from "@/lib/whatsapp/broadcast";
 
 export const runtime = "nodejs";
 
-type Conversa = { id: string; chat_id: string; wa_name: string | null; phone: string | null };
+type Conversa = { id: string; chatId: string; waName: string | null; phone: string | null };
 
 async function carregar(id: string, org: string): Promise<Conversa> {
-  const { rows } = await query<Conversa>(
-    `SELECT id, chat_id, wa_name, phone FROM whatsapp_conversations
-      WHERE id = $1 AND organization_id = $2`,
-    [id, org],
-  );
-  if (!rows[0]) throw notFound("Conversa não encontrada.");
-  return rows[0];
+  const conversa = await WhatsappConversation.findOne({
+    attributes: ["id", "chatId", "waName", "phone"],
+    where: { id, organizationId: org },
+    raw: true,
+  });
+  if (!conversa) throw notFound("Conversa não encontrada.");
+  return conversa;
 }
 
 /**
@@ -48,12 +49,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     // A mensagem tem que ser DESTA conversa e DESTA igreja -- mesmo cuidado da
     // citação: o id vem da tela e não é nosso.
-    const { rows: existe } = await query(
-      `SELECT 1 FROM whatsapp_messages
-        WHERE organization_id = $1 AND conversation_id = $2 AND wa_message_id = $3`,
-      [org, id, payload.waMessageId],
-    );
-    if (!existe[0]) throw notFound("Mensagem não encontrada nesta conversa.");
+    const existe = await WhatsappMessage.findOne({
+      attributes: ["id"],
+      where: { organizationId: org, conversationId: id, waMessageId: payload.waMessageId },
+      raw: true,
+    });
+    if (!existe) throw notFound("Mensagem não encontrada nesta conversa.");
 
     const destino = await resolverDestino(org, payload);
 
@@ -63,7 +64,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const conexao = await conn.exigirConexao(org);
     const enviada = await openwa.encaminhar(
-      conexao.sessionId, conexao.apiKey, origem.chat_id, destino.chat_id, payload.waMessageId);
+      conexao.sessionId, conexao.apiKey, origem.chatId, destino.chatId, payload.waMessageId);
     const waId = enviada.messageId ?? enviada.id ?? `local-${Date.now()}`;
 
     // Gravamos na conversa de DESTINO -- é lá que a mensagem aparece. O tipo
@@ -72,7 +73,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     // um texto vazio.
     await inbox.registrarEnviada(
       auth,
-      { id: destino.id, organizationId: org, nome: destino.wa_name ?? destino.phone },
+      { id: destino.id, organizationId: org, nome: destino.waName ?? destino.phone },
       { waMessageId: waId, type: "text", body: "[mensagem encaminhada]" },
       "encaminhou uma mensagem no WhatsApp",
     );
@@ -98,16 +99,17 @@ async function resolverDestino(
   }
   if (payload.paraPersonId) {
     requireUuid(payload.paraPersonId, "Pessoa não encontrada.");
-    const { rows } = await query<{ phone: string | null; full_name: string }>(
-      `SELECT phone, full_name FROM people WHERE id = $1 AND organization_id = $2`,
-      [payload.paraPersonId, org],
-    );
-    if (!rows[0]) throw notFound("Pessoa não encontrada.");
-    const digitos = (rows[0].phone ?? "").replace(/\D/g, "");
+    const pessoa = await Person.findOne({
+      attributes: ["phone", "fullName"],
+      where: { id: payload.paraPersonId, organizationId: org },
+      raw: true,
+    });
+    if (!pessoa) throw notFound("Pessoa não encontrada.");
+    const digitos = (pessoa.phone ?? "").replace(/\D/g, "");
     if (!digitos) {
       throw new HttpError(
         409,
-        `${rows[0].full_name} não tem telefone no cadastro, então não há para onde encaminhar.`,
+        `${pessoa.fullName} não tem telefone no cadastro, então não há para onde encaminhar.`,
         "person_without_phone",
       );
     }
@@ -121,18 +123,23 @@ async function resolverDestino(
     if (!chatId) {
       throw new HttpError(
         409,
-        `O telefone de ${rows[0].full_name} não tem formato de número de WhatsApp.`,
+        `O telefone de ${pessoa.fullName} não tem formato de número de WhatsApp.`,
         "person_without_phone",
       );
     }
-    const { rows: criada } = await query<Conversa>(
-      `INSERT INTO whatsapp_conversations (organization_id, chat_id, kind, phone, person_id)
-       VALUES ($1, $2, 'individual', $3, $4)
-       ON CONFLICT (organization_id, chat_id) DO UPDATE SET updated_at = now()
-       RETURNING id, chat_id, wa_name, phone`,
-      [org, chatId, digitos, payload.paraPersonId],
+    // Se a conversa já existe pelo par (igreja, chat), NADA dela é trocado --
+    // só `updated_at` --, e o que volta é a linha que já estava lá.
+    const [criada] = await WhatsappConversation.bulkCreate(
+      [{ organizationId: org, chatId, kind: "individual", phone: digitos, personId: payload.paraPersonId }],
+      {
+        conflictAttributes: ["organizationId", "chatId"],
+        // `updated_at` é o nome do ATRIBUTO do timestamp (a opção `updatedAt` do
+        // Model o nomeia), e o tipo do Sequelize só conhece os declarados.
+        updateOnDuplicate: ["updated_at"] as string[] as (keyof InferAttributes<WhatsappConversation>)[],
+        returning: true,
+      },
     );
-    return criada[0];
+    return { id: criada.id, chatId: criada.chatId, waName: criada.waName, phone: criada.phone };
   }
   throw badRequest("Escolha para quem encaminhar.", "forward_target_required");
 }

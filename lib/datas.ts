@@ -127,3 +127,53 @@ export function proximoDomingo(fuso: string | null | undefined, agora?: Date): s
   const dia = diaDaSemana(hoje);
   return dia === 0 ? hoje : somarDias(hoje, 7 - dia);
 }
+
+/** Deslocamento do fuso naquele instante, em ms (Brasília: -3h). */
+function deslocamentoNoFuso(fuso: string, instante: number): number {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: fuso,
+    hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date(instante));
+  const v = (tipo: string) => Number(partes.find((p) => p.type === tipo)?.value);
+  const relogio = Date.UTC(v("year"), v("month") - 1, v("day"), v("hour"), v("minute"), v("second"));
+  // O instante sem os milissegundos: o relógio formatado não os tem.
+  return relogio - Math.floor(instante / 1000) * 1000;
+}
+
+/**
+ * O INSTANTE em que o dia 'YYYY-MM-DD' começa naquele fuso -- a meia-noite
+ * LOCAL da igreja, como `Date`.
+ *
+ * É o que o painel fazia no SQL com `(data::date)::timestamp AT TIME ZONE fuso`,
+ * e existe para comparar uma data solta com coluna timestamptz. Brasília:
+ * meiaNoiteNoFuso("2026-09-12", "America/Sao_Paulo") = 2026-09-12T03:00:00Z.
+ *
+ * A ARMADILHA que isto evita é a mesma do SQL: `new Date("2026-09-12")` é a
+ * meia-noite em UTC, que em Brasília é 21h do dia ANTERIOR -- e o "a partir de
+ * hoje" passaria a incluir o evento de ontem à noite.
+ *
+ * Na virada de horário de verão, segue o Postgres: meia-noite que não existe
+ * (o relógio pulou) usa o deslocamento de ANTES da virada; meia-noite que
+ * acontece duas vezes fica com a de DEPOIS. Nos dois casos é o instante mais
+ * tardio entre os candidatos. Fuso inválido cai para o padrão, como em
+ * `hojeNoFuso`.
+ */
+export function meiaNoiteNoFuso(data: string, fuso: string | null | undefined): Date {
+  let zona = fuso || FUSO_PADRAO;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zona });
+  } catch {
+    zona = FUSO_PADRAO;
+  }
+  const relogio = comoUtc(data).getTime();
+  const DIA = 86_400_000;
+  // Os deslocamentos possíveis em volta do dia: numa virada, os dois lados dela.
+  const deslocamentos = new Set(
+    [relogio - DIA, relogio, relogio + DIA].map((t) => deslocamentoNoFuso(zona, t)),
+  );
+  const candidatos = [...deslocamentos].map((d) => relogio - d);
+  const validos = candidatos.filter((c) => c + deslocamentoNoFuso(zona, c) === relogio);
+  return new Date(Math.max(...(validos.length ? validos : candidatos)));
+}

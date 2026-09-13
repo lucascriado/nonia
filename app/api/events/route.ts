@@ -1,10 +1,11 @@
-import { db, query } from "@/lib/db";
+import { Op, cast, type Transaction, type WhereOptions } from "sequelize";
+import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { AuthContext, organizationId, requirePermission } from "@/lib/auth";
 import { notFound, readJson, requireUuid } from "@/lib/http";
+import { Event, EventResponsible, Person } from "@/lib/models";
 import { apiError, nullable } from "@/lib/records";
 import { filterOwnedPersonIds } from "@/lib/tenant";
-import { Transaction } from "sequelize";
 
 export const runtime = "nodejs";
 
@@ -25,45 +26,85 @@ type EventPayload = {
   responsibleIds?: string[];
 };
 
+/**
+ * Um instante vindo da tela, interpretado PELO POSTGRES, como o SQL antigo
+ * fazia com o texto cru.
+ *
+ * Não é o `DataTypes.DATE` do Sequelize de propósito: ele passa a string pelo
+ * moment, que lê "2026-10-01T19:00" (sem fuso, que é o que o calendário manda)
+ * no fuso da MÁQUINA do Node. O Postgres lê no fuso da sessão, que o Sequelize
+ * fixa em +00:00. Em qualquer servidor fora de UTC os dois discordariam, e o
+ * evento mudaria de hora sem ninguém ter mexido nele.
+ */
+const instante = (valor: string) => cast(valor, "timestamptz");
+
 export async function GET(request: Request) {
   try {
     const auth = await requirePermission("events.read");
     const { searchParams } = new URL(request.url);
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const org = organizationId(auth);
 
-    // O tenant é sempre o primeiro parâmetro; os filtros vêm depois dele.
-    // Com o alias `e` desde a origem: a consulta passou a ter um JOIN lateral
-    // para os responsáveis, e coluna sem alias ficaria ambígua.
-    const values: unknown[] = [organizationId(auth)];
-    const filters: string[] = ["e.organization_id = $1"];
+    // O tenant é sempre a primeira condição; os filtros vêm depois dele.
+    const condicoes: WhereOptions[] = [{ organizationId: org }];
+    if (from) condicoes.push({ startsAt: { [Op.gte]: instante(from) } });
+    if (to) condicoes.push({ startsAt: { [Op.lt]: instante(to) } });
 
-    if (from) {
-      values.push(from);
-      filters.push(`e.starts_at >= $${values.length}`);
+    const eventos = await Event.findAll({
+      attributes: ["id", "title", "description", "location", "startsAt", "endsAt", "category", "color"],
+      where: { [Op.and]: condicoes },
+      order: [["startsAt", "ASC"]],
+      raw: true,
+    });
+
+    // Os responsáveis vêm JUNTO, e não numa segunda chamada por evento: o
+    // calendário desenha um mês inteiro de uma vez, e uma requisição por
+    // evento seria a doença que a foto de perfil do WhatsApp evita. São id e
+    // nome por pessoa -- alguns bytes, não a foto.
+    //
+    // Duas consultas para TODOS os eventos da resposta (vínculos, depois
+    // pessoas) e a junção aqui. A ordem dos nomes é a do BANCO
+    // (`ORDER BY full_name`), não um sort em JS: as collations discordam em
+    // acento e caixa.
+    const vinculos = eventos.length
+      ? await EventResponsible.findAll({
+        attributes: ["eventId", "personId"],
+        where: { organizationId: org, eventId: eventos.map((e) => e.id) },
+        raw: true,
+      })
+      : [];
+    const pessoas = vinculos.length
+      ? await Person.findAll({
+        attributes: ["id", ["full_name", "name"]],
+        where: { organizationId: org, id: [...new Set(vinculos.map((v) => v.personId))] },
+        order: [["fullName", "ASC"]],
+        raw: true,
+      }) as unknown as { id: string; name: string }[]
+      : [];
+
+    const eventosDaPessoa = new Map<string, string[]>();
+    for (const v of vinculos) {
+      eventosDaPessoa.set(v.personId, [...(eventosDaPessoa.get(v.personId) ?? []), v.eventId]);
+    }
+    const responsaveis = new Map<string, { id: string; name: string }[]>();
+    for (const p of pessoas) {
+      for (const eventId of eventosDaPessoa.get(p.id) ?? []) {
+        responsaveis.set(eventId, [...(responsaveis.get(eventId) ?? []), { id: p.id, name: p.name }]);
+      }
     }
 
-    if (to) {
-      values.push(to);
-      filters.push(`e.starts_at < $${values.length}`);
-    }
-
-    const { rows } = await query(`
-      SELECT e.id, e.title, e.description, e.location, e.starts_at AS "startsAt",
-        e.ends_at AS "endsAt", e.category, e.color,
-        -- Os responsáveis vêm JUNTO, e não numa segunda chamada por evento: o
-        -- calendário desenha um mês inteiro de uma vez, e uma requisição por
-        -- evento seria a doença que a foto de perfil do WhatsApp evita. São
-        -- id e nome por pessoa -- alguns bytes, não a foto.
-        COALESCE((
-          SELECT json_agg(json_build_object('id', p.id, 'name', p.full_name) ORDER BY p.full_name)
-            FROM event_responsibles er
-            JOIN people p ON p.id = er.person_id AND p.organization_id = er.organization_id
-           WHERE er.event_id = e.id AND er.organization_id = e.organization_id
-        ), '[]') AS responsibles
-      FROM events e WHERE ${filters.join(" AND ")}
-      ORDER BY e.starts_at ASC
-    `, values);
+    const rows = eventos.map((e) => ({
+      id: e.id,
+      title: e.title,
+      description: e.description,
+      location: e.location,
+      startsAt: e.startsAt,
+      endsAt: e.endsAt,
+      category: e.category,
+      color: e.color,
+      responsibles: responsaveis.get(e.id) ?? [],
+    }));
 
     return Response.json(rows);
   } catch (error) {
@@ -85,26 +126,21 @@ export async function POST(request: Request) {
     if (!startsAt) return Response.json({ error: "Data e horário são obrigatórios." }, { status: 400 });
 
     const id = await db.transaction(async (transaction) => {
-      const [rows] = await db.query(`
-        INSERT INTO events (organization_id, title, description, location, starts_at, ends_at, color)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id
-      `, {
-        bind: [
-          organizationId(auth),
-          title,
-          nullable(payload.description),
-          location,
-          startsAt,
-          nullable(payload.endsAt),
-          color,
-        ],
-        transaction,
-      });
-      const novoId = (rows as Array<{ id: string }>)[0].id;
-      await gravarResponsaveis(auth, novoId, payload.responsibleIds, transaction);
+      const endsAt = nullable(payload.endsAt);
+      const novo = await Event.create({
+        organizationId: organizationId(auth),
+        title,
+        description: nullable(payload.description),
+        location,
+        // Ver `instante`: o texto vai para o Postgres interpretar. O tipo do
+        // Model diz Date, mas o valor é um CAST, que o Sequelize repassa.
+        startsAt: instante(startsAt) as unknown as Date,
+        endsAt: endsAt === null ? null : instante(endsAt) as unknown as Date,
+        color,
+      }, { transaction });
+      await gravarResponsaveis(auth, novo.id, payload.responsibleIds, transaction);
       await addActivity(transaction, auth, "calendar", "criou o evento", title, location);
-      return novoId;
+      return novo.id;
     });
 
     return Response.json({ id }, { status: 201 });
@@ -122,17 +158,15 @@ export async function DELETE(request: Request) {
     requireUuid(id, "Evento não encontrado.");
 
     await db.transaction(async (transaction) => {
-      const [rows] = await db.query(
-        `SELECT title, location FROM events WHERE id = $1 AND organization_id = $2`,
-        { bind: [id, organizationId(auth)], transaction },
-      );
-      const event = (rows as Array<{ title: string; location: string }>)[0];
+      const event = await Event.findOne({
+        attributes: ["title", "location"],
+        where: { id, organizationId: organizationId(auth) },
+        transaction,
+        raw: true,
+      });
       if (!event) throw notFound("Evento não encontrado.");
 
-      await db.query(`DELETE FROM events WHERE id = $1 AND organization_id = $2`, {
-        bind: [id, organizationId(auth)],
-        transaction,
-      });
+      await Event.destroy({ where: { id, organizationId: organizationId(auth) }, transaction });
       await addActivity(transaction, auth, "calendar", "excluiu o evento", event.title, event.location);
     });
 
@@ -167,10 +201,7 @@ async function gravarResponsaveis(
 ) {
   if (ids === undefined) return;
 
-  await db.query(
-    `DELETE FROM event_responsibles WHERE event_id = $1 AND organization_id = $2`,
-    { bind: [eventId, organizationId(auth)], transaction },
-  );
+  await EventResponsible.destroy({ where: { eventId, organizationId: organizationId(auth) }, transaction });
 
   // Sem repetidos: a PK do banco recusaria o segundo, e recusar um clique
   // duplo com erro seria pior que absorvê-lo.
@@ -179,10 +210,9 @@ async function gravarResponsaveis(
 
   const proprios = await filterOwnedPersonIds(unicos, organizationId(auth), transaction);
   for (const personId of proprios) {
-    await db.query(
-      `INSERT INTO event_responsibles (event_id, person_id, organization_id)
-       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-      { bind: [eventId, personId, organizationId(auth)], transaction },
+    await EventResponsible.bulkCreate(
+      [{ eventId, personId, organizationId: organizationId(auth) }],
+      { ignoreDuplicates: true, returning: false, transaction },
     );
   }
 }

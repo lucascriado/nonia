@@ -1,6 +1,6 @@
-import { query } from "@/lib/db";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { notFound, requireUuid } from "@/lib/http";
+import { WhatsappBroadcast, WhatsappBroadcastRecipient } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import * as conn from "@/lib/whatsapp/connection";
 import * as envio from "@/lib/whatsapp/broadcast";
@@ -13,16 +13,15 @@ type Cabecalho = {
 };
 
 async function carregar(id: string, org: string) {
-  const { rows } = await query<Cabecalho>(
-    `SELECT id, message, audience, status, total,
-            started_at AS "startedAt", finished_at AS "finishedAt", created_at AS "createdAt"
-       FROM whatsapp_broadcasts WHERE id = $1 AND organization_id = $2`,
-    [id, org],
-  );
+  const cabecalho = await WhatsappBroadcast.findOne({
+    attributes: ["id", "message", "audience", "status", "total", "startedAt", "finishedAt", ["created_at", "createdAt"]],
+    where: { id, organizationId: org },
+    raw: true,
+  }) as unknown as Cabecalho | null;
   // 404 e não 403: confirmar que o id existe em outra igreja já seria contar
   // algo sobre ela. Mesma regra do resto das rotas por id.
-  if (!rows[0]) throw notFound("Envio não encontrado.");
-  return rows[0];
+  if (!cabecalho) throw notFound("Envio não encontrado.");
+  return cabecalho;
 }
 
 /**
@@ -56,15 +55,19 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     }
 
     const cabecalho = await carregar(id, org);
-    const { rows: destinatarios } = await query(
-      `SELECT id, person_id AS "personId", name, phone, status,
-              error_code AS "errorCode", error_message AS "errorMessage", sent_at AS "sentAt"
-         FROM whatsapp_broadcast_recipients
-        WHERE broadcast_id = $1 AND organization_id = $2
-        -- Falha primeiro: é a única parte da lista sobre a qual há o que fazer.
-        ORDER BY CASE status WHEN 'failed' THEN 0 WHEN 'skipped' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END, name`,
-      [id, org],
-    );
+    const porNome = await WhatsappBroadcastRecipient.findAll({
+      attributes: ["id", "personId", "name", "phone", "status", "errorCode", "errorMessage", "sentAt"],
+      where: { broadcastId: id, organizationId: org },
+      order: [["name", "ASC"]],
+      raw: true,
+    });
+    // Falha primeiro: é a única parte da lista sobre a qual há o que fazer.
+    //
+    // O NOME é ordenado pelo banco (a colação dele, que é a que a tela sempre
+    // mostrou); o grupo de status é aplicado depois, aqui, com sort ESTÁVEL --
+    // dentro de cada grupo a ordem do banco fica como veio.
+    const grupo = (status: string) => ({ failed: 0, skipped: 1, pending: 2 } as Record<string, number>)[status] ?? 3;
+    const destinatarios = [...porNome].sort((a, b) => grupo(a.status) - grupo(b.status));
 
     // As contagens saem das LINHAS, não de coluna gravada antes -- ver o
     // comentário na migration 013.
@@ -92,17 +95,15 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       return Response.json({ ok: true, status: cabecalho.status });
     }
 
-    await query(
-      `UPDATE whatsapp_broadcasts SET status = 'canceled', finished_at = now(), updated_at = now()
-        WHERE id = $1 AND organization_id = $2`,
-      [id, org],
+    await WhatsappBroadcast.update(
+      { status: "canceled", finishedAt: new Date() },
+      { where: { id, organizationId: org } },
     );
     // Só o que ainda não foi despachado. Cancelar não desfaz mensagem enviada:
     // não existe desfazer no WhatsApp, e a tela não vai fingir que existe.
-    await query(
-      `UPDATE whatsapp_broadcast_recipients SET status = 'skipped'
-        WHERE broadcast_id = $1 AND status = 'pending' AND wa_batch_id IS NULL`,
-      [id],
+    await WhatsappBroadcastRecipient.update(
+      { status: "skipped" },
+      { where: { broadcastId: id, status: "pending", waBatchId: null } },
     );
     return Response.json({ ok: true, status: "canceled" });
   } catch (error) {

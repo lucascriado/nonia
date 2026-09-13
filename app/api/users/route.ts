@@ -1,10 +1,10 @@
 // Usuários da organização: listagem, convite e criação direta.
-import { QueryTypes } from "sequelize";
+import { Op, col, fn, where } from "sequelize";
 import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { badRequest, conflict, forbidden, readJson } from "@/lib/http";
-import { Invitation, OrganizationMember, User } from "@/lib/models";
+import { Invitation, OrganizationMember, Role, User } from "@/lib/models";
 import { hashPassword, validatePasswordStrength } from "@/lib/passwords";
 import { EMAIL_PATTERN, normalizeEmail } from "@/lib/organizations";
 import {
@@ -32,28 +32,72 @@ export async function GET() {
   try {
     const auth = await requirePermission("users.read");
 
-    const [members, invitations] = await Promise.all([
-      db.query(
-        `SELECT u.id, u.full_name AS name, u.email, u.avatar_url AS "avatarUrl", u.status,
-                u.last_login_at AS "lastLoginAt", om.person_id AS "personId",
-                r.slug AS "roleSlug", r.name AS "roleName", om.joined_at AS "joinedAt"
-         FROM organization_members om
-         JOIN users u ON u.id = om.user_id
-         JOIN roles r ON r.id = om.role_id
-         WHERE om.organization_id = $1
-         ORDER BY r.level DESC, u.full_name`,
-        { bind: [organizationId(auth)], type: QueryTypes.SELECT },
-      ),
-      db.query(
-        `SELECT i.id, i.email, i.full_name AS name, i.status, i.expires_at AS "expiresAt",
-                r.slug AS "roleSlug", r.name AS "roleName"
-         FROM invitations i
-         JOIN roles r ON r.id = i.role_id
-         WHERE i.organization_id = $1 AND i.status = 'pending' AND i.expires_at > now()
-         ORDER BY i.created_at DESC`,
-        { bind: [organizationId(auth)], type: QueryTypes.SELECT },
-      ),
+    const [vinculos, convites] = await Promise.all([
+      OrganizationMember.findAll({
+        attributes: ["personId", "joinedAt"],
+        where: { organizationId: organizationId(auth) },
+        include: [
+          {
+            model: User,
+            as: "user",
+            attributes: ["id", "fullName", "email", "avatarUrl", "status", "lastLoginAt"],
+            required: true,
+          },
+          { model: Role, as: "role", attributes: ["slug", "name", "level"], required: true },
+        ],
+        order: [
+          [{ model: Role, as: "role" }, "level", "DESC"],
+          [{ model: User, as: "user" }, "fullName", "ASC"],
+        ],
+        raw: true,
+        nest: true,
+      }) as unknown as {
+        personId: string | null;
+        joinedAt: Date;
+        user: { id: string; fullName: string; email: string; avatarUrl: string | null; status: string; lastLoginAt: Date | null };
+        role: { slug: string; name: string };
+      }[],
+      // Só convites ainda válidos: pendentes e dentro do prazo, pelo relógio
+      // do banco.
+      Invitation.findAll({
+        attributes: ["id", "email", "fullName", "status", "expiresAt"],
+        where: { organizationId: organizationId(auth), status: "pending", expiresAt: { [Op.gt]: fn("now") } },
+        include: [{ model: Role, as: "role", attributes: ["slug", "name"], required: true }],
+        order: [["created_at", "DESC"]],
+        raw: true,
+        nest: true,
+      }) as unknown as {
+        id: string;
+        email: string;
+        fullName: string | null;
+        status: string;
+        expiresAt: Date;
+        role: { slug: string; name: string };
+      }[],
     ]);
+
+    // As chaves (e a ordem delas) são as que a tela sempre recebeu.
+    const members = vinculos.map(({ user, role, personId, joinedAt }) => ({
+      id: user.id,
+      name: user.fullName,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      status: user.status,
+      lastLoginAt: user.lastLoginAt,
+      personId,
+      roleSlug: role.slug,
+      roleName: role.name,
+      joinedAt,
+    }));
+    const invitations = convites.map(({ role, fullName, ...convite }) => ({
+      id: convite.id,
+      email: convite.email,
+      name: fullName,
+      status: convite.status,
+      expiresAt: convite.expiresAt,
+      roleSlug: role.slug,
+      roleName: role.name,
+    }));
 
     return Response.json({ users: members, invitations });
   } catch (error) {
@@ -76,27 +120,32 @@ export async function POST(request: Request) {
       throw forbidden("Apenas o proprietário pode conceder o papel de proprietário.", "missing_role");
     }
 
-    const roles = await db.query<{ id: string; name: string }>(
-      `SELECT id, name FROM roles
-       WHERE slug = $1 AND (organization_id IS NULL OR organization_id = $2)
-       ORDER BY organization_id NULLS LAST LIMIT 1`,
-      { bind: [roleSlug, organizationId(auth)], type: QueryTypes.SELECT },
-    );
-    if (!roles.length) throw badRequest("Papel inválido.", "invalid_role");
-    const role = roles[0];
+    // Papel do sistema (organization_id nulo) ou próprio da igreja; havendo os
+    // dois com o mesmo slug, o da igreja vem primeiro (ASC NULLS LAST).
+    const role = await Role.findOne({
+      attributes: ["id", "name"],
+      where: {
+        slug: roleSlug,
+        [Op.or]: [{ organizationId: null }, { organizationId: organizationId(auth) }],
+      },
+      order: [["organizationId", "ASC NULLS LAST"]],
+      raw: true,
+    });
+    if (!role) throw badRequest("Papel inválido.", "invalid_role");
 
-    const existingUsers = await db.query<{ id: string; fullName: string }>(
-      `SELECT id, full_name AS "fullName" FROM users WHERE lower(email) = $1`,
-      { bind: [email], type: QueryTypes.SELECT },
-    );
-    const existingUser = existingUsers[0];
+    const existingUser = await User.findOne({
+      attributes: ["id", "fullName"],
+      where: where(fn("lower", col("email")), email),
+      raw: true,
+    });
 
     if (existingUser) {
-      const already = await db.query<{ user_id: string }>(
-        `SELECT user_id FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
-        { bind: [organizationId(auth), existingUser.id], type: QueryTypes.SELECT },
-      );
-      if (already.length) throw conflict("Este usuário já faz parte da organização.", "already_member");
+      const already = await OrganizationMember.findOne({
+        attributes: ["userId"],
+        where: { organizationId: organizationId(auth), userId: existingUser.id },
+        raw: true,
+      });
+      if (already) throw conflict("Este usuário já faz parte da organização.", "already_member");
     }
 
     // Com senha: cria/vincula o acesso na hora. Sem senha: gera convite.
@@ -157,10 +206,18 @@ export async function POST(request: Request) {
       await assertWithinPlanLimit(auth, "users", transaction);
 
       // Reenviar convite substitui o pendente anterior (índice único parcial).
-      await db.query(
-        `UPDATE invitations SET status = 'revoked'
-         WHERE organization_id = $1 AND lower(email) = $2 AND status = 'pending'`,
-        { bind: [organizationId(auth), email], transaction },
+      await Invitation.update(
+        { status: "revoked" },
+        {
+          where: {
+            [Op.and]: [
+              { organizationId: organizationId(auth) },
+              where(fn("lower", col("email")), email),
+              { status: "pending" },
+            ],
+          },
+          transaction,
+        },
       );
 
       const record = await Invitation.create(

@@ -2,9 +2,9 @@ import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { notFound, readJson, requireUuid } from "@/lib/http";
+import { Member, Ministry } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization, assertOwnedResource, filterOwnedMemberIds } from "@/lib/tenant";
-import { QueryTypes } from "sequelize";
 
 export const runtime = "nodejs";
 
@@ -31,32 +31,23 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         await assertBelongsToOrganization("people", "id", payload.leaderId, organizationId(auth), transaction);
       }
 
-      await db.query(`
-        UPDATE ministries
-        SET name = $1, color = $2, description = $3, leader_id = $4
-        WHERE id = $5 AND organization_id = $6
-      `, {
-        bind: [
-          name,
-          payload.color || "purple",
-          payload.description?.trim() || null,
-          payload.leaderId || null,
-          id,
-          organizationId(auth),
-        ],
-        transaction,
-      });
+      await Ministry.update({
+        name,
+        color: payload.color || "purple",
+        description: payload.description?.trim() || null,
+        leaderId: payload.leaderId || null,
+      }, { where: { id, organizationId: organizationId(auth) }, transaction });
 
-      await db.query(
-        `UPDATE members SET ministry_id = NULL WHERE ministry_id = $1 AND organization_id = $2`,
-        { bind: [id, organizationId(auth)], transaction },
+      await Member.update(
+        { ministryId: null },
+        { where: { ministryId: id, organizationId: organizationId(auth) }, transaction },
       );
 
       const memberIds = await filterOwnedMemberIds(payload.memberIds ?? [], organizationId(auth), transaction);
       for (const memberId of memberIds) {
-        await db.query(
-          `UPDATE members SET ministry_id = $1 WHERE person_id = $2 AND organization_id = $3`,
-          { bind: [id, memberId, organizationId(auth)], transaction },
+        await Member.update(
+          { ministryId: id },
+          { where: { personId: memberId, organizationId: organizationId(auth) }, transaction },
         );
       }
 
@@ -76,21 +67,19 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     requireUuid(id, "Ministério não encontrado.");
 
     await db.transaction(async (transaction) => {
-      const rows = await db.query<{ name: string }>(
-        `SELECT name FROM ministries WHERE id = $1 AND organization_id = $2`,
-        { bind: [id, organizationId(auth)], transaction, type: QueryTypes.SELECT },
-      );
-      const ministry = rows[0];
+      const ministry = await Ministry.findOne({
+        attributes: ["name"],
+        where: { id, organizationId: organizationId(auth) },
+        transaction,
+        raw: true,
+      });
       if (!ministry) throw notFound("Ministério não encontrado.");
 
-      await db.query(
-        `UPDATE members SET ministry_id = NULL WHERE ministry_id = $1 AND organization_id = $2`,
-        { bind: [id, organizationId(auth)], transaction },
+      await Member.update(
+        { ministryId: null },
+        { where: { ministryId: id, organizationId: organizationId(auth) }, transaction },
       );
-      await db.query(`DELETE FROM ministries WHERE id = $1 AND organization_id = $2`, {
-        bind: [id, organizationId(auth)],
-        transaction,
-      });
+      await Ministry.destroy({ where: { id, organizationId: organizationId(auth) }, transaction });
       await addActivity(transaction, auth, "members", "excluiu o ministério", ministry.name);
     });
 

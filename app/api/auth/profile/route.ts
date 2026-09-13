@@ -16,8 +16,8 @@
 // verificar o novo endereço, que não existe, e poderia colidir com outra
 // conta ou deixar a pessoa sem acesso. A senha tem rota própria, que pede a
 // senha atual: POST /api/auth/password.
-import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
+import { User } from "@/lib/models";
 import { badRequest, readJson } from "@/lib/http";
 import { apiError, validatePhoto } from "@/lib/records";
 
@@ -48,21 +48,14 @@ export async function PATCH(request: Request) {
     const fotoInvalida = validatePhoto(payload.avatarUrl);
     if (fotoInvalida) throw badRequest(fotoInvalida, "invalid_photo");
 
-    await db.query(
-      `UPDATE users
-       SET full_name = COALESCE($2, full_name),
-           phone = CASE WHEN $3::boolean THEN $4 ELSE phone END,
-           avatar_url = CASE WHEN $5::boolean THEN $6 ELSE avatar_url END
-       WHERE id = $1`,
-      {
-        bind: [
-          auth.user.id,
-          fullName ?? null,
-          payload.phone !== undefined, payload.phone?.trim() || null,
-          payload.avatarUrl !== undefined, payload.avatarUrl?.trim() || null,
-        ],
-      },
-    );
+    // Só entra no UPDATE o campo que veio no payload: ausente mantém o valor
+    // atual, e `null` explícito (telefone, foto) limpa.
+    const valores: { fullName?: string; phone?: string | null; avatarUrl?: string | null } = {};
+    if (fullName != null) valores.fullName = fullName;
+    if (payload.phone !== undefined) valores.phone = payload.phone?.trim() || null;
+    if (payload.avatarUrl !== undefined) valores.avatarUrl = payload.avatarUrl?.trim() || null;
+
+    await User.update(valores, { where: { id: auth.user.id } });
 
     return Response.json({ ok: true });
   } catch (error) {

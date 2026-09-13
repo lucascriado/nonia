@@ -1,8 +1,20 @@
-import { db, query } from "@/lib/db";
+import { Op, col, fn, where, type InferAttributes, type Model } from "sequelize";
+import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { HttpError, badRequest } from "@/lib/http";
+import { OrganizationWhatsapp, Person, WhatsappContact, WhatsappConversation, WhatsappMessage } from "@/lib/models";
 import * as openwa from "./openwa";
 import { Conexao } from "./connection";
+
+/**
+ * Lista de colunas para `updateOnDuplicate`, com o timestamp junto.
+ *
+ * O tipo do Sequelize só aceita os atributos declarados no Model, e o timestamp
+ * se chama `updated_at` (é a opção `updatedAt` do Model que nomeia o
+ * atributo) -- sem ele na lista, a linha atualizada manteria o updated_at
+ * antigo, e o SQL de antes sempre o renovava.
+ */
+const colunas = <M extends Model>(...nomes: string[]) => nomes as (keyof InferAttributes<M>)[];
 
 /**
  * A caixa de entrada.
@@ -208,33 +220,59 @@ export function telefoneDoChat(chatId: string): string | null {
  * Falha aqui não derruba nada: deixa a conversa sem telefone, que é exatamente
  * o estado em que ela já estava.
  */
-export const REPETIR_BUSCA_APOS = "1 day";
+/** Um dia, em milissegundos. */
+export const REPETIR_BUSCA_APOS_MS = 24 * 60 * 60 * 1000;
 
 export async function resolverTelefonesPendentes(conexao: Conexao, quantas = 25) {
-  const { rows } = await query<{ id: string; chat_id: string }>(
-    `SELECT id, chat_id FROM whatsapp_conversations
-      WHERE organization_id = $1 AND phone IS NULL AND kind <> 'group'
-        AND (phone_lookup_at IS NULL OR phone_lookup_at < now() - interval '${REPETIR_BUSCA_APOS}')
-      ORDER BY last_message_at DESC NULLS LAST
-      LIMIT ${quantas}`,
-    [conexao.organizationId],
-  );
+  const org = conexao.organizationId;
+  const rows = await WhatsappConversation.findAll({
+    attributes: ["id", "chatId"],
+    where: {
+      organizationId: org,
+      phone: null,
+      kind: { [Op.ne]: "group" },
+      [Op.or]: [
+        { phoneLookupAt: null },
+        { phoneLookupAt: { [Op.lt]: new Date(Date.now() - REPETIR_BUSCA_APOS_MS) } },
+      ],
+    },
+    order: [["lastMessageAt", "DESC NULLS LAST"]],
+    limit: quantas,
+    raw: true,
+  });
   let resolvidos = 0;
   for (const c of rows) {
     // A tentativa é marcada ANTES da chamada, e de propósito: se ela estourar,
     // a marca já está gravada e a conversa não volta na próxima leitura. Marcar
     // depois faria justamente o laço que esta coluna existe para impedir.
-    await query(`UPDATE whatsapp_conversations SET phone_lookup_at = now() WHERE id = $1`, [c.id]);
+    //
+    // `silent`: a marca de tentativa nunca mexeu em updated_at.
+    await WhatsappConversation.update(
+      { phoneLookupAt: new Date() },
+      { where: { id: c.id, organizationId: org }, silent: true },
+    );
     try {
-      const { phone } = await openwa.resolverTelefone(conexao.sessionId, conexao.apiKey, c.chat_id);
+      const { phone } = await openwa.resolverTelefone(conexao.sessionId, conexao.apiKey, c.chatId);
       if (!phone) continue;
-      const pessoa = await acharPessoa(conexao.organizationId, phone);
-      await query(
-        `UPDATE whatsapp_conversations
-            SET phone = $2, person_id = COALESCE(person_id, $3), updated_at = now()
-          WHERE id = $1`,
-        [c.id, phone, pessoa],
-      );
+      const pessoa = await acharPessoa(org, phone);
+      // O vínculo com a pessoa só é PREENCHIDO, nunca trocado: quem já tem
+      // pessoa fica com ela. São duas gravações com condições que se excluem
+      // -- a que acha a conversa sem pessoa, e a que acha com --, e é isso que
+      // faz o "só preenche o vazio" continuar numa decisão do banco. A ordem
+      // importa: a de "já tem" vem primeiro, senão a conversa recém-preenchida
+      // casaria com ela também.
+      if (pessoa) {
+        await WhatsappConversation.update(
+          { phone },
+          { where: { id: c.id, organizationId: org, personId: { [Op.ne]: null } } },
+        );
+        await WhatsappConversation.update(
+          { phone, personId: pessoa },
+          { where: { id: c.id, organizationId: org, personId: null } },
+        );
+      } else {
+        await WhatsappConversation.update({ phone }, { where: { id: c.id, organizationId: org } });
+      }
       resolvidos += 1;
     } catch {
       // Segue para a próxima: uma que o motor ainda não mapeou não pode impedir
@@ -258,14 +296,18 @@ export async function resolverTelefonesPendentes(conexao: Conexao, quantas = 25)
 async function acharPessoa(organizationId: string, telefone: string | null): Promise<string | null> {
   if (!telefone || telefone.length < 8) return null;
   const sufixo = telefone.slice(-8);
-  const { rows } = await query<{ id: string }>(
-    `SELECT id FROM people
-      WHERE organization_id = $1
-        AND phone IS NOT NULL
-        AND right(regexp_replace(phone, '\\D', '', 'g'), 8) = $2
-      LIMIT 2`,
-    [organizationId, sufixo],
-  );
+  const rows = await Person.findAll({
+    attributes: ["id"],
+    where: {
+      [Op.and]: [
+        { organizationId, phone: { [Op.ne]: null } },
+        // Só os dígitos do cadastro, e os oito últimos deles.
+        where(fn("right", fn("regexp_replace", col("phone"), "\\D", "", "g"), 8), sufixo),
+      ],
+    },
+    limit: 2,
+    raw: true,
+  });
   return rows.length === 1 ? rows[0].id : null;
 }
 
@@ -303,34 +345,51 @@ async function acharPessoa(organizationId: string, telefone: string | null): Pro
 /** Traz a LISTA de conversas. Uma requisição, e é ela que cumpre "carregou meus chats". */
 export async function sincronizarConversas(conexao: Conexao) {
   const conversas = await openwa.listarConversas(conexao.sessionId, conexao.apiKey);
+  const org = conexao.organizationId;
   for (const c of conversas) {
     const telefone = telefoneDoChat(c.id);
-    const pessoa = await acharPessoa(conexao.organizationId, telefone);
-    await query(
-      `INSERT INTO whatsapp_conversations
-         (organization_id, chat_id, kind, wa_name, phone, person_id,
-          last_message_at, last_message_preview, unread_count)
-       VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7), $8, $9)
-       ON CONFLICT (organization_id, chat_id) DO UPDATE SET
-         wa_name = EXCLUDED.wa_name,
-         last_message_at = EXCLUDED.last_message_at,
-         last_message_preview = EXCLUDED.last_message_preview,
-         unread_count = EXCLUDED.unread_count,
-         -- O vínculo com a pessoa NÃO é sobrescrito quando já existe: alguém
-         -- pode tê-lo feito à mão, e uma sincronização não desfaz decisão de
-         -- gente. Só preenche o que está vazio.
-         person_id = COALESCE(whatsapp_conversations.person_id, EXCLUDED.person_id),
-         kind = EXCLUDED.kind,
-         phone = COALESCE(EXCLUDED.phone, whatsapp_conversations.phone),
-         updated_at = now()`,
-      [conexao.organizationId, c.id, c.isGroup ? "group" : (c.kind ?? "individual"),
-       c.name ?? null, telefone, pessoa, c.timestamp || 0, (c.lastMessage ?? "").slice(0, 300) || null, c.unreadCount ?? 0],
+    const pessoa = await acharPessoa(org, telefone);
+    // UMA gravação por conversa: cria, ou atualiza a que já existe pelo par
+    // (igreja, chat) -- o UNIQUE da 015.
+    await WhatsappConversation.bulkCreate(
+      [{
+        organizationId: org,
+        chatId: c.id,
+        kind: c.isGroup ? "group" : (c.kind ?? "individual"),
+        waName: c.name ?? null,
+        phone: telefone,
+        personId: pessoa,
+        // O timestamp do OpenWA é em SEGUNDOS; 0 (época) quando não vem.
+        lastMessageAt: new Date((c.timestamp || 0) * 1000),
+        lastMessagePreview: (c.lastMessage ?? "").slice(0, 300) || null,
+        unreadCount: c.unreadCount ?? 0,
+      }],
+      {
+        conflictAttributes: ["organizationId", "chatId"],
+        updateOnDuplicate: colunas<WhatsappConversation>(
+          "waName", "lastMessageAt", "lastMessagePreview", "unreadCount", "kind",
+          // O telefone só é TROCADO quando o chat traz um; sem ele, o que já
+          // estava gravado fica (um @lid resolvido antes não pode ser apagado
+          // por uma sincronização que não sabe o número).
+          ...(telefone !== null ? ["phone"] : []),
+          "updated_at",
+        ),
+      },
     );
+    // O vínculo com a pessoa NÃO é sobrescrito quando já existe: alguém pode
+    // tê-lo feito à mão, e uma sincronização não desfaz decisão de gente. Só
+    // preenche o que está vazio -- por isso fica fora da lista acima e entra
+    // aqui, condicionado a estar vazio. Na criação ele já nasceu preenchido.
+    if (pessoa) {
+      await WhatsappConversation.update(
+        { personId: pessoa },
+        { where: { organizationId: org, chatId: c.id, personId: null } },
+      );
+    }
   }
-  await query(
-    `UPDATE organization_whatsapp SET chats_synced_at = now(), chats_known = $2, updated_at = now()
-      WHERE organization_id = $1`,
-    [conexao.organizationId, conversas.length],
+  await OrganizationWhatsapp.update(
+    { chatsSyncedAt: new Date(), chatsKnown: conversas.length },
+    { where: { organizationId: org } },
   );
   return conversas.length;
 }
@@ -358,37 +417,68 @@ export async function sincronizarMensagens(
 ) {
   const mensagens = await openwa.lerHistorico(
     conexao.sessionId, conexao.apiKey, chatId, limite, limite > openwa.TETO_HISTORICO);
+  const org = conexao.organizationId;
   let ultimo: string | null = null;
   for (const m of mensagens) {
-    await query(
-      `INSERT INTO whatsapp_messages
-         (conversation_id, organization_id, wa_message_id, from_me, author, author_name,
-          type, body, quoted_wa_message_id, sent_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10))
-       -- Reler o mesmo trecho não duplica: o par (igreja, id da mensagem) é único.
-       -- Mas o que MUDA depois da primeira leitura precisa entrar: uma mensagem
-       -- apagada volta com o tipo 'revoked', e manter o texto antigo seria
-       -- mostrar o que o outro lado apagou.
-       ON CONFLICT (organization_id, wa_message_id) DO UPDATE SET
-         type = EXCLUDED.type,
-         body = CASE WHEN EXCLUDED.type = 'revoked' THEN NULL ELSE COALESCE(EXCLUDED.body, whatsapp_messages.body) END,
-         author_name = COALESCE(EXCLUDED.author_name, whatsapp_messages.author_name),
-         quoted_wa_message_id = COALESCE(EXCLUDED.quoted_wa_message_id, whatsapp_messages.quoted_wa_message_id)`,
-      [conversaId, conexao.organizationId, m.id, Boolean(m.fromMe), m.author ?? null,
-       m.contact?.name ?? m.contact?.pushName ?? null,
-       tipoParaGuardar(m.type ?? "text", m.body),
-       corpoParaGuardar(m.type ?? "text", m.body), m.quotedMessage?.id ?? null, m.timestamp || 0],
+    const tipo = tipoParaGuardar(m.type ?? "text", m.body);
+    const corpo = corpoParaGuardar(m.type ?? "text", m.body);
+    const autorNome = m.contact?.name ?? m.contact?.pushName ?? null;
+    const citada = m.quotedMessage?.id ?? null;
+    // Reler o mesmo trecho não duplica: o par (igreja, id da mensagem) é único.
+    // Mas o que MUDA depois da primeira leitura precisa entrar: uma mensagem
+    // apagada volta com o tipo 'revoked', e manter o texto antigo seria
+    // mostrar o que o outro lado apagou.
+    //
+    // A lista do que é atualizado muda com o que chegou, e é assim que o "só
+    // troca se veio valor" continua valendo sem COALESCE: campo que chegou
+    // vazio fica fora da lista e o valor gravado antes permanece.
+    const atualizar = colunas<WhatsappMessage>("type");
+    // `revoked` apaga o corpo (e o corpo guardado de `revoked` é sempre null);
+    // nos outros tipos, o corpo só é trocado quando veio um.
+    if (tipo === "revoked" || corpo !== null) atualizar.push("body");
+    if (autorNome !== null) atualizar.push("authorName");
+    if (citada !== null) atualizar.push("quotedWaMessageId");
+    await WhatsappMessage.bulkCreate(
+      [{
+        conversationId: conversaId,
+        organizationId: org,
+        waMessageId: m.id,
+        fromMe: Boolean(m.fromMe),
+        author: m.author ?? null,
+        authorName: autorNome,
+        type: tipo,
+        body: corpo,
+        quotedWaMessageId: citada,
+        // Segundos, como o OpenWA manda; 0 (época) quando não vem.
+        sentAt: new Date((m.timestamp || 0) * 1000),
+      }],
+      { conflictAttributes: ["organizationId", "waMessageId"], updateOnDuplicate: atualizar },
     );
     ultimo = m.id;
   }
   // O cursor aqui é MARCA DE "já foi buscada", não posição de keyset: esta rota
   // sempre devolve as N mais recentes. Guardar a última vista mantém a coluna
   // útil (dá para ver se mudou) sem prometer paginação que a rota não tem.
-  await query(
-    `UPDATE whatsapp_conversations SET sync_cursor = COALESCE($2, sync_cursor, $3), synced_at = now(), updated_at = now()
-      WHERE id = $1`,
-    [conversaId, ultimo, "vazia"],
-  );
+  //
+  // Sem mensagem nenhuma, a marca é "vazia" -- mas só onde ainda não havia
+  // marca: um cursor já gravado não é apagado por uma leitura que veio vazia.
+  // As duas gravações de baixo têm condições que se excluem.
+  const agora = new Date();
+  if (ultimo !== null) {
+    await WhatsappConversation.update(
+      { syncCursor: ultimo, syncedAt: agora },
+      { where: { id: conversaId, organizationId: org } },
+    );
+  } else {
+    await WhatsappConversation.update(
+      { syncedAt: agora },
+      { where: { id: conversaId, organizationId: org, syncCursor: { [Op.ne]: null } } },
+    );
+    await WhatsappConversation.update(
+      { syncCursor: "vazia", syncedAt: agora },
+      { where: { id: conversaId, organizationId: org, syncCursor: null } },
+    );
+  }
   return mensagens.length;
 }
 
@@ -398,15 +488,15 @@ export async function sincronizarMensagens(
  * tem tarefa agendada, então quem avança é quem olha.
  */
 export async function avancarSincronizacao(conexao: Conexao, quantas = 3) {
-  const { rows } = await query<{ id: string; chat_id: string }>(
-    `SELECT id, chat_id FROM whatsapp_conversations
-      WHERE organization_id = $1 AND sync_cursor IS NULL
-      ORDER BY last_message_at DESC NULLS LAST
-      LIMIT ${quantas}`,
-    [conexao.organizationId],
-  );
+  const rows = await WhatsappConversation.findAll({
+    attributes: ["id", "chatId"],
+    where: { organizationId: conexao.organizationId, syncCursor: null },
+    order: [["lastMessageAt", "DESC NULLS LAST"]],
+    limit: quantas,
+    raw: true,
+  });
   for (const c of rows) {
-    await sincronizarMensagens(conexao, c.id, c.chat_id, null).catch(() => undefined);
+    await sincronizarMensagens(conexao, c.id, c.chatId, null).catch(() => undefined);
   }
   return rows.length;
 }
@@ -430,16 +520,26 @@ export async function avancarSincronizacao(conexao: Conexao, quantas = 3) {
  * resto do projeto.
  */
 export async function resolverNomesDeAutores(conexao: Conexao, conversaId: string, quantos = 20) {
-  const { rows } = await query<{ author: string }>(
-    `SELECT DISTINCT m.author FROM whatsapp_messages m
-       LEFT JOIN whatsapp_contacts c
-              ON c.organization_id = m.organization_id AND c.wa_id = m.author
-      WHERE m.conversation_id = $1 AND m.organization_id = $2
-        AND m.author IS NOT NULL AND m.author_name IS NULL
-        AND c.wa_id IS NULL
-      LIMIT ${quantos}`,
-    [conversaId, conexao.organizationId],
+  const org = conexao.organizationId;
+  // Os autores sem nome desta conversa, um de cada...
+  const semNome = (await WhatsappMessage.findAll({
+    attributes: ["author"],
+    where: { conversationId: conversaId, organizationId: org, author: { [Op.ne]: null }, authorName: null },
+    group: ["author"],
+    raw: true,
+  })).map((m) => m.author as string);
+  // ...menos os que já têm linha em `whatsapp_contacts` -- a linha existir é a
+  // memória de "já perguntei", com nome ou sem.
+  const perguntados = new Set(
+    semNome.length
+      ? (await WhatsappContact.findAll({
+          attributes: ["waId"],
+          where: { organizationId: org, waId: semNome },
+          raw: true,
+        })).map((c) => c.waId)
+      : [],
   );
+  const rows = semNome.filter((author) => !perguntados.has(author)).slice(0, quantos).map((author) => ({ author }));
   let resolvidos = 0;
   for (const { author } of rows) {
     let nome: string | null = null;
@@ -452,13 +552,16 @@ export async function resolverNomesDeAutores(conexao: Conexao, conversaId: strin
     }
     // Gravada mesmo com nome nulo: é a marca de "já perguntei". Sem ela, este
     // mesmo autor voltaria na consulta acima a cada abertura da conversa.
-    await query(
-      `INSERT INTO whatsapp_contacts (organization_id, wa_id, name)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (organization_id, wa_id) DO UPDATE SET
-         name = COALESCE(EXCLUDED.name, whatsapp_contacts.name),
-         looked_up_at = now(), updated_at = now()`,
-      [conexao.organizationId, author, nome],
+    //
+    // Na linha que já existe, o nome só é TROCADO quando veio um: um "não sei"
+    // de agora não apaga o nome que o motor soube antes. A foto (avatar_*) é
+    // de outra pergunta e não é tocada aqui.
+    await WhatsappContact.bulkCreate(
+      [{ organizationId: org, waId: author, name: nome, lookedUpAt: new Date() }],
+      {
+        conflictAttributes: ["organizationId", "waId"],
+        updateOnDuplicate: colunas<WhatsappContact>(...(nome !== null ? ["name"] : []), "lookedUpAt", "updated_at"),
+      },
     );
     if (nome) resolvidos += 1;
   }
@@ -546,22 +649,22 @@ export type Recebimento = {
 };
 
 export async function estadoRecebimento(organizationId: string): Promise<Recebimento> {
-  const { rows } = await query<{ ultima: string | null; minutos: number | null }>(
-    // Da tabela de CONVERSAS, e não da de mensagens. Ver o bloco acima: a de
-    // mensagens mede a nossa defasagem de sincronização, não o movimento.
-    `SELECT max(last_message_at) AS ultima,
-            floor(extract(epoch FROM now() - max(last_message_at)) / 60)::int AS minutos
-       FROM whatsapp_conversations
-      WHERE organization_id = $1`,
-    [organizationId],
-  );
-  const linha = rows[0];
+  // Da tabela de CONVERSAS, e não da de mensagens. Ver o bloco acima: a de
+  // mensagens mede a nossa defasagem de sincronização, não o movimento.
+  const linha = await WhatsappConversation.findOne({
+    attributes: [[fn("max", col("last_message_at")), "ultima"]],
+    where: { organizationId },
+    raw: true,
+  }) as unknown as { ultima: string | Date | null } | null;
+  const ultima = linha?.ultima ?? null;
+  // Minutos inteiros desde a última, arredondados para baixo.
+  const minutos = ultima === null ? null : Math.floor((Date.now() - new Date(ultima).getTime()) / 60_000);
   return {
-    ultimaEm: linha?.ultima ?? null,
-    minutosSem: linha?.minutos ?? null,
+    ultimaEm: ultima as string | null,
+    minutosSem: minutos,
     // Sem nenhuma movimentação não há silêncio a relatar: é caixa nova, e quem
     // responde por ela é o estado de sincronização, não este campo.
-    avisar: linha?.minutos !== null && linha?.minutos !== undefined && linha.minutos >= LIMIAR_SILENCIO_MINUTOS,
+    avisar: minutos !== null && minutos >= LIMIAR_SILENCIO_MINUTOS,
   };
 }
 
@@ -608,27 +711,24 @@ export type EstadoSync = {
  * que o pareamento não funcionou.
  */
 export async function estadoSync(organizationId: string): Promise<EstadoSync> {
-  const { rows } = await query<{
-    chats_known: number; chats_synced_at: string | null; sincronizadas: number; conhecidas: number;
-  }>(
-    `SELECT w.chats_known, w.chats_synced_at,
-            (SELECT count(*)::int FROM whatsapp_conversations c
-              WHERE c.organization_id = w.organization_id AND c.sync_cursor IS NOT NULL) AS sincronizadas,
-            (SELECT count(*)::int FROM whatsapp_conversations c
-              WHERE c.organization_id = w.organization_id) AS conhecidas
-       FROM organization_whatsapp w WHERE w.organization_id = $1`,
-    [organizationId],
-  );
-  const linha = rows[0];
-  if (!linha || !linha.chats_synced_at) {
+  const linha = await OrganizationWhatsapp.findOne({
+    attributes: ["chatsSyncedAt"],
+    where: { organizationId },
+    raw: true,
+  });
+  if (!linha || !linha.chatsSyncedAt) {
     return { state: "never_synced", chatsConhecidos: 0, chatsSincronizados: 0, lastSyncAt: null };
   }
-  const faltam = linha.conhecidas - linha.sincronizadas;
+  const [conhecidas, sincronizadas] = await Promise.all([
+    WhatsappConversation.count({ where: { organizationId } }),
+    WhatsappConversation.count({ where: { organizationId, syncCursor: { [Op.ne]: null } } }),
+  ]);
+  const faltam = conhecidas - sincronizadas;
   return {
     state: faltam > 0 ? "syncing" : "idle",
-    chatsConhecidos: linha.conhecidas,
-    chatsSincronizados: linha.sincronizadas,
-    lastSyncAt: linha.chats_synced_at,
+    chatsConhecidos: conhecidas,
+    chatsSincronizados: sincronizadas,
+    lastSyncAt: linha.chatsSyncedAt as unknown as string,
   };
 }
 
@@ -647,15 +747,18 @@ export async function estadoSync(organizationId: string): Promise<EstadoSync> {
 export const TETO_RESPOSTAS_POR_MINUTO = 30;
 
 export async function assertPodeResponder(organizationId: string) {
-  const { rows } = await query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM whatsapp_messages
-      WHERE organization_id = $1 AND from_me AND created_at > now() - interval '1 minute'`,
-    [organizationId],
-  );
-  if (rows[0].n >= TETO_RESPOSTAS_POR_MINUTO) {
+  const n = await WhatsappMessage.count({
+    where: {
+      [Op.and]: [
+        { organizationId, fromMe: true },
+        where(col("created_at"), Op.gt, new Date(Date.now() - 60_000)),
+      ],
+    },
+  });
+  if (n >= TETO_RESPOSTAS_POR_MINUTO) {
     throw new HttpError(
       429,
-      `Foram ${rows[0].n} mensagens no último minuto, que é o limite. Ele existe para o número da ` +
+      `Foram ${n} mensagens no último minuto, que é o limite. Ele existe para o número da ` +
         "igreja não ser bloqueado por parecer um robô. Espere um instante e continue.",
       "whatsapp_too_fast",
       { limit: TETO_RESPOSTAS_POR_MINUTO },
@@ -691,24 +794,27 @@ export async function registrarEnviada(
 ) {
   const resumo = previa(mensagem.type, mensagem.body);
   await db.transaction(async (transaction) => {
-    await db.query(
-      `INSERT INTO whatsapp_messages
-         (conversation_id, organization_id, wa_message_id, from_me, type, body,
-          quoted_wa_message_id, media_mimetype, media_filename, sent_at)
-       VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8, now())
-       ON CONFLICT (organization_id, wa_message_id) DO NOTHING`,
-      {
-        bind: [conversa.id, conversa.organizationId, mensagem.waMessageId, mensagem.type,
-               mensagem.body ?? null, mensagem.quotedWaMessageId ?? null,
-               mensagem.mediaMimetype ?? null, mensagem.mediaFilename ?? null],
-        transaction,
-      },
+    const agora = new Date();
+    // Mensagem com o mesmo id já gravada (a sincronização chegou antes) não
+    // duplica nem é sobrescrita: o par (igreja, id da mensagem) é único.
+    await WhatsappMessage.bulkCreate(
+      [{
+        conversationId: conversa.id,
+        organizationId: conversa.organizationId,
+        waMessageId: mensagem.waMessageId,
+        fromMe: true,
+        type: mensagem.type,
+        body: mensagem.body ?? null,
+        quotedWaMessageId: mensagem.quotedWaMessageId ?? null,
+        mediaMimetype: mensagem.mediaMimetype ?? null,
+        mediaFilename: mensagem.mediaFilename ?? null,
+        sentAt: agora,
+      }],
+      { ignoreDuplicates: true, transaction },
     );
-    await db.query(
-      `UPDATE whatsapp_conversations
-          SET last_message_at = now(), last_message_preview = $2, unread_count = 0, updated_at = now()
-        WHERE id = $1`,
-      { bind: [conversa.id, resumo], transaction },
+    await WhatsappConversation.update(
+      { lastMessageAt: agora, lastMessagePreview: resumo, unreadCount: 0 },
+      { where: { id: conversa.id, organizationId: conversa.organizationId }, transaction },
     );
     await addActivity(transaction, actor, "whatsapp", acao, conversa.nome);
   });
@@ -736,15 +842,15 @@ export async function exigirCitadaDaConversa(
   if (typeof waMessageId !== "string") {
     throw badRequest("A mensagem citada precisa ser identificada por texto.", "quoted_invalid");
   }
-  const { rows } = await query<{ wa_message_id: string }>(
-    `SELECT wa_message_id FROM whatsapp_messages
-      WHERE organization_id = $1 AND conversation_id = $2 AND wa_message_id = $3`,
-    [organizationId, conversaId, waMessageId],
-  );
-  if (!rows[0]) {
+  const linha = await WhatsappMessage.findOne({
+    attributes: ["waMessageId"],
+    where: { organizationId, conversationId: conversaId, waMessageId },
+    raw: true,
+  });
+  if (!linha) {
     throw new HttpError(404, "A mensagem citada não é desta conversa.", "quoted_not_found");
   }
-  return rows[0].wa_message_id;
+  return linha.waMessageId;
 }
 
 export function exigirTexto(texto: unknown): string {
@@ -800,14 +906,18 @@ export async function fotosDePerfil(
   const pedidos = [...new Set(ids.map(id => id.trim()).filter(Boolean))];
   if (pedidos.length === 0) return {};
 
-  const { rows } = await query<{ waId: string; avatarUrl: string | null; vencida: boolean }>(
-    `SELECT wa_id AS "waId", avatar_url AS "avatarUrl",
-            (avatar_checked_at IS NULL
-             OR avatar_checked_at < now() - ($3 || ' days')::interval) AS vencida
-       FROM whatsapp_contacts
-      WHERE organization_id = $1 AND wa_id = ANY($2::varchar[])`,
-    [conexao.organizationId, pedidos, String(FOTO_VALIDADE_DIAS)],
-  );
+  const linhas = await WhatsappContact.findAll({
+    attributes: ["waId", "avatarUrl", "avatarCheckedAt"],
+    where: { organizationId: conexao.organizationId, waId: pedidos },
+    raw: true,
+  });
+  // Vencida: nunca perguntamos, ou perguntamos há mais de FOTO_VALIDADE_DIAS.
+  const limite = Date.now() - FOTO_VALIDADE_DIAS * 24 * 60 * 60 * 1000;
+  const rows = linhas.map((l) => ({
+    waId: l.waId,
+    avatarUrl: l.avatarUrl,
+    vencida: l.avatarCheckedAt === null || new Date(l.avatarCheckedAt).getTime() < limite,
+  }));
 
   const resposta: Record<string, string | null> = {};
   const conhecidos = new Map(rows.map(r => [r.waId, r]));
@@ -839,16 +949,16 @@ export async function fotosDePerfil(
     // O id pode não voltar no mapa (o outro lado só devolve o que perguntou).
     // Ausente e null são a mesma resposta para nós: não há foto agora.
     const url = fotos[id] ?? null;
-    await query(
-      `INSERT INTO whatsapp_contacts (organization_id, wa_id, avatar_url, avatar_checked_at)
-       VALUES ($1, $2, $3, now())
-       ON CONFLICT (organization_id, wa_id) DO UPDATE SET
-         avatar_url = COALESCE(EXCLUDED.avatar_url, whatsapp_contacts.avatar_url),
-         avatar_checked_at = now(),
-         updated_at = now()`,
-      [conexao.organizationId, id, url],
+    await WhatsappContact.bulkCreate(
+      [{ organizationId: conexao.organizationId, waId: id, avatarUrl: url, avatarCheckedAt: new Date() }],
+      {
+        conflictAttributes: ["organizationId", "waId"],
+        // Na linha que já existe, só a checagem e (quando veio) a URL mudam;
+        // nome e looked_up_at são de outra pergunta.
+        updateOnDuplicate: colunas<WhatsappContact>(...(url !== null ? ["avatarUrl"] : []), "avatarCheckedAt", "updated_at"),
+      },
     );
-    // COALESCE, e não sobrescrita: o lote do OpenWA devolve null tanto para
+    // Preservar, e não sobrescrever: o lote do OpenWA devolve null tanto para
     // "não tem foto" quanto para o id cuja consulta individual falhou ou
     // estourou os 8 s dele. Sobrescrever faria uma lentidão momentânea APAGAR
     // a foto de alguém, e a igreja veria o avatar piscar sem motivo.

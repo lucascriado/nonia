@@ -1,6 +1,7 @@
-import { query } from "@/lib/db";
+import { Op } from "sequelize";
 import { organizationId, requirePermission } from "@/lib/auth";
 import { notFound, readJson, requireUuid } from "@/lib/http";
+import { Person, WhatsappContact, WhatsappConversation, WhatsappMessage } from "@/lib/models";
 import { apiError } from "@/lib/records";
 import { assertBelongsToOrganization } from "@/lib/tenant";
 import * as conn from "@/lib/whatsapp/connection";
@@ -10,19 +11,19 @@ import * as openwa from "@/lib/whatsapp/openwa";
 export const runtime = "nodejs";
 
 type Conversa = {
-  id: string; chat_id: string; kind: string; phone: string | null;
-  person_id: string | null; wa_name: string | null; sync_cursor: string | null;
+  id: string; chatId: string; kind: string; phone: string | null;
+  personId: string | null; waName: string | null; syncCursor: string | null;
 };
 
 async function carregar(id: string, org: string): Promise<Conversa> {
-  const { rows } = await query<Conversa>(
-    `SELECT id, chat_id, kind, phone, person_id, wa_name, sync_cursor
-       FROM whatsapp_conversations WHERE id = $1 AND organization_id = $2`,
-    [id, org],
-  );
+  const conversa = await WhatsappConversation.findOne({
+    attributes: ["id", "chatId", "kind", "phone", "personId", "waName", "syncCursor"],
+    where: { id, organizationId: org },
+    raw: true,
+  });
   // 404 e não 403: confirmar que o id existe já contaria algo sobre a outra igreja.
-  if (!rows[0]) throw notFound("Conversa não encontrada.");
-  return rows[0];
+  if (!conversa) throw notFound("Conversa não encontrada.");
+  return conversa;
 }
 
 /** A conversa e as mensagens dela. Abrir é o que sincroniza. */
@@ -44,67 +45,102 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     try {
       const conexao = await conn.exigirConexao(org);
       await inbox.sincronizarMensagens(
-        conexao, conversa.id, conversa.chat_id, conversa.sync_cursor, fundo ? 500 : undefined);
-      await openwa.marcarLida(conexao.sessionId, conexao.apiKey, conversa.chat_id).catch(() => undefined);
+        conexao, conversa.id, conversa.chatId, conversa.syncCursor, fundo ? 500 : undefined);
+      await openwa.marcarLida(conexao.sessionId, conexao.apiKey, conversa.chatId).catch(() => undefined);
       // Só em grupo: em conversa individual o remetente é a própria conversa, e
       // `author` vem vazio -- medido, 0 de 45. Pedir nome ali seria uma
       // requisição de rede garantidamente inútil.
       if (conversa.kind === "group") {
         await inbox.resolverNomesDeAutores(conexao, conversa.id).catch(() => undefined);
       }
-      await query(`UPDATE whatsapp_conversations SET unread_count = 0 WHERE id = $1`, [id]);
+      // `silent`: zerar o não-lido nunca mexeu em updated_at.
+      await WhatsappConversation.update(
+        { unreadCount: 0 },
+        { where: { id, organizationId: org }, silent: true },
+      );
     } catch {
       sincronizou = false;
     }
 
-    const { rows } = await query(
-      `SELECT m.id, m.wa_message_id AS "waMessageId", m.from_me AS "fromMe",
-              m.author,
-              -- O nome gravado na mensagem só existe quando ela chegou pelo
-              -- evento AO VIVO (é de lá que vem o notifyName). No histórico
-              -- ele é sempre nulo -- 655 de 655 --, e aí quem responde é a
-              -- tabela de contatos, resolvida sob demanda.
-              COALESCE(m.author_name, wc.name) AS "authorName",
-              m.type, m.body, m.sent_at AS "sentAt",
-              m.media_mimetype AS "mediaMimetype", m.media_filename AS "mediaFilename",
-              m.quoted_wa_message_id AS "quotedWaMessageId",
-              -- A prévia da CITADA sai da própria tabela, e não de uma cópia
-              -- guardada na linha de quem cita: cópia divergiria no dia em que a
-              -- original fosse editada ou apagada.
-              q.type AS "quotedType", q.body AS "quotedBody"
-         FROM whatsapp_messages m
-         LEFT JOIN whatsapp_messages q
-                ON q.organization_id = m.organization_id
-               AND q.wa_message_id = m.quoted_wa_message_id
-         LEFT JOIN whatsapp_contacts wc
-                ON wc.organization_id = m.organization_id AND wc.wa_id = m.author
-        WHERE m.conversation_id = $1 AND m.organization_id = $2
-          -- Aviso do WhatsApp não é mensagem de gente. Ver tipoParaGuardar().
-          AND m.type <> 'system'
-        ORDER BY m.sent_at, m.id`,
-      [id, org],
+    const mensagens = await WhatsappMessage.findAll({
+      attributes: [
+        "id", "waMessageId", "fromMe", "author", "authorName", "type", "body", "sentAt",
+        "mediaMimetype", "mediaFilename", "quotedWaMessageId",
+      ],
+      // Aviso do WhatsApp não é mensagem de gente. Ver tipoParaGuardar().
+      where: { conversationId: id, organizationId: org, type: { [Op.ne]: "system" } },
+      order: [["sentAt", "ASC"], ["id", "ASC"]],
+      raw: true,
+    });
+
+    // A prévia da CITADA sai da própria tabela, e não de uma cópia guardada na
+    // linha de quem cita: cópia divergiria no dia em que a original fosse
+    // editada ou apagada. Procurada na igreja inteira pelo id, como sempre foi.
+    const idsCitados = [...new Set(mensagens.map((m) => m.quotedWaMessageId).filter((q): q is string => q !== null))];
+    const citadas = new Map(
+      idsCitados.length
+        ? (await WhatsappMessage.findAll({
+            attributes: ["waMessageId", "type", "body"],
+            where: { organizationId: org, waMessageId: idsCitados },
+            raw: true,
+          })).map((q) => [q.waMessageId, q])
+        : [],
     );
+
+    // O nome gravado na mensagem só existe quando ela chegou pelo evento AO VIVO
+    // (é de lá que vem o notifyName). No histórico ele é sempre nulo -- 655 de
+    // 655 --, e aí quem responde é a tabela de contatos, resolvida sob demanda.
+    const autores = [...new Set(mensagens.map((m) => m.author).filter((a): a is string => a !== null))];
+    const nomesDeContato = new Map(
+      autores.length
+        ? (await WhatsappContact.findAll({
+            attributes: ["waId", "name"],
+            where: { organizationId: org, waId: autores },
+            raw: true,
+          })).map((c) => [c.waId, c.name])
+        : [],
+    );
+
+    const rows = mensagens.map((m) => {
+      const citada = m.quotedWaMessageId !== null ? citadas.get(m.quotedWaMessageId) : undefined;
+      return {
+        ...m,
+        authorName: m.authorName ?? (m.author !== null ? nomesDeContato.get(m.author) ?? null : null),
+        quotedType: citada?.type ?? null,
+        quotedBody: citada?.body ?? null,
+      };
+    });
 
     // CONTADOS, e não sumidos em silêncio: numa conversa medida na conta real,
     // 155 das 155 linhas eram avisos. Sem este número, a tela mostraria uma
     // conversa vazia para um chat que o Lucas vê cheio no celular -- que é o
     // vazio que mente, com outra roupa.
-    const { rows: avisos } = await query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM whatsapp_messages
-        WHERE conversation_id = $1 AND organization_id = $2 AND type = 'system'`,
-      [id, org],
-    );
+    const avisosIgnorados = await WhatsappMessage.count({
+      where: { conversationId: id, organizationId: org, type: "system" },
+    });
 
-    const { rows: cab } = await query<Record<string, unknown>>(
-      `SELECT c.id, c.chat_id AS "chatId", c.kind, c.phone, c.person_id AS "personId",
-              COALESCE(p.full_name, c.wa_name) AS name,
-              p.full_name IS NULL AS "naoIdentificado",
-              c.sync_cursor IS NOT NULL AS "synced"
-         FROM whatsapp_conversations c
-         LEFT JOIN people p ON p.id = c.person_id
-        WHERE c.id = $1 AND c.organization_id = $2`,
-      [id, org],
-    );
+    const atual = await WhatsappConversation.findOne({
+      attributes: ["id", "chatId", "kind", "phone", "personId", "waName", "syncCursor"],
+      where: { id, organizationId: org },
+      raw: true,
+    });
+    const nomeDoCadastro = atual?.personId
+      ? (await Person.findOne({ attributes: ["fullName"], where: { id: atual.personId, organizationId: org }, raw: true }))
+        ?.fullName ?? null
+      : null;
+    const cab = atual
+      ? {
+          id: atual.id,
+          chatId: atual.chatId,
+          kind: atual.kind,
+          phone: atual.phone,
+          personId: atual.personId,
+          // Se a pessoa está cadastrada, o nome DELA ganha do nome do WhatsApp.
+          name: nomeDoCadastro ?? atual.waName,
+          naoIdentificado: nomeDoCadastro === null,
+          synced: atual.syncCursor !== null,
+        }
+      : undefined;
 
     // O topo da conversa NÃO pode parecer o começo dela quando não é.
     // Trouxemos as N mais recentes; se vieram N cheias, há mais atrás, e a tela
@@ -113,14 +149,14 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const podeHaverMais = rows.length >= (fundo ? 500 : 100);
 
     return Response.json({
-      ...cab[0],
+      ...cab,
       hasMore: podeHaverMais,
       deep: fundo,
-      avisosIgnorados: avisos[0].n,
+      avisosIgnorados,
       // A prévia vem calculada daqui, e não da tela: mídia vira marcador de
       // texto ("[foto]") em vez de linha vazia, e o cálculo mora num lugar só.
       messages: rows.map((m) => {
-        const linha = m as {
+        const linha = m as unknown as {
           id: string; fromMe: boolean; sentAt: string;
           author: string | null; authorName: string | null;
           waMessageId: string; type: string; body: string | null;
@@ -196,12 +232,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     await inbox.assertPodeResponder(org);
 
     const conexao = await conn.exigirConexao(org);
-    const enviada = await openwa.enviarTexto(conexao.sessionId, conexao.apiKey, conversa.chat_id, texto, citada);
+    const enviada = await openwa.enviarTexto(conexao.sessionId, conexao.apiKey, conversa.chatId, texto, citada);
     const waId = enviada.messageId ?? enviada.id ?? `local-${Date.now()}`;
 
     await inbox.registrarEnviada(
       auth,
-      { id, organizationId: org, nome: conversa.wa_name ?? conversa.phone },
+      { id, organizationId: org, nome: conversa.waName ?? conversa.phone },
       { waMessageId: waId, type: "text", body: texto, quotedWaMessageId: citada },
       citada ? "respondeu citando no WhatsApp" : "respondeu no WhatsApp",
     );
@@ -225,10 +261,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (payload.personId) {
       await assertBelongsToOrganization("people", "id", payload.personId, org);
     }
-    await query(
-      `UPDATE whatsapp_conversations SET person_id = $3, updated_at = now()
-        WHERE id = $1 AND organization_id = $2`,
-      [id, org, payload.personId ?? null],
+    await WhatsappConversation.update(
+      { personId: payload.personId ?? null },
+      { where: { id, organizationId: org } },
     );
     return Response.json({ ok: true, personId: payload.personId ?? null });
   } catch (error) {

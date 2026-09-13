@@ -1,12 +1,12 @@
 // Login por e-mail e senha. O e-mail é único no sistema todo; quando o
 // usuário pertence a mais de uma igreja, entra na organização padrão dele
 // (ou na informada em organizationSlug) e troca depois por /api/auth/switch.
-import { QueryTypes } from "sequelize";
-import { db } from "@/lib/db";
+import { col, fn, where } from "sequelize";
 import {
   createSession,
   jsonWithCookie,
   purgeStaleSessions,
+  registrarSenhaErrada,
   requestMeta,
   resolveSession,
   sessionCookie,
@@ -15,6 +15,7 @@ import { sessionPayload } from "@/lib/auth-payloads";
 import { HttpError, badRequest, forbidden, readJson, unauthorized } from "@/lib/http";
 import { burnPasswordTime, verifyPassword } from "@/lib/passwords";
 import { normalizeEmail } from "@/lib/organizations";
+import { Organization, OrganizationMember, User } from "@/lib/models";
 import { apiError } from "@/lib/records";
 
 export const runtime = "nodejs";
@@ -41,13 +42,12 @@ export async function POST(request: Request) {
 
     if (!email || !password) throw badRequest("Informe e-mail e senha.");
 
-    const users = await db.query<UserRow>(
-      `SELECT id, password_hash AS "passwordHash", full_name AS "fullName", status,
-              failed_login_attempts AS "failedLoginAttempts", locked_until AS "lockedUntil"
-       FROM users WHERE lower(email) = $1`,
-      { bind: [email], type: QueryTypes.SELECT },
-    );
-    const user = users[0];
+    // lower(email): é a expressão do índice único users_email_unique_idx.
+    const user = await User.findOne({
+      attributes: ["id", "passwordHash", "fullName", "status", "failedLoginAttempts", "lockedUntil"],
+      where: where(fn("lower", col("email")), email),
+      raw: true,
+    }) as UserRow | null;
 
     if (!user) {
       // Consome o mesmo tempo de uma senha errada para não revelar
@@ -67,16 +67,8 @@ export async function POST(request: Request) {
     const valid = await verifyPassword(password, user.passwordHash);
 
     if (!valid) {
-      await db.query(
-        `UPDATE users
-         SET failed_login_attempts = failed_login_attempts + 1,
-             locked_until = CASE
-               WHEN failed_login_attempts + 1 >= $2 THEN now() + make_interval(mins => $3::int)
-               ELSE locked_until
-             END
-         WHERE id = $1`,
-        { bind: [user.id, MAX_FAILED_ATTEMPTS, LOCK_MINUTES] },
-      );
+      // Incremento atômico no banco; ver registrarSenhaErrada em lib/auth.ts.
+      await registrarSenhaErrada(user.id, { tentativas: MAX_FAILED_ATTEMPTS, minutos: LOCK_MINUTES });
       throw unauthorized("E-mail ou senha incorretos.", "invalid_credentials");
     }
 
@@ -84,14 +76,19 @@ export async function POST(request: Request) {
       throw forbidden("Este acesso está desativado. Fale com o responsável pela conta.", "user_disabled");
     }
 
-    const memberships = await db.query<{ organizationId: string; slug: string; name: string }>(
-      `SELECT om.organization_id AS "organizationId", o.slug, o.name
-       FROM organization_members om
-       JOIN organizations o ON o.id = om.organization_id
-       WHERE om.user_id = $1 AND om.status = 'active' AND o.status = 'active'
-       ORDER BY om.is_default DESC, om.joined_at ASC`,
-      { bind: [user.id], type: QueryTypes.SELECT },
-    );
+    const vinculos = await OrganizationMember.findAll({
+      attributes: ["organizationId"],
+      where: { userId: user.id, status: "active" },
+      include: [{ model: Organization, as: "organization", attributes: ["slug", "name"], where: { status: "active" }, required: true }],
+      order: [["isDefault", "DESC"], ["joinedAt", "ASC"]],
+      raw: true,
+      nest: true,
+    }) as unknown as { organizationId: string; organization: { slug: string; name: string } }[];
+    const memberships = vinculos.map((item) => ({
+      organizationId: item.organizationId,
+      slug: item.organization.slug,
+      name: item.organization.name,
+    }));
 
     if (!memberships.length) {
       throw forbidden("Seu usuário não está vinculado a nenhuma igreja ativa.", "no_organization");
@@ -105,9 +102,9 @@ export async function POST(request: Request) {
 
     const session = await createSession(user.id, membership.organizationId, requestMeta(request));
 
-    await db.query(
-      `UPDATE users SET last_login_at = now(), failed_login_attempts = 0, locked_until = NULL WHERE id = $1`,
-      { bind: [user.id] },
+    await User.update(
+      { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
+      { where: { id: user.id } },
     );
 
     // Limpeza oportunista: a tabela de sessões cresce para sempre e não há
