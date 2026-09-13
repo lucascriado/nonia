@@ -11,9 +11,9 @@
 // Usa os MESMOS filtros da listagem e do CSV, de lib/listings.ts. "Os
 // comprovantes do que estou vendo" deixou de depender de disciplina quando os
 // três passaram a montar o WHERE no mesmo lugar.
-import { QueryTypes } from "sequelize";
-import { db } from "@/lib/db";
+import { Op } from "sequelize";
 import { organizationId, requirePermission } from "@/lib/auth";
+import { FinancialTransaction } from "@/lib/models";
 import { nomeDeArquivo } from "@/lib/csv";
 import { csvDoFinanceiro } from "@/lib/finance-csv";
 import { filtrosDeFinanceiro } from "@/lib/listings";
@@ -66,13 +66,9 @@ export async function GET(request: Request) {
     const filtro = filtrosDeFinanceiro(searchParams, organizationId(auth), { incluirLixeira: naLixeira });
     // Lançamento sem comprovante simplesmente não entra: nada de marcador nem
     // de arquivo vazio para a pessoa decifrar.
-    const where = [...filtro.where, "attachment_url IS NOT NULL"].join(" AND ");
+    const where = { [Op.and]: [filtro, { attachmentUrl: { [Op.ne]: null } }] };
 
-    const contagem = await db.query<{ total: number }>(
-      `SELECT count(*)::int AS total FROM financial_transactions WHERE ${where}`,
-      { bind: filtro.valores, type: QueryTypes.SELECT },
-    );
-    const total = contagem[0].total;
+    const total = await FinancialTransaction.count({ where });
 
     // Zip vazio que a pessoa abre e não entende é pior que uma mensagem.
     if (total === 0) {
@@ -95,12 +91,12 @@ export async function GET(request: Request) {
     // Só os identificadores e os metadados vêm de uma vez; são leves. O anexo
     // de cada um é buscado na hora de escrever, para nunca haver mais de um
     // comprovante em memória.
-    const linhas = await db.query<Omit<Linha, "attachmentUrl">>(
-      `SELECT id, transaction_date AS "transactionDate", type, description
-       FROM financial_transactions WHERE ${where}
-       ORDER BY transaction_date, created_at`,
-      { bind: filtro.valores, type: QueryTypes.SELECT },
-    );
+    const linhas: Omit<Linha, "attachmentUrl">[] = await FinancialTransaction.findAll({
+      attributes: ["id", "transactionDate", "type", "description"],
+      where,
+      order: [["transactionDate", "ASC"], ["created_at", "ASC"]],
+      raw: true,
+    });
 
     const zip = new ZipEmFluxo();
     const usados = new Map<string, number>();
@@ -149,12 +145,12 @@ export async function GET(request: Request) {
             const linha = linhas[indice];
             indice += 1;
 
-            const anexos = await db.query<{ attachmentUrl: string }>(
-              `SELECT attachment_url AS "attachmentUrl" FROM financial_transactions
-               WHERE id = $1 AND organization_id = $2`,
-              { bind: [linha.id, organizationId(auth)], type: QueryTypes.SELECT },
-            );
-            const bytes = anexos[0]?.attachmentUrl ? anexoParaBytes(anexos[0].attachmentUrl) : null;
+            const anexo = await FinancialTransaction.findOne({
+              attributes: ["attachmentUrl"],
+              where: { id: linha.id, organizationId: organizationId(auth) },
+              raw: true,
+            });
+            const bytes = anexo?.attachmentUrl ? anexoParaBytes(anexo.attachmentUrl) : null;
             // Anexo ilegível é pulado em silêncio: melhor entregar 199 de 200
             // do que falhar o download inteiro por causa de uma linha torta.
             if (!bytes) continue;

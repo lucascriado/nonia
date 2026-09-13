@@ -1,20 +1,18 @@
-import { query } from "@/lib/db";
+import { Op, cast, col, fn } from "sequelize";
+import { mesDe } from "@/lib/datas";
 import type { Filtro, Pagina } from "@/lib/listings";
+import { Member, MemberDirectory, Ministry } from "@/lib/models";
 
 // Consultas de LEITURA de membros, num lugar só.
 //
-// Tudo aqui lê da view `member_directory` e recebe o tenant de quem chama --
-// pelo `Filtro` (cuja primeira condição é sempre `organization_id = $1`, ver
-// lib/listings.ts) ou por parâmetro explícito. Nenhuma função daqui sabe de
-// sessão nem de HTTP: permissão é da rota, regra de escrita é do service.
+// Tudo aqui lê da view `member_directory` (Model `MemberDirectory`) e recebe o
+// tenant de quem chama -- pelo `Filtro`, cuja primeira condição é sempre o
+// `organizationId` (ver lib/listings.ts), ou por parâmetro explícito. Nenhuma
+// função daqui sabe de sessão nem de HTTP: permissão é da rota, regra de
+// escrita é do service.
 
-export type ResumoDeMembros = {
-  total: number;
-  newThisMonth: number;
-  active: number;
-  baptized: number;
-  awaitingBaptism: number;
-};
+/** O `filtro` mais uma condição, sem nunca perder o tenant que ele carrega. */
+const e = (filtro: Filtro, condicao: object) => ({ [Op.and]: [filtro, condicao] });
 
 /**
  * Total e indicadores da listagem, sob o MESMO filtro dela.
@@ -35,21 +33,36 @@ export type ResumoDeMembros = {
  * quando ele mais importa.
  */
 export async function resumoDeMembros(filtro: Filtro, hoje: string) {
-  const { rows } = await query<ResumoDeMembros>(
-    `SELECT
-       count(*)::int AS total,
-       count(*) FILTER (
-         WHERE admission_date >= date_trunc('month', $${filtro.valores.length + 1}::date)::date
-           AND admission_date <  (date_trunc('month', $${filtro.valores.length + 1}::date) + interval '1 month')::date
-       )::int AS "newThisMonth",
-       count(*) FILTER (WHERE status = 'active')::int AS active,
-       count(*) FILTER (WHERE baptism_status = 'baptized')::int AS baptized,
-       count(*) FILTER (WHERE baptism_status = 'waiting')::int AS "awaitingBaptism"
-     FROM member_directory WHERE ${filtro.where.join(" AND ")}`,
-    [...filtro.valores, hoje],
-  );
-  return rows[0];
+  const mes = mesDe(hoje);
+  const [total, newThisMonth, active, baptized, awaitingBaptism] = await Promise.all([
+    MemberDirectory.count({ where: filtro }),
+    MemberDirectory.count({ where: e(filtro, { admissionDate: { [Op.gte]: mes.inicio, [Op.lt]: mes.fim } }) }),
+    MemberDirectory.count({ where: e(filtro, { status: "active" }) }),
+    MemberDirectory.count({ where: e(filtro, { baptismStatus: "baptized" }) }),
+    MemberDirectory.count({ where: e(filtro, { baptismStatus: "waiting" }) }),
+  ]);
+  return { total, newThisMonth, active, baptized, awaitingBaptism };
 }
+
+/**
+ * As colunas que a tela usa, com os nomes que o JSON sempre teve.
+ *
+ * No apelido `[coluna, nome]` a coluna é a do BANCO (`full_name`), não o
+ * atributo do Model: o Sequelize não traduz o primeiro item do par, e
+ * `["fullName", "name"]` vira `"fullName" AS "name"`, coluna que não existe.
+ */
+const COLUNAS = [
+  "id", ["full_name", "name"], "email", "phone", "birthDate",
+  "gender", ["marital_status", "civilStatus"], "cpf", "zipCode",
+  "address", "neighborhood", "city", "state", "notes", "ministry", "ministryColor",
+  "role", "status", ["baptism_status", "baptism"], "baptismDate",
+  ["admission_date", "date"], ["cell_name", "cell"],
+] as const;
+
+type Compromissos = {
+  lidera: { id: string; name: string }[];
+  ministerio: { id: string; name: string } | null;
+};
 
 /**
  * Uma página da listagem.
@@ -57,8 +70,8 @@ export async function resumoDeMembros(filtro: Filtro, hoje: string) {
  * `compromissos` -- O QUE A PESSOA JÁ ASSUMIU EM MINISTÉRIO, para o seletor de
  * pessoas do ministério pintar de cinza quem já está comprometido. É OPT-IN e
  * não campo novo em toda listagem: esta é a consulta mais pesada do sistema, e
- * dois JOINs a mais em toda abertura de /membros seriam pagos por quem nunca
- * vai abrir um seletor de ministério.
+ * as duas buscas a mais seriam pagas em toda abertura de /membros por quem
+ * nunca vai abrir um seletor de ministério.
  *
  * A RESPOSTA É ASSIMÉTRICA, e a assimetria é do SCHEMA, não do gosto de quem
  * escreveu a consulta:
@@ -76,42 +89,52 @@ export async function resumoDeMembros(filtro: Filtro, hoje: string) {
 export async function listarMembros(
   filtro: Filtro,
   { pageSize, offset }: Pagina,
-  { compromissos = false }: { compromissos?: boolean } = {},
+  { compromissos = false, organizationId }: { compromissos?: boolean; organizationId?: string } = {},
 ) {
-  const { rows } = await query(`
-    SELECT id, full_name AS name, email, phone, birth_date AS "birthDate",
-      gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
-      address, neighborhood, city, state, notes, ministry, ministry_color AS "ministryColor",
-      -- A foto NÃO vem na listagem: era base64 de até 120 KB por pessoa, e
-      -- 100 membros custavam 8,6 MB. A tela usa iniciais e busca a pessoa
-      -- por id quando precisa da foto.
-      avatar_url IS NOT NULL AS "hasPhoto",
-      role, status, baptism_status AS baptism, baptism_date AS "baptismDate",
-      admission_date AS date, cell_name AS cell
-      ${compromissos ? `,
-      -- Os ministérios que esta pessoa LIDERA. Lista, porque liderar mais de
-      -- um é permitido pelo schema.
-      COALESCE((
-        SELECT json_agg(json_build_object('id', li.id, 'name', li.name) ORDER BY li.name)
-          FROM ministries li
-         WHERE li.leader_id = member_directory.id
-           AND li.organization_id = member_directory.organization_id
-      ), '[]') AS lidera,
-      -- O ministério a que ela PERTENCE. Um, ou nenhum -- ver o bloco acima.
-      (
-        SELECT json_build_object('id', mi.id, 'name', mi.name)
-          FROM members me
-          JOIN ministries mi ON mi.id = me.ministry_id
-                            AND mi.organization_id = me.organization_id
-         WHERE me.person_id = member_directory.id
-           AND me.organization_id = member_directory.organization_id
-      ) AS ministerio` : ""}
-    FROM member_directory
-    WHERE ${filtro.where.join(" AND ")}
-    ORDER BY admission_date DESC, full_name
-    LIMIT $${filtro.valores.length + 1} OFFSET $${filtro.valores.length + 2}
-  `, [...filtro.valores, pageSize, offset]);
-  return rows;
+  const membros = await MemberDirectory.findAll({
+    attributes: [
+      ...COLUNAS.map((c) => (typeof c === "string" ? c : [...c] as [string, string])),
+      // A foto NÃO vem na listagem: era base64 de até 120 KB por pessoa, e 100
+      // membros custavam 8,6 MB. A tela usa iniciais e busca a pessoa por id
+      // quando precisa da foto.
+      [cast(fn("num_nonnulls", col("avatar_url")), "boolean"), "hasPhoto"],
+    ],
+    where: filtro,
+    order: [["admissionDate", "DESC"], ["fullName", "ASC"]],
+    limit: pageSize,
+    offset,
+    raw: true,
+  }) as unknown as Record<string, unknown>[];
+
+  if (!compromissos || !organizationId || membros.length === 0) return membros;
+
+  const ids = membros.map((m) => m.id as string);
+  const [liderados, vinculos] = await Promise.all([
+    Ministry.findAll({
+      attributes: ["id", "name", "leaderId"],
+      where: { organizationId, leaderId: ids },
+      order: [["name", "ASC"]],
+      raw: true,
+    }),
+    Member.findAll({
+      attributes: ["personId", "ministryId"],
+      where: { organizationId, personId: ids, ministryId: { [Op.ne]: null } },
+      raw: true,
+    }),
+  ]);
+  const ministerios = new Map(
+    (await Ministry.findAll({
+      attributes: ["id", "name"],
+      where: { organizationId, id: vinculos.map((v) => v.ministryId as string) },
+      raw: true,
+    })).map((m) => [m.id, { id: m.id, name: m.name }]),
+  );
+
+  return membros.map((m): Record<string, unknown> & Compromissos => ({
+    ...m,
+    lidera: liderados.filter((l) => l.leaderId === m.id).map((l) => ({ id: l.id, name: l.name })),
+    ministerio: ministerios.get(vinculos.find((v) => v.personId === m.id)?.ministryId ?? "") ?? null,
+  }));
 }
 
 /**
@@ -120,32 +143,29 @@ export async function listarMembros(
  * mandaria a foto vazia. `null` quando não existe NESTA organização.
  */
 export async function buscarMembro(id: string, organizationId: string) {
-  const { rows } = await query(`
-    SELECT id, full_name AS name, email, phone, birth_date AS "birthDate",
-      gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
-      address, neighborhood, city, state, avatar_url AS "photoDataUrl", notes,
-      ministry, ministry_color AS "ministryColor", role, status,
-      baptism_status AS baptism, baptism_date AS "baptismDate",
-      admission_date AS date, cell_name AS cell
-    FROM member_directory WHERE id = $1 AND organization_id = $2
-  `, [id, organizationId]);
-  return rows[0] ?? null;
+  return MemberDirectory.findOne({
+    attributes: [
+      ...COLUNAS.map((c) => (typeof c === "string" ? c : [...c] as [string, string])),
+      ["avatar_url", "photoDataUrl"],
+    ],
+    where: { id, organizationId },
+    raw: true,
+  });
 }
 
 /**
  * Tudo o que casa com o filtro, para o CSV. NÃO pagina, de propósito: a
- * exportação leva tudo. Colunas cruas, sem alias -- quem traduz para o
- * cabeçalho em português é a rota de exportação.
+ * exportação leva tudo.
  */
 export async function membrosParaExportar(filtro: Filtro) {
-  const { rows } = await query<Record<string, string | null>>(
-    `SELECT full_name, email, phone, birth_date, gender, marital_status, cpf, zip_code,
-            address, neighborhood, city, state, ministry, cell_name, role, status,
-            baptism_status, baptism_date, admission_date, notes
-     FROM member_directory
-     WHERE ${filtro.where.join(" AND ")}
-     ORDER BY full_name`,
-    filtro.valores,
-  );
-  return rows;
+  return MemberDirectory.findAll({
+    attributes: [
+      "fullName", "email", "phone", "birthDate", "gender", "maritalStatus", "cpf", "zipCode",
+      "address", "neighborhood", "city", "state", "ministry", "cellName", "role", "status",
+      "baptismStatus", "baptismDate", "admissionDate", "notes",
+    ],
+    where: filtro,
+    order: [["fullName", "ASC"]],
+    raw: true,
+  });
 }

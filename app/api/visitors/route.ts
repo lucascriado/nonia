@@ -1,7 +1,8 @@
-import { db, query } from "@/lib/db";
+import { Op, cast, col, fn } from "sequelize";
+import { db } from "@/lib/db";
 import { addActivity } from "@/lib/activities";
 import { organizationId, requirePermission } from "@/lib/auth";
-import { Person, Visitor } from "@/lib/models";
+import { Person, Visitor, VisitorDirectory } from "@/lib/models";
 import { readJson } from "@/lib/http";
 import { apiError, personAttributes, RecordPayload, validateRecordPayload } from "@/lib/records";
 import { filtrosDeVisitantes, paginacao } from "@/lib/listings";
@@ -18,10 +19,10 @@ export async function GET(request: Request) {
     // Ver o comentário em /api/members: filtra no servidor e só então pagina.
     const filtro = filtrosDeVisitantes(searchParams, organizationId(auth), auth.organization.timezone);
     const { page, pageSize, offset } = paginacao(searchParams);
-    const where = filtro.where.join(" AND ");
+    const e = (condicao: object) => ({ [Op.and]: [filtro, condicao] });
 
-    // Indicadores na mesma consulta e sob o mesmo filtro do total -- ver o
-    // comentário em /api/members.
+    // Indicadores sob o mesmo filtro do total -- ver o comentário em
+    // lib/members/queries.ts.
     //
     // Os três particionam o conjunto: primeira visita + intermediários +
     // marcados como membro somam sempre o total. Isso vale porque converter um
@@ -29,32 +30,30 @@ export async function GET(request: Request) {
     // exclusão que dá o sentido de `markedAsMember`: são as pessoas com a etapa
     // "Membro" que CONTINUAM na lista de visitantes, ou seja, as que ninguém
     // converteu. Não é "quantos viraram membros" -- esses não estão mais aqui.
-    const contagem = await query<{
-      total: number; firstVisit: number; integrating: number; markedAsMember: number;
-    }>(
-      `SELECT
-         count(*)::int AS total,
-         count(*) FILTER (WHERE membership_stage = 'visited')::int AS "firstVisit",
-         count(*) FILTER (WHERE membership_stage NOT IN ('visited', 'member'))::int AS integrating,
-         count(*) FILTER (WHERE membership_stage = 'member')::int AS "markedAsMember"
-       FROM visitor_directory WHERE ${where}`,
-      filtro.valores,
-    );
+    const [total, firstVisit, integrating, markedAsMember] = await Promise.all([
+      VisitorDirectory.count({ where: filtro }),
+      VisitorDirectory.count({ where: e({ membershipStage: "visited" }) }),
+      VisitorDirectory.count({ where: e({ membershipStage: { [Op.notIn]: ["visited", "member"] } }) }),
+      VisitorDirectory.count({ where: e({ membershipStage: "member" }) }),
+    ]);
 
-    const { rows } = await query(`
-      SELECT id, full_name AS name, email, phone, birth_date AS "birthDate",
-        gender, marital_status AS "civilStatus", cpf, zip_code AS "zipCode",
-        address, neighborhood, city, state, notes, visit_date AS date,
-        avatar_url IS NOT NULL AS "hasPhoto",
-        invited_by AS "invitedBy", membership_stage AS "membershipStage"
-      FROM visitor_directory
-      WHERE ${where}
-      ORDER BY visit_date DESC, full_name
-      LIMIT $${filtro.valores.length + 1} OFFSET $${filtro.valores.length + 2}
-    `, [...filtro.valores, pageSize, offset]);
+    const records = await VisitorDirectory.findAll({
+      attributes: [
+        "id", ["full_name", "name"], "email", "phone", "birthDate",
+        "gender", ["marital_status", "civilStatus"], "cpf", "zipCode",
+        "address", "neighborhood", "city", "state", "notes", ["visit_date", "date"],
+        [cast(fn("num_nonnulls", col("avatar_url")), "boolean"), "hasPhoto"],
+        "invitedBy", "membershipStage",
+      ],
+      where: filtro,
+      order: [["visitDate", "DESC"], ["fullName", "ASC"]],
+      limit: pageSize,
+      offset,
+      raw: true,
+    });
 
-    const { total, ...summary } = contagem.rows[0];
-    return Response.json({ records: rows, total, page, pageSize, summary });
+    const summary = { firstVisit, integrating, markedAsMember };
+    return Response.json({ records, total, page, pageSize, summary });
   } catch (error) {
     return apiError(error);
   }

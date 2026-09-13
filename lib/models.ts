@@ -46,6 +46,8 @@ export class Ministry extends Model<InferAttributes<Ministry>, InferCreationAttr
   declare organizationId: string;
   declare name: string;
   declare color: string;
+  declare description: string | null;
+  declare leaderId: string | null;
 }
 
 Ministry.init({
@@ -53,6 +55,9 @@ Ministry.init({
   organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
   name: { type: DataTypes.STRING(80), allowNull: false },
   color: { type: DataTypes.STRING(20), allowNull: false },
+  description: DataTypes.TEXT,
+  // Aponta para `people`, sem UNIQUE: a mesma pessoa lidera quantos quiser.
+  leaderId: { type: DataTypes.UUID, field: "leader_id" },
 }, { sequelize: db, tableName: "ministries", createdAt: "created_at", updatedAt: "updated_at" });
 
 export class Member extends Model<InferAttributes<Member>, InferCreationAttributes<Member>> {
@@ -129,9 +134,9 @@ Activity.init({
 
 export class FinancialTransaction extends Model<InferAttributes<FinancialTransaction>, InferCreationAttributes<FinancialTransaction>> {
   declare id: CreationOptional<string>;
-  // Exclusão lógica explícita, e não o modo `paranoid` do Sequelize: as
-  // listagens e os relatórios são SQL cru, então o filtro precisa estar
-  // visível na consulta em vez de acontecer por mágica só nos Models.
+  // Exclusão lógica explícita, e não o modo `paranoid` do Sequelize: o filtro
+  // de lixeira precisa estar VISÍVEL na consulta (lib/listings.ts), em vez de
+  // acontecer por mágica -- a lixeira é justamente a consulta que quer os excluídos.
   declare deletedAt: Date | null;
   declare deletedBy: string | null;
   declare organizationId: string;
@@ -220,6 +225,7 @@ export class Organization extends Model<InferAttributes<Organization>, InferCrea
   declare phone: string | null;
   declare status: CreationOptional<string>;
   declare timezone: CreationOptional<string>;
+  declare settings: CreationOptional<object>;
 }
 
 Organization.init({
@@ -231,6 +237,7 @@ Organization.init({
   phone: DataTypes.STRING(30),
   status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "active" },
   timezone: { type: DataTypes.STRING(60), allowNull: false, defaultValue: "America/Sao_Paulo" },
+  settings: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
 }, { sequelize: db, tableName: "organizations", createdAt: "created_at", updatedAt: "updated_at" });
 
 export class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
@@ -366,6 +373,7 @@ export class Plan extends Model<InferAttributes<Plan>, InferCreationAttributes<P
   declare trialDays: CreationOptional<number>;
   declare maxUsers: number | null;
   declare maxMembers: number | null;
+  declare features: CreationOptional<object>;
   declare isActive: CreationOptional<boolean>;
   declare sortOrder: CreationOptional<number>;
 }
@@ -381,6 +389,7 @@ Plan.init({
   trialDays: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 0, field: "trial_days" },
   maxUsers: { type: DataTypes.INTEGER, field: "max_users" },
   maxMembers: { type: DataTypes.INTEGER, field: "max_members" },
+  features: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
   isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: "is_active" },
   sortOrder: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 0, field: "sort_order" },
 }, { sequelize: db, tableName: "plans", createdAt: "created_at", updatedAt: "updated_at" });
@@ -401,6 +410,7 @@ export class Subscription extends Model<InferAttributes<Subscription>, InferCrea
   declare provider: string | null;
   declare providerCustomerId: string | null;
   declare providerSubscriptionId: string | null;
+  declare metadata: CreationOptional<object>;
 }
 
 Subscription.init({
@@ -418,6 +428,7 @@ Subscription.init({
   provider: DataTypes.STRING(30),
   providerCustomerId: { type: DataTypes.STRING(120), field: "provider_customer_id" },
   providerSubscriptionId: { type: DataTypes.STRING(120), field: "provider_subscription_id" },
+  metadata: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
 }, { sequelize: db, tableName: "subscriptions", createdAt: "created_at", updatedAt: "updated_at" });
 
 export class SubscriptionPayment extends Model<InferAttributes<SubscriptionPayment>, InferCreationAttributes<SubscriptionPayment>> {
@@ -438,6 +449,8 @@ export class SubscriptionPayment extends Model<InferAttributes<SubscriptionPayme
   declare providerPaymentId: string | null;
   declare externalReference: string | null;
   declare checkoutUrl: string | null;
+  // O QR e o copia-e-cola do Pix moram aqui (ver "Mercado Pago" no CLAUDE.md).
+  declare payload: CreationOptional<object>;
 }
 
 SubscriptionPayment.init({
@@ -458,6 +471,7 @@ SubscriptionPayment.init({
   providerPaymentId: { type: DataTypes.STRING(120), field: "provider_payment_id" },
   externalReference: { type: DataTypes.STRING(120), field: "external_reference" },
   checkoutUrl: { type: DataTypes.TEXT, field: "checkout_url" },
+  payload: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
 }, { sequelize: db, tableName: "subscription_payments", createdAt: "created_at", updatedAt: "updated_at" });
 
 // ---------------------------------------------------------------------------
@@ -848,10 +862,15 @@ type PessoaDaView = {
   state: string | null; avatarUrl: string | null; notes: string | null; createdAt: Date; updatedAt: Date;
 };
 
-export class MemberDirectory extends Model<PessoaDaView & {
+type MembroDaView = PessoaDaView & {
   ministry: string | null; ministryColor: string | null; role: string; status: string;
   baptismStatus: string; baptismDate: string | null; admissionDate: string; isNew: boolean; cellName: string;
-}> {}
+};
+
+// A interface de mesmo nome põe os campos tipados na instância -- é o papel
+// que os `declare` cumprem nos Models de tabela.
+export interface MemberDirectory extends MembroDaView {}
+export class MemberDirectory extends Model<MembroDaView> {}
 
 MemberDirectory.init({
   ...colunasDaPessoa,
@@ -866,9 +885,12 @@ MemberDirectory.init({
   cellName: { type: DataTypes.STRING(120), field: "cell_name" },
 }, { sequelize: db, tableName: "member_directory", timestamps: false });
 
-export class VisitorDirectory extends Model<PessoaDaView & {
+type VisitanteDaView = PessoaDaView & {
   visitDate: string; invitedBy: string; followUpStatus: string; isRecent: boolean; membershipStage: string;
-}> {}
+};
+
+export interface VisitorDirectory extends VisitanteDaView {}
+export class VisitorDirectory extends Model<VisitanteDaView> {}
 
 VisitorDirectory.init({
   ...colunasDaPessoa,
@@ -878,3 +900,82 @@ VisitorDirectory.init({
   isRecent: { type: DataTypes.BOOLEAN, field: "is_recent" },
   membershipStage: { type: DataTypes.STRING(30), field: "membership_stage" },
 }, { sequelize: db, tableName: "visitor_directory", timestamps: false });
+
+// ---------------------------------------------------------------------------
+// Associações.
+//
+// SÓ para `include`. Todas com `constraints: false`: quem garante a integridade
+// é o banco, com FK composta `(id, organization_id)` desde a 006 -- o Sequelize
+// nunca cria nem altera constraint aqui (e não há `sync` no projeto).
+//
+// A associação conhece UMA coluna, não o par com o tenant. Por isso todo
+// `include` de tabela de domínio leva `where: { organizationId }` também: a
+// FK composta é o backstop, não o filtro.
+// ---------------------------------------------------------------------------
+
+const semConstraint = { constraints: false } as const;
+
+Member.belongsTo(Person, { ...semConstraint, foreignKey: "personId", as: "person" });
+Person.hasOne(Member, { ...semConstraint, foreignKey: "personId", as: "member" });
+Member.belongsTo(Ministry, { ...semConstraint, foreignKey: "ministryId", as: "ministryRecord" });
+Ministry.hasMany(Member, { ...semConstraint, foreignKey: "ministryId", as: "members" });
+
+Visitor.belongsTo(Person, { ...semConstraint, foreignKey: "personId", as: "person" });
+Person.hasOne(Visitor, { ...semConstraint, foreignKey: "personId", as: "visitor" });
+
+Ministry.belongsTo(Person, { ...semConstraint, foreignKey: "leaderId", as: "leader" });
+Cell.belongsTo(Person, { ...semConstraint, foreignKey: "leaderId", as: "leader" });
+
+Cell.hasMany(CellMember, { ...semConstraint, foreignKey: "cellId", as: "memberships" });
+CellMember.belongsTo(Cell, { ...semConstraint, foreignKey: "cellId", as: "cell" });
+CellMember.belongsTo(Member, { ...semConstraint, foreignKey: "memberId", targetKey: "personId", as: "member" });
+
+Event.hasMany(EventResponsible, { ...semConstraint, foreignKey: "eventId", as: "responsibles" });
+EventResponsible.belongsTo(Event, { ...semConstraint, foreignKey: "eventId", as: "event" });
+EventResponsible.belongsTo(Person, { ...semConstraint, foreignKey: "personId", as: "person" });
+
+Ministry.hasMany(MinistryAttendanceSession, { ...semConstraint, foreignKey: "ministryId", as: "attendanceSessions" });
+MinistryAttendanceSession.belongsTo(Ministry, { ...semConstraint, foreignKey: "ministryId", as: "ministry" });
+MinistryAttendanceSession.hasMany(MinistryAttendanceRecord, { ...semConstraint, foreignKey: "sessionId", as: "records" });
+MinistryAttendanceRecord.belongsTo(MinistryAttendanceSession, { ...semConstraint, foreignKey: "sessionId", as: "session" });
+MinistryAttendanceRecord.belongsTo(Member, { ...semConstraint, foreignKey: "memberId", targetKey: "personId", as: "member" });
+
+FinancialTransaction.hasMany(FinancialTransactionPayment, { ...semConstraint, foreignKey: "transactionId", as: "payments" });
+FinancialTransactionPayment.belongsTo(FinancialTransaction, { ...semConstraint, foreignKey: "transactionId", as: "transaction" });
+FinancialTransaction.belongsTo(User, { ...semConstraint, foreignKey: "deletedBy", as: "deletedByUser" });
+
+Activity.belongsTo(User, { ...semConstraint, foreignKey: "actorUserId", as: "actorUser" });
+
+User.hasMany(OrganizationMember, { ...semConstraint, foreignKey: "userId", as: "memberships" });
+OrganizationMember.belongsTo(User, { ...semConstraint, foreignKey: "userId", as: "user" });
+OrganizationMember.belongsTo(Organization, { ...semConstraint, foreignKey: "organizationId", as: "organization" });
+OrganizationMember.belongsTo(Role, { ...semConstraint, foreignKey: "roleId", as: "role" });
+OrganizationMember.belongsTo(Person, { ...semConstraint, foreignKey: "personId", as: "person" });
+Organization.hasMany(OrganizationMember, { ...semConstraint, foreignKey: "organizationId", as: "memberships" });
+
+Role.hasMany(RolePermission, { ...semConstraint, foreignKey: "roleId", as: "rolePermissions" });
+RolePermission.belongsTo(Role, { ...semConstraint, foreignKey: "roleId", as: "role" });
+RolePermission.belongsTo(Permission, { ...semConstraint, foreignKey: "permissionSlug", targetKey: "slug", as: "permission" });
+
+Session.belongsTo(User, { ...semConstraint, foreignKey: "userId", as: "user" });
+Session.belongsTo(Organization, { ...semConstraint, foreignKey: "organizationId", as: "organization" });
+
+Invitation.belongsTo(Organization, { ...semConstraint, foreignKey: "organizationId", as: "organization" });
+Invitation.belongsTo(Role, { ...semConstraint, foreignKey: "roleId", as: "role" });
+Invitation.belongsTo(User, { ...semConstraint, foreignKey: "invitedBy", as: "inviter" });
+
+Subscription.belongsTo(Plan, { ...semConstraint, foreignKey: "planId", as: "plan" });
+Subscription.belongsTo(Organization, { ...semConstraint, foreignKey: "organizationId", as: "organization" });
+Organization.hasMany(Subscription, { ...semConstraint, foreignKey: "organizationId", as: "subscriptions" });
+SubscriptionPayment.belongsTo(Subscription, { ...semConstraint, foreignKey: "subscriptionId", as: "subscription" });
+
+Organization.hasOne(OrganizationWhatsapp, { ...semConstraint, foreignKey: "organizationId", as: "whatsapp" });
+OrganizationWhatsapp.belongsTo(Organization, { ...semConstraint, foreignKey: "organizationId", as: "organization" });
+
+WhatsappConversation.hasMany(WhatsappMessage, { ...semConstraint, foreignKey: "conversationId", as: "messages" });
+WhatsappMessage.belongsTo(WhatsappConversation, { ...semConstraint, foreignKey: "conversationId", as: "conversation" });
+WhatsappConversation.belongsTo(Person, { ...semConstraint, foreignKey: "personId", as: "person" });
+
+WhatsappBroadcast.hasMany(WhatsappBroadcastRecipient, { ...semConstraint, foreignKey: "broadcastId", as: "recipients" });
+WhatsappBroadcastRecipient.belongsTo(WhatsappBroadcast, { ...semConstraint, foreignKey: "broadcastId", as: "broadcast" });
+WhatsappBroadcastRecipient.belongsTo(Person, { ...semConstraint, foreignKey: "personId", as: "person" });

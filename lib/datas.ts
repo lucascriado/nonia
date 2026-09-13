@@ -103,6 +103,19 @@ export function somarDias(data: string, dias: number): string {
 }
 
 /**
+ * O mês de uma data 'YYYY-MM-DD', como intervalo semiaberto [início, fim).
+ *
+ * `fim` é o dia 1º do mês SEGUINTE, e a comparação é `< fim`: assim o último
+ * dia do mês entra sem ninguém precisar saber se o mês tem 28, 30 ou 31 dias.
+ */
+export function mesDe(data: string): { inicio: string; fim: string } {
+  const d = comoUtc(data);
+  const inicio = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+  const fim = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+  return { inicio: formatarUtc(inicio), fim: formatarUtc(fim) };
+}
+
+/**
  * O próximo domingo a partir de hoje NA IGREJA -- e hoje, se hoje já é domingo.
  *
  * É a data que a chamada de ministério sugere. O domingo é o dia de reunião da

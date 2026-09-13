@@ -1,8 +1,9 @@
-import { hojeNoFuso } from "@/lib/datas";
+import { Op, col, fn, where, type WhereOptions } from "sequelize";
+import { hojeNoFuso, somarDias } from "@/lib/datas";
 
 // Filtros e paginação das listagens.
 //
-// Fonte ÚNICA dos filtros: a listagem e a exportação montam o WHERE a partir
+// Fonte ÚNICA dos filtros: a listagem e a exportação montam o `where` a partir
 // daqui. Antes cada uma tinha o seu, e "exportar o que estou vendo" só era
 // verdade enquanto ninguém mexesse em um dos dois lados. Com um lugar só, não
 // há como divergirem.
@@ -10,8 +11,12 @@ import { hojeNoFuso } from "@/lib/datas";
 // Os nomes dos parâmetros são os mesmos do estado das telas, e as listas
 // aceitam tanto o rótulo em português ("Ativo") quanto o valor do banco
 // ("active") -- assim o frontend manda o que já tem, sem tabela de tradução.
+//
+// O filtro é um `where` do Sequelize, e a PRIMEIRA condição é sempre o tenant.
+// Quem acrescenta condição faz `{ [Op.and]: [filtro, { ... }] }` -- nunca
+// substitui o objeto, ou o tenant vai junto.
 
-export type Filtro = { where: string[]; valores: unknown[] };
+export type Filtro = WhereOptions;
 
 export type Pagina = { page: number; pageSize: number; offset: number };
 
@@ -31,27 +36,38 @@ const normalizar = (valor: string | null, mapa: Record<string, string>) => {
   return mapa[chave] ?? mapa[chave.toLowerCase()] ?? chave;
 };
 
-/** Acrescenta uma condição com o próximo $n, se o valor existir. */
-function condicao(f: Filtro, valor: unknown, molde: (n: number) => string) {
-  if (valor === null || valor === undefined || valor === "") return;
-  f.valores.push(valor);
-  f.where.push(molde(f.valores.length));
-}
+/** Valor de um seletor da tela, ou null quando é "todos". */
+const escolhido = (valor: string | null) => (valor && valor !== "all" ? valor : null);
+
+/** Busca livre: as colunas concatenadas, sem diferenciar maiúscula. */
+const busca = (params: URLSearchParams, ...colunas: string[]) => {
+  const termo = params.get("search")?.trim();
+  if (!termo) return null;
+  return where(fn("concat_ws", " ", ...colunas.map((c) => col(c))), { [Op.iLike]: `%${termo}%` });
+};
+
+/** Junta as condições presentes, com o tenant na frente. */
+const juntar = (organizationId: string, ...condicoes: (WhereOptions | null)[]): Filtro => ({
+  [Op.and]: [{ organizationId }, ...condicoes.filter((c): c is WhereOptions => c !== null)],
+});
 
 const STATUS_MEMBRO = { Ativo: "active", Inativo: "inactive", active: "active", inactive: "inactive" };
 const BATISMO = { Batizado: "baptized", Aguardando: "waiting", baptized: "baptized", waiting: "waiting" };
 const TIPO = { Entrada: "income", "Saída": "expense", income: "income", expense: "expense" };
 const STATUS_LANC = { Pago: "paid", Pendente: "pending", paid: "paid", pending: "pending" };
 
+/** Sobre `MemberDirectory`. */
 export function filtrosDeMembros(params: URLSearchParams, organizationId: string): Filtro {
-  const f: Filtro = { where: ["organization_id = $1"], valores: [organizationId] };
-  const busca = params.get("search")?.trim();
-  condicao(f, busca ? `%${busca}%` : null, (n) => `concat_ws(' ', full_name, email, cell_name) ILIKE $${n}`);
-  const ministerio = params.get("ministry");
-  condicao(f, ministerio && ministerio !== "all" ? ministerio : null, (n) => `ministry = $${n}`);
-  condicao(f, normalizar(params.get("status"), STATUS_MEMBRO), (n) => `status = $${n}`);
-  condicao(f, normalizar(params.get("baptism"), BATISMO), (n) => `baptism_status = $${n}`);
-  return f;
+  const ministerio = escolhido(params.get("ministry"));
+  const status = normalizar(params.get("status"), STATUS_MEMBRO);
+  const batismo = normalizar(params.get("baptism"), BATISMO);
+  return juntar(
+    organizationId,
+    busca(params, "full_name", "email", "cell_name"),
+    ministerio ? { ministry: ministerio } : null,
+    status ? { status } : null,
+    batismo ? { baptismStatus: batismo } : null,
+  );
 }
 
 /**
@@ -68,10 +84,8 @@ export function filtrosDeMembros(params: URLSearchParams, organizationId: string
  */
 export const DIAS_VISITA_RECENTE = 14;
 
+/** Sobre `VisitorDirectory`. */
 export function filtrosDeVisitantes(params: URLSearchParams, organizationId: string, fuso: string | null | undefined): Filtro {
-  const f: Filtro = { where: ["organization_id = $1"], valores: [organizationId] };
-  const busca = params.get("search")?.trim();
-  condicao(f, busca ? `%${busca}%` : null, (n) => `concat_ws(' ', full_name, email, invited_by) ILIKE $${n}`);
   // As abas da tela: "Recentes" é a data da visita, e qualquer outra que não
   // seja "Todos" é a primeira visita.
   //
@@ -79,41 +93,47 @@ export function filtrosDeVisitantes(params: URLSearchParams, organizationId: str
   // convide: ela nasce true e nada nunca a limpa, então todo visitante
   // cadastrado pelo app seria "recente" para sempre e a aba viraria uma
   // segunda "Todos" com o uso. Mesma doença do `is_new` nos indicadores.
-  const aba = params.get("tab");
   //
-  // A JANELA CONTINUA SENDO DE 14 DIAS -- só o "hoje" de onde ela é contada
-  // mudou. Era CURRENT_DATE, que segue o fuso da SESSÃO do Postgres (UTC nos
-  // nossos bancos): das 21h à meia-noite em Brasília a janela já tinha virado
-  // o dia, e um visitante de exatamente 14 dias atrás saía da aba cedo demais.
-  // Agora o corte parte do dia de hoje NA IGREJA.
+  // A JANELA É CONTADA A PARTIR DE HOJE NA IGREJA. Era CURRENT_DATE, que segue
+  // o fuso da SESSÃO do Postgres (UTC nos nossos bancos): das 21h à meia-noite
+  // em Brasília a janela já tinha virado o dia, e um visitante de exatamente
+  // 14 dias atrás saía da aba cedo demais.
+  const aba = params.get("tab");
+  let porAba: WhereOptions | null = null;
   if (aba === "Recentes") {
-    f.valores.push(hojeNoFuso(fuso));
-    f.where.push(`visit_date >= $${f.valores.length}::date - interval '${DIAS_VISITA_RECENTE} days'`);
+    porAba = { visitDate: { [Op.gte]: somarDias(hojeNoFuso(fuso), -DIAS_VISITA_RECENTE) } };
+  } else if (aba && aba !== "Todos" && aba !== "all") {
+    porAba = { membershipStage: "visited" };
   }
-  else if (aba && aba !== "Todos" && aba !== "all") f.where.push("membership_stage = 'visited'");
-  const convidou = params.get("invitedBy");
-  condicao(f, convidou && convidou !== "all" ? convidou : null, (n) => `invited_by = $${n}`);
-  return f;
+  const convidou = escolhido(params.get("invitedBy"));
+  return juntar(
+    organizationId,
+    busca(params, "full_name", "email", "invited_by"),
+    porAba,
+    convidou ? { invitedBy: convidou } : null,
+  );
 }
 
+/** Sobre `FinancialTransaction`. */
 export function filtrosDeFinanceiro(
   params: URLSearchParams,
   organizationId: string,
   opcoes: { incluirLixeira?: boolean } = {},
 ): Filtro {
-  const f: Filtro = { where: ["organization_id = $1"], valores: [organizationId] };
-
-  // Excluído nunca aparece por acidente: quem quer a lixeira pede por ela.
-  f.where.push(opcoes.incluirLixeira ? "deleted_at IS NOT NULL" : "deleted_at IS NULL");
-
-  const busca = params.get("search")?.trim();
-  condicao(f, busca ? `%${busca}%` : null, (n) => `concat_ws(' ', description, counterparty) ILIKE $${n}`);
-  condicao(f, normalizar(params.get("type"), TIPO), (n) => `type = $${n}`);
-  condicao(f, normalizar(params.get("status"), STATUS_LANC), (n) => `status = $${n}`);
-  const categoria = params.get("category");
-  condicao(f, categoria && categoria !== "all" ? categoria : null, (n) => `category = $${n}`);
+  const tipo = normalizar(params.get("type"), TIPO);
+  const status = normalizar(params.get("status"), STATUS_LANC);
+  const categoria = escolhido(params.get("category"));
   const anexo = params.get("attachment");
-  if (anexo === "with") f.where.push("attachment_url IS NOT NULL");
-  else if (anexo === "without") f.where.push("attachment_url IS NULL");
-  return f;
+  return juntar(
+    organizationId,
+    // Excluído nunca aparece por acidente: quem quer a lixeira pede por ela.
+    { deletedAt: opcoes.incluirLixeira ? { [Op.ne]: null } : null },
+    busca(params, "description", "counterparty"),
+    tipo ? { type: tipo } : null,
+    status ? { status } : null,
+    categoria ? { category: categoria } : null,
+    anexo === "with" ? { attachmentUrl: { [Op.ne]: null } }
+      : anexo === "without" ? { attachmentUrl: null }
+      : null,
+  );
 }

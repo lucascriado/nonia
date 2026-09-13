@@ -3,6 +3,21 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   devIndicators: false,
+  /**
+   * O SEQUELIZE NÃO PODE SER EMPACOTADO: tem que existir UMA cópia só.
+   *
+   * Empacotado, cada rota do `next dev` leva a sua cópia, mas a conexão (`db`,
+   * em lib/db.ts) é uma só, guardada em `globalThis`. O Sequelize reconhece as
+   * próprias peças por `instanceof` -- os Models, e as expressões `fn`/`col`/
+   * `cast` --, e peça de uma cópia não é reconhecida pela outra. Sintoma medido
+   * em 12/09/2026: `attr[0].includes is not a function` num `cast`, e `order`
+   * por atributo virando `"MemberDirectory"."admissionDate"`, coluna que não
+   * existe. O `typecheck` e o `build` não veem nada disso.
+   *
+   * Fora do bundle, quem carrega é o `require` do Node, que tem um cache só. É
+   * o mesmo tratamento que o Next já dá por padrão ao `pg`.
+   */
+  serverExternalPackages: ["sequelize"],
   experimental: {
     /**
      * O LIMITE DE CORPO EXISTE PORQUE ESTE PROJETO TEM `proxy.ts`, e o padrão

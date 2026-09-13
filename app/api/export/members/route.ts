@@ -29,13 +29,13 @@ export async function GET(request: Request) {
        "Endereço", "Bairro", "Cidade", "Estado", "Ministério", "Célula", "Função", "Status",
        "Batismo", "Data de batismo", "Data de admissão", "Observações"],
       rows.map((r) => [
-        texto(r.full_name), texto(r.email), texto(r.phone), texto(dataBR(r.birth_date)),
-        texto(r.gender), texto(r.marital_status), texto(r.cpf), texto(r.zip_code),
+        texto(r.fullName), texto(r.email), texto(r.phone), texto(dataBR(r.birthDate)),
+        texto(r.gender), texto(r.maritalStatus), texto(r.cpf), texto(r.zipCode),
         texto(r.address), texto(r.neighborhood), texto(r.city), texto(r.state),
-        texto(r.ministry), texto(r.cell_name), texto(r.role),
+        texto(r.ministry), texto(r.cellName), texto(r.role),
         texto(r.status === "active" ? "Ativo" : "Inativo"),
-        texto(r.baptism_status === "baptized" ? "Batizado" : "Aguardando"),
-        texto(dataBR(r.baptism_date)), texto(dataBR(r.admission_date)), texto(r.notes),
+        texto(r.baptismStatus === "baptized" ? "Batizado" : "Aguardando"),
+        texto(dataBR(r.baptismDate)), texto(dataBR(r.admissionDate)), texto(r.notes),
       ]),
     );
 

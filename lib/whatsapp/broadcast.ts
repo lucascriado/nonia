@@ -1,6 +1,7 @@
 import { query } from "@/lib/db";
 import { badRequest } from "@/lib/http";
 import { filtrosDeMembros, filtrosDeVisitantes } from "@/lib/listings";
+import { MemberDirectory, VisitorDirectory } from "@/lib/models";
 import * as openwa from "./openwa";
 import { Conexao } from "./connection";
 
@@ -94,13 +95,16 @@ export async function candidatos(
   const filtro = publico === "members"
     ? filtrosDeMembros(params, organizationId)
     : filtrosDeVisitantes(params, organizationId, fuso);
-  const { rows } = await query<{ id: string; name: string; phone: string | null }>(
-    `SELECT id, full_name AS name, phone FROM ${viewDe(publico)}
-      WHERE ${filtro.where.join(" AND ")}
-      ORDER BY full_name
-      LIMIT ${TETO_POR_ENVIO + 1}`,
-    filtro.valores,
-  );
+  const opcoes = {
+    attributes: ["id", ["full_name", "name"], "phone"] as (string | [string, string])[],
+    where: filtro,
+    order: [["fullName", "ASC"]] as [string, string][],
+    limit: TETO_POR_ENVIO + 1,
+    raw: true,
+  };
+  const rows = (publico === "members"
+    ? await MemberDirectory.findAll(opcoes)
+    : await VisitorDirectory.findAll(opcoes)) as unknown as { id: string; name: string; phone: string | null }[];
   return marcar(rows);
 }
 
