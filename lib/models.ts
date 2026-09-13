@@ -459,3 +459,422 @@ SubscriptionPayment.init({
   externalReference: { type: DataTypes.STRING(120), field: "external_reference" },
   checkoutUrl: { type: DataTypes.TEXT, field: "checkout_url" },
 }, { sequelize: db, tableName: "subscription_payments", createdAt: "created_at", updatedAt: "updated_at" });
+
+// ---------------------------------------------------------------------------
+// Células, eventos e presença dos ministérios.
+// ---------------------------------------------------------------------------
+
+export class Cell extends Model<InferAttributes<Cell>, InferCreationAttributes<Cell>> {
+  declare id: CreationOptional<string>;
+  declare organizationId: string;
+  declare name: string;
+  declare leaderId: string | null;
+  declare address: string | null;
+  declare meetingDay: CreationOptional<string>;
+  declare meetingTime: CreationOptional<string>;
+  declare color: CreationOptional<string>;
+  declare notes: string | null;
+}
+
+Cell.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  name: { type: DataTypes.STRING(120), allowNull: false },
+  leaderId: { type: DataTypes.UUID, field: "leader_id" },
+  address: DataTypes.STRING(200),
+  meetingDay: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "Domingo", field: "meeting_day" },
+  meetingTime: { type: DataTypes.TIME, allowNull: false, defaultValue: "19:30:00", field: "meeting_time" },
+  color: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "purple" },
+  notes: DataTypes.TEXT,
+}, { sequelize: db, tableName: "cells", createdAt: "created_at", updatedAt: "updated_at" });
+
+/** `member_id` aponta para `members.person_id`, e é UNIQUE: uma célula por membro. */
+export class CellMember extends Model<InferAttributes<CellMember>, InferCreationAttributes<CellMember>> {
+  declare cellId: string;
+  declare memberId: string;
+  declare organizationId: string;
+  declare joinedAt: CreationOptional<string>;
+}
+
+CellMember.init({
+  cellId: { type: DataTypes.UUID, primaryKey: true, field: "cell_id" },
+  memberId: { type: DataTypes.UUID, primaryKey: true, field: "member_id" },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  // Fica com o DEFAULT CURRENT_DATE do banco, por decisão: escrita pelo
+  // default e nunca lida. Ver "cell_members.joined_at" no CLAUDE.md.
+  joinedAt: { type: DataTypes.DATEONLY, field: "joined_at" },
+}, { sequelize: db, tableName: "cell_members", timestamps: false });
+
+export class Event extends Model<InferAttributes<Event>, InferCreationAttributes<Event>> {
+  declare id: CreationOptional<string>;
+  declare organizationId: string;
+  declare title: string;
+  declare description: string | null;
+  declare location: string;
+  declare startsAt: Date;
+  declare endsAt: Date | null;
+  declare category: CreationOptional<string>;
+  declare color: CreationOptional<string>;
+}
+
+Event.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  title: { type: DataTypes.STRING(160), allowNull: false },
+  description: DataTypes.TEXT,
+  location: { type: DataTypes.STRING(160), allowNull: false },
+  startsAt: { type: DataTypes.DATE, allowNull: false, field: "starts_at" },
+  endsAt: { type: DataTypes.DATE, field: "ends_at" },
+  category: { type: DataTypes.STRING(30), allowNull: false, defaultValue: "calendar" },
+  color: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "purple" },
+}, { sequelize: db, tableName: "events", createdAt: "created_at", updatedAt: "updated_at" });
+
+/** Responsável do evento: aponta para `people`, não para `members` (migration 022). */
+export class EventResponsible extends Model<InferAttributes<EventResponsible>, InferCreationAttributes<EventResponsible>> {
+  declare eventId: string;
+  declare personId: string;
+  declare organizationId: string;
+}
+
+EventResponsible.init({
+  eventId: { type: DataTypes.UUID, primaryKey: true, field: "event_id" },
+  personId: { type: DataTypes.UUID, primaryKey: true, field: "person_id" },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+}, { sequelize: db, tableName: "event_responsibles", createdAt: "created_at", updatedAt: false });
+
+export class MinistryAttendanceSession extends Model<
+  InferAttributes<MinistryAttendanceSession>,
+  InferCreationAttributes<MinistryAttendanceSession>
+> {
+  declare id: CreationOptional<string>;
+  declare organizationId: string;
+  declare ministryId: string;
+  declare meetingDate: string;
+  declare title: CreationOptional<string>;
+}
+
+MinistryAttendanceSession.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  ministryId: { type: DataTypes.UUID, allowNull: false, field: "ministry_id" },
+  meetingDate: { type: DataTypes.DATEONLY, allowNull: false, field: "meeting_date" },
+  title: { type: DataTypes.STRING(120), allowNull: false, defaultValue: "Escola Bíblica Dominical" },
+}, { sequelize: db, tableName: "ministry_attendance_sessions", createdAt: "created_at", updatedAt: "updated_at" });
+
+/** `member_id` aponta para `members.person_id`. */
+export class MinistryAttendanceRecord extends Model<
+  InferAttributes<MinistryAttendanceRecord>,
+  InferCreationAttributes<MinistryAttendanceRecord>
+> {
+  declare sessionId: string;
+  declare memberId: string;
+  declare organizationId: string;
+  declare present: CreationOptional<boolean>;
+  declare notes: string | null;
+}
+
+MinistryAttendanceRecord.init({
+  sessionId: { type: DataTypes.UUID, primaryKey: true, field: "session_id" },
+  memberId: { type: DataTypes.UUID, primaryKey: true, field: "member_id" },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  present: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  notes: DataTypes.TEXT,
+}, { sequelize: db, tableName: "ministry_attendance_records", createdAt: false, updatedAt: "updated_at" });
+
+// ---------------------------------------------------------------------------
+// RBAC e eventos de cobrança.
+// ---------------------------------------------------------------------------
+
+export class Permission extends Model<InferAttributes<Permission>, InferCreationAttributes<Permission>> {
+  declare slug: string;
+  declare resource: string;
+  declare action: string;
+  declare description: string;
+}
+
+Permission.init({
+  slug: { type: DataTypes.STRING(60), primaryKey: true },
+  resource: { type: DataTypes.STRING(40), allowNull: false },
+  action: { type: DataTypes.STRING(20), allowNull: false },
+  description: { type: DataTypes.STRING(160), allowNull: false },
+}, { sequelize: db, tableName: "permissions", timestamps: false });
+
+export class RolePermission extends Model<InferAttributes<RolePermission>, InferCreationAttributes<RolePermission>> {
+  declare roleId: string;
+  declare permissionSlug: string;
+}
+
+RolePermission.init({
+  roleId: { type: DataTypes.UUID, primaryKey: true, field: "role_id" },
+  permissionSlug: { type: DataTypes.STRING(60), primaryKey: true, field: "permission_slug" },
+}, { sequelize: db, tableName: "role_permissions", timestamps: false });
+
+export class BillingEvent extends Model<InferAttributes<BillingEvent>, InferCreationAttributes<BillingEvent>> {
+  declare id: CreationOptional<string>;
+  declare provider: string;
+  declare providerEventId: string | null;
+  declare type: string;
+  declare organizationId: string | null;
+  declare paymentId: string | null;
+  declare payload: CreationOptional<object>;
+  declare receivedAt: CreationOptional<Date>;
+  declare processedAt: Date | null;
+  declare error: string | null;
+}
+
+BillingEvent.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  provider: { type: DataTypes.STRING(30), allowNull: false },
+  providerEventId: { type: DataTypes.STRING(160), field: "provider_event_id" },
+  type: { type: DataTypes.STRING(60), allowNull: false },
+  organizationId: { type: DataTypes.UUID, field: "organization_id" },
+  paymentId: { type: DataTypes.UUID, field: "payment_id" },
+  payload: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
+  receivedAt: { type: DataTypes.DATE, allowNull: false, field: "received_at", defaultValue: () => new Date() },
+  processedAt: { type: DataTypes.DATE, field: "processed_at" },
+  error: DataTypes.TEXT,
+}, { sequelize: db, tableName: "billing_events", timestamps: false });
+
+// ---------------------------------------------------------------------------
+// WhatsApp.
+// ---------------------------------------------------------------------------
+
+export class OrganizationWhatsapp extends Model<InferAttributes<OrganizationWhatsapp>, InferCreationAttributes<OrganizationWhatsapp>> {
+  declare organizationId: string;
+  declare sessionId: string;
+  declare sessionName: string;
+  declare apiKeyId: string | null;
+  declare apiKeyEncrypted: string;
+  declare apiKeyPrefix: string | null;
+  declare status: CreationOptional<string>;
+  declare phone: string | null;
+  declare pushName: string | null;
+  declare connectedAt: Date | null;
+  declare lastCheckedAt: Date | null;
+  declare chatsSyncedAt: Date | null;
+  declare chatsKnown: CreationOptional<number>;
+}
+
+OrganizationWhatsapp.init({
+  organizationId: { type: DataTypes.UUID, primaryKey: true, field: "organization_id" },
+  sessionId: { type: DataTypes.STRING(64), allowNull: false, field: "session_id" },
+  sessionName: { type: DataTypes.STRING(100), allowNull: false, field: "session_name" },
+  apiKeyId: { type: DataTypes.STRING(64), field: "api_key_id" },
+  apiKeyEncrypted: { type: DataTypes.TEXT, allowNull: false, field: "api_key_encrypted" },
+  apiKeyPrefix: { type: DataTypes.STRING(12), field: "api_key_prefix" },
+  status: { type: DataTypes.STRING(30), allowNull: false, defaultValue: "created" },
+  phone: DataTypes.STRING(20),
+  pushName: { type: DataTypes.STRING(100), field: "push_name" },
+  connectedAt: { type: DataTypes.DATE, field: "connected_at" },
+  lastCheckedAt: { type: DataTypes.DATE, field: "last_checked_at" },
+  chatsSyncedAt: { type: DataTypes.DATE, field: "chats_synced_at" },
+  chatsKnown: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: "chats_known" },
+}, { sequelize: db, tableName: "organization_whatsapp", createdAt: "created_at", updatedAt: "updated_at" });
+
+export class WhatsappContact extends Model<InferAttributes<WhatsappContact>, InferCreationAttributes<WhatsappContact>> {
+  declare organizationId: string;
+  declare waId: string;
+  declare name: string | null;
+  declare lookedUpAt: CreationOptional<Date>;
+  // URL, e não bytes: a foto do WhatsApp não é nossa e a URL expira (018).
+  declare avatarUrl: string | null;
+  declare avatarCheckedAt: Date | null;
+}
+
+WhatsappContact.init({
+  organizationId: { type: DataTypes.UUID, primaryKey: true, field: "organization_id" },
+  waId: { type: DataTypes.STRING(80), primaryKey: true, field: "wa_id" },
+  name: DataTypes.STRING(160),
+  lookedUpAt: { type: DataTypes.DATE, allowNull: false, field: "looked_up_at", defaultValue: () => new Date() },
+  avatarUrl: { type: DataTypes.TEXT, field: "avatar_url" },
+  avatarCheckedAt: { type: DataTypes.DATE, field: "avatar_checked_at" },
+}, { sequelize: db, tableName: "whatsapp_contacts", createdAt: false, updatedAt: "updated_at" });
+
+export class WhatsappConversation extends Model<InferAttributes<WhatsappConversation>, InferCreationAttributes<WhatsappConversation>> {
+  declare id: CreationOptional<string>;
+  declare organizationId: string;
+  declare chatId: string;
+  declare kind: CreationOptional<string>;
+  declare waName: string | null;
+  declare phone: string | null;
+  declare personId: string | null;
+  declare lastMessageAt: Date | null;
+  declare lastMessagePreview: string | null;
+  declare unreadCount: CreationOptional<number>;
+  declare syncCursor: string | null;
+  declare syncedAt: Date | null;
+  declare phoneLookupAt: Date | null;
+}
+
+WhatsappConversation.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  chatId: { type: DataTypes.STRING(80), allowNull: false, field: "chat_id" },
+  kind: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "individual" },
+  waName: { type: DataTypes.STRING(160), field: "wa_name" },
+  phone: DataTypes.STRING(40),
+  personId: { type: DataTypes.UUID, field: "person_id" },
+  lastMessageAt: { type: DataTypes.DATE, field: "last_message_at" },
+  lastMessagePreview: { type: DataTypes.STRING(300), field: "last_message_preview" },
+  unreadCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: "unread_count" },
+  syncCursor: { type: DataTypes.STRING(190), field: "sync_cursor" },
+  syncedAt: { type: DataTypes.DATE, field: "synced_at" },
+  phoneLookupAt: { type: DataTypes.DATE, field: "phone_lookup_at" },
+}, { sequelize: db, tableName: "whatsapp_conversations", createdAt: "created_at", updatedAt: "updated_at" });
+
+export class WhatsappMessage extends Model<InferAttributes<WhatsappMessage>, InferCreationAttributes<WhatsappMessage>> {
+  declare id: CreationOptional<string>;
+  declare conversationId: string;
+  declare organizationId: string;
+  declare waMessageId: string;
+  declare fromMe: CreationOptional<boolean>;
+  declare author: string | null;
+  declare authorName: string | null;
+  declare type: CreationOptional<string>;
+  declare body: string | null;
+  declare sentAt: Date;
+  declare quotedWaMessageId: string | null;
+  declare mediaMimetype: string | null;
+  declare mediaFilename: string | null;
+}
+
+WhatsappMessage.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  conversationId: { type: DataTypes.UUID, allowNull: false, field: "conversation_id" },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  waMessageId: { type: DataTypes.STRING(190), allowNull: false, field: "wa_message_id" },
+  fromMe: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: "from_me" },
+  author: DataTypes.STRING(80),
+  authorName: { type: DataTypes.STRING(160), field: "author_name" },
+  type: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "text" },
+  body: DataTypes.TEXT,
+  sentAt: { type: DataTypes.DATE, allowNull: false, field: "sent_at" },
+  quotedWaMessageId: { type: DataTypes.STRING(190), field: "quoted_wa_message_id" },
+  mediaMimetype: { type: DataTypes.STRING(120), field: "media_mimetype" },
+  mediaFilename: { type: DataTypes.STRING(255), field: "media_filename" },
+}, { sequelize: db, tableName: "whatsapp_messages", createdAt: "created_at", updatedAt: false });
+
+export class WhatsappBroadcast extends Model<InferAttributes<WhatsappBroadcast>, InferCreationAttributes<WhatsappBroadcast>> {
+  declare id: CreationOptional<string>;
+  declare organizationId: string;
+  declare createdBy: string | null;
+  declare message: string;
+  declare audience: string;
+  declare filters: CreationOptional<object>;
+  declare status: CreationOptional<string>;
+  declare total: CreationOptional<number>;
+  declare startedAt: Date | null;
+  declare finishedAt: Date | null;
+}
+
+WhatsappBroadcast.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  createdBy: { type: DataTypes.UUID, field: "created_by" },
+  message: { type: DataTypes.TEXT, allowNull: false },
+  audience: { type: DataTypes.STRING(20), allowNull: false },
+  filters: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
+  status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "pending" },
+  total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  startedAt: { type: DataTypes.DATE, field: "started_at" },
+  finishedAt: { type: DataTypes.DATE, field: "finished_at" },
+}, { sequelize: db, tableName: "whatsapp_broadcasts", createdAt: "created_at", updatedAt: "updated_at" });
+
+export class WhatsappBroadcastRecipient extends Model<
+  InferAttributes<WhatsappBroadcastRecipient>,
+  InferCreationAttributes<WhatsappBroadcastRecipient>
+> {
+  declare id: CreationOptional<string>;
+  declare broadcastId: string;
+  declare organizationId: string;
+  declare personId: string | null;
+  declare name: string;
+  declare phone: string | null;
+  declare chatId: string | null;
+  declare status: CreationOptional<string>;
+  declare waBatchId: string | null;
+  declare waMessageId: string | null;
+  declare errorCode: string | null;
+  declare errorMessage: string | null;
+  declare sentAt: Date | null;
+}
+
+WhatsappBroadcastRecipient.init({
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: () => randomUUID() },
+  broadcastId: { type: DataTypes.UUID, allowNull: false, field: "broadcast_id" },
+  organizationId: { type: DataTypes.UUID, allowNull: false, field: "organization_id" },
+  personId: { type: DataTypes.UUID, field: "person_id" },
+  name: { type: DataTypes.STRING(160), allowNull: false },
+  phone: DataTypes.STRING(40),
+  chatId: { type: DataTypes.STRING(80), field: "chat_id" },
+  status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "pending" },
+  waBatchId: { type: DataTypes.STRING(80), field: "wa_batch_id" },
+  waMessageId: { type: DataTypes.STRING(190), field: "wa_message_id" },
+  errorCode: { type: DataTypes.STRING(60), field: "error_code" },
+  errorMessage: { type: DataTypes.STRING(300), field: "error_message" },
+  sentAt: { type: DataTypes.DATE, field: "sent_at" },
+}, { sequelize: db, tableName: "whatsapp_broadcast_recipients", createdAt: "created_at", updatedAt: false });
+
+// ---------------------------------------------------------------------------
+// Views de leitura (migration 002). SÓ LEITURA: nunca create/update/destroy.
+// Não têm PK no banco; `id` é marcado como tal só porque o Sequelize exige.
+// ---------------------------------------------------------------------------
+
+const colunasDaPessoa = {
+  id: { type: DataTypes.UUID, primaryKey: true },
+  organizationId: { type: DataTypes.UUID, field: "organization_id" },
+  fullName: { type: DataTypes.STRING(160), field: "full_name" },
+  email: DataTypes.STRING(254),
+  phone: DataTypes.STRING(30),
+  birthDate: { type: DataTypes.DATEONLY, field: "birth_date" },
+  gender: DataTypes.STRING(30),
+  maritalStatus: { type: DataTypes.STRING(30), field: "marital_status" },
+  cpf: DataTypes.STRING(14),
+  zipCode: { type: DataTypes.STRING(9), field: "zip_code" },
+  address: DataTypes.STRING(200),
+  neighborhood: DataTypes.STRING(100),
+  city: DataTypes.STRING(100),
+  state: DataTypes.STRING(80),
+  avatarUrl: { type: DataTypes.TEXT, field: "avatar_url" },
+  notes: DataTypes.TEXT,
+  createdAt: { type: DataTypes.DATE, field: "created_at" },
+  updatedAt: { type: DataTypes.DATE, field: "updated_at" },
+};
+
+type PessoaDaView = {
+  id: string; organizationId: string; fullName: string; email: string | null; phone: string | null;
+  birthDate: string | null; gender: string | null; maritalStatus: string | null; cpf: string | null;
+  zipCode: string | null; address: string | null; neighborhood: string | null; city: string | null;
+  state: string | null; avatarUrl: string | null; notes: string | null; createdAt: Date; updatedAt: Date;
+};
+
+export class MemberDirectory extends Model<PessoaDaView & {
+  ministry: string | null; ministryColor: string | null; role: string; status: string;
+  baptismStatus: string; baptismDate: string | null; admissionDate: string; isNew: boolean; cellName: string;
+}> {}
+
+MemberDirectory.init({
+  ...colunasDaPessoa,
+  ministry: DataTypes.STRING,
+  ministryColor: { type: DataTypes.STRING, field: "ministry_color" },
+  role: DataTypes.STRING(80),
+  status: DataTypes.STRING(20),
+  baptismStatus: { type: DataTypes.STRING(20), field: "baptism_status" },
+  baptismDate: { type: DataTypes.DATEONLY, field: "baptism_date" },
+  admissionDate: { type: DataTypes.DATEONLY, field: "admission_date" },
+  isNew: { type: DataTypes.BOOLEAN, field: "is_new" },
+  cellName: { type: DataTypes.STRING(120), field: "cell_name" },
+}, { sequelize: db, tableName: "member_directory", timestamps: false });
+
+export class VisitorDirectory extends Model<PessoaDaView & {
+  visitDate: string; invitedBy: string; followUpStatus: string; isRecent: boolean; membershipStage: string;
+}> {}
+
+VisitorDirectory.init({
+  ...colunasDaPessoa,
+  visitDate: { type: DataTypes.DATEONLY, field: "visit_date" },
+  invitedBy: { type: DataTypes.STRING(160), field: "invited_by" },
+  followUpStatus: { type: DataTypes.STRING(30), field: "follow_up_status" },
+  isRecent: { type: DataTypes.BOOLEAN, field: "is_recent" },
+  membershipStage: { type: DataTypes.STRING(30), field: "membership_stage" },
+}, { sequelize: db, tableName: "visitor_directory", timestamps: false });
